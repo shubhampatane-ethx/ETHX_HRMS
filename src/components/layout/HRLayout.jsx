@@ -54,11 +54,11 @@ function titleFor(pathname) {
 export function HRLayout() {
   const { pathname } = useLocation();
   return (
-    <div className="flex bg-[var(--color-bg)]">
+    <div className="flex h-screen overflow-hidden bg-[var(--color-bg)]">
       <Sidebar title="HR Workspace" items={NAV} />
-      <div className="flex-1">
+      <div className="flex min-w-0 flex-1 flex-col">
         <Topbar roleLabel="HR" pageTitle={titleFor(pathname)} />
-        <main className="p-6">
+        <main className="flex-1 overflow-y-auto p-6">
           <Outlet />
         </main>
       </div>

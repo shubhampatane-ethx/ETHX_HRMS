@@ -5,7 +5,7 @@ export function Topbar({ roleLabel, pageTitle }) {
   const { user, logout } = useAuth();
 
   return (
-    <header className="flex h-16 items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-bg)] px-6">
+    <header className="flex h-16 shrink-0 items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-bg)] px-6">
       <h1 className="text-[15px] font-semibold text-[var(--color-text)]">{pageTitle}</h1>
 
       <div className="flex items-center gap-4">

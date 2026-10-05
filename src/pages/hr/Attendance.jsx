@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CalendarCheck, Edit3, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { frappe } from "../../lib/api/frappeClient";
 import { HrRecordForm } from "../../components/hr/HrRecordForm";
-import { Button, Card, Table } from "../../components/ui/primitives";
+import { Button, Card } from "../../components/ui/primitives";
 
 const FIELDS = [
   { name: "employee", label: "Employee", type: "link", linkDoctype: "Employee", required: true },
@@ -13,21 +13,135 @@ const FIELDS = [
   { name: "leave_type", label: "Leave type", type: "link", linkDoctype: "Leave Type" },
 ];
 
+const STATUSES = ["Present", "Absent", "On Leave", "Half Day", "Work From Home"];
+const STATUS_SHORT = { Present: "P", Absent: "A", "On Leave": "L", "Half Day": "HD", "Work From Home": "WFH" };
+const STATUS_COLOR = {
+  Present: "text-[var(--color-green)]",
+  Absent: "text-[var(--color-red-hover)]",
+  "On Leave": "text-[var(--color-amber)]",
+  "Half Day": "text-[var(--color-amber)]",
+  "Work From Home": "text-[var(--color-text)]",
+};
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+// "2026-09-29" -> { year: 2026, month: 8 (0-based), label: "29 Sep, Tue" } (no timezone shifts)
+function parseDate(iso = "") {
+  const [y, m, d] = iso.split("-").map(Number);
+  const wd = WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+  return { year: y, month: m - 1, label: `${String(d).padStart(2, "0")} ${MONTHS[m - 1]}, ${wd}` };
+}
+
+const chip = (active) =>
+  `shrink-0 rounded-md border px-2.5 py-1 text-[12px] transition-colors ${active ? "border-[var(--color-red)] bg-[var(--color-red-wash)] text-[var(--color-text)]" : "border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"}`;
+
 export default function Attendance() {
   const [rows, setRows] = useState([]);
   const [state, setState] = useState("loading");
   const [editing, setEditing] = useState(null);
   const [formOpen, setFormOpen] = useState(false);
+  const [activeEmployee, setActiveEmployee] = useState(null);
+  const [yearSel, setYearSel] = useState(null);
+  const [monthSel, setMonthSel] = useState(null); // null = latest month with data, "all" = whole year
+
   async function load() {
     setState("loading");
-    try { setRows(await frappe.getList("Attendance", { fields: ["name", "employee_name", "employee", "attendance_date", "status", "company"], limit: 100, orderBy: "attendance_date desc" })); setState("ready"); } catch { setRows([]); setState("error"); }
+    try {
+      // limit: 0 -> fetch ALL attendance records so every month/year is complete
+      setRows(await frappe.getList("Attendance", { fields: ["name", "employee_name", "employee", "attendance_date", "status", "company"], limit: 0, orderBy: "attendance_date desc" }));
+      setState("ready");
+    } catch { setRows([]); setState("error"); }
   }
   useEffect(() => { load(); }, []);
-  async function remove(row) { if (!window.confirm(`Delete attendance for ${row.employee_name || row.employee || row.name}?`)) return; try { await frappe.deleteDoc("Attendance", row.name); load(); } catch (error) { window.alert(error?.response?.data?.exception || "ERPNext could not delete this attendance record."); } }
+
+  // One group (tab) per employee, records newest first
+  const employees = useMemo(() => {
+    const map = new Map();
+    for (const row of rows) {
+      const id = row.employee || row.name;
+      if (!map.has(id)) map.set(id, { id, label: row.employee_name || row.employee || row.name, records: [] });
+      map.get(id).records.push({ ...row, ...parseDate(row.attendance_date) });
+    }
+    return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
+  }, [rows]);
+
+  const current = employees.find((e) => e.id === activeEmployee) || employees[0];
+
+  const years = useMemo(() => Array.from(new Set((current?.records || []).map((r) => r.year))).sort((a, b) => b - a), [current]);
+  const year = years.includes(yearSel) ? yearSel : years[0];
+
+  const yearRecords = useMemo(() => (current?.records || []).filter((r) => r.year === year), [current, year]);
+  const monthCounts = useMemo(() => {
+    const c = Array(12).fill(0);
+    for (const r of yearRecords) c[r.month]++;
+    return c;
+  }, [yearRecords]);
+  const latestMonth = monthCounts.reduce((acc, n, i) => (n ? Math.max(acc, i) : acc), 0);
+  const month = monthSel === "all" ? "all" : monthSel !== null && monthCounts[monthSel] ? monthSel : latestMonth;
+
+  const visible = month === "all" ? yearRecords : yearRecords.filter((r) => r.month === month);
+  const summary = useMemo(() => {
+    const counts = {};
+    for (const r of visible) counts[r.status] = (counts[r.status] || 0) + 1;
+    return counts;
+  }, [visible]);
+
+  async function remove(row) { if (!window.confirm(`Delete attendance for ${row.employee_name || row.employee || row.name} on ${row.attendance_date}?`)) return; try { await frappe.deleteDoc("Attendance", row.name); load(); } catch (error) { window.alert(error?.response?.data?.exception || "ERPNext could not delete this attendance record."); } }
   function closeForm() { setFormOpen(false); setEditing(null); }
-  return <div className="space-y-5">
-    <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-6 py-5"><div className="flex flex-wrap items-start justify-between gap-4"><div><div className="mb-2 flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--color-red-hover)]"><CalendarCheck size={14} /> Workforce tracking</div><h2 className="text-lg font-semibold text-[var(--color-text)]">Attendance</h2><p className="mt-1 text-[13px] text-[var(--color-text-muted)]">Mark and maintain daily attendance in ERPNext.</p></div><div className="flex gap-2"><Button variant="secondary" onClick={load} disabled={state === "loading"}><RefreshCw size={14} /> Refresh</Button><Button onClick={() => { setEditing(null); setFormOpen(true); }}><Plus size={14} /> Mark attendance</Button></div></div></section>
+  function pickEmployee(id) { setActiveEmployee(id); setYearSel(null); setMonthSel(null); }
+
+  return <div className="space-y-4">
+    <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4"><div className="flex flex-wrap items-center justify-between gap-4"><div><div className="mb-1 flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--color-red-hover)]"><CalendarCheck size={14} /> Workforce tracking</div><h2 className="text-base font-semibold text-[var(--color-text)]">Attendance</h2></div><div className="flex gap-2"><Button variant="secondary" onClick={load} disabled={state === "loading"}><RefreshCw size={14} /> Refresh</Button><Button onClick={() => { setEditing(null); setFormOpen(true); }}><Plus size={14} /> Mark attendance</Button></div></div></section>
     {formOpen && <HrRecordForm doctype="Attendance" fields={FIELDS} recordName={editing} onCancel={closeForm} onSaved={() => { closeForm(); load(); }} />}
-    <Card className="overflow-hidden">{state === "loading" && <div className="flex h-40 items-center justify-center text-[13px] text-[var(--color-text-muted)]">Loading attendance...</div>}{state === "error" && <div className="p-6 text-[13px] text-[var(--color-text-muted)]">Could not load Attendance records. Check ERPNext permissions and connectivity.</div>}{state === "ready" && <Table columns={[{ key: "employee_name", label: "Employee", render: (row) => row.employee_name || row.employee || row.name }, { key: "attendance_date", label: "Date" }, { key: "status", label: "Status" }, { key: "company", label: "Company" }, { key: "_actions", label: "", render: (row) => <div className="flex justify-end gap-1"><button type="button" title="Edit attendance" onClick={() => { setEditing(row.name); setFormOpen(true); }} className="rounded p-1.5 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]"><Edit3 size={14} /></button><button type="button" title="Delete attendance" onClick={() => remove(row)} className="rounded p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-red-hover)]"><Trash2 size={14} /></button></div> }]} rows={rows} emptyLabel="No attendance records found." />}</Card>
+
+    {state === "loading" && <Card><div className="flex h-32 items-center justify-center text-[13px] text-[var(--color-text-muted)]">Loading attendance...</div></Card>}
+    {state === "error" && <Card><div className="p-6 text-[13px] text-[var(--color-text-muted)]">Could not load Attendance records. Check ERPNext permissions and connectivity.</div></Card>}
+    {state === "ready" && employees.length === 0 && <Card><div className="flex h-32 items-center justify-center text-[13px] text-[var(--color-text-muted)]">No attendance records found.</div></Card>}
+
+    {state === "ready" && current && <>
+      {/* Employee tabs */}
+      <div role="tablist" aria-label="Employees" className="flex gap-1 overflow-x-auto border-b border-[var(--color-border)]">
+        {employees.map((emp) => {
+          const active = emp.id === current.id;
+          return <button key={emp.id} role="tab" aria-selected={active} type="button" onClick={() => pickEmployee(emp.id)}
+            className={`-mb-px flex shrink-0 items-center gap-2 border-b-2 px-3.5 py-2 text-[13px] font-medium transition-colors ${active ? "border-[var(--color-red)] text-[var(--color-text)]" : "border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text)]"}`}>
+            {emp.label}
+            <span className="rounded-full bg-[var(--color-surface-2)] px-1.5 py-0.5 text-[10px] text-[var(--color-text-muted)]">{emp.records.length}</span>
+          </button>;
+        })}
+      </div>
+
+      {/* Year + month filter and totals on compact rows */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <select value={year} onChange={(e) => { setYearSel(Number(e.target.value)); setMonthSel(null); }} aria-label="Year"
+          className="rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-2.5 py-1 text-[12px] text-[var(--color-text)] outline-none focus:border-[var(--color-red)]">
+          {years.map((y) => <option key={y} value={y}>{y}</option>)}
+        </select>
+        <div className="flex gap-1 overflow-x-auto">
+          {MONTHS.map((m, i) => <button key={m} type="button" disabled={!monthCounts[i]} onClick={() => setMonthSel(i)} className={`${chip(month === i)} disabled:opacity-30 disabled:pointer-events-none`}>{m}{monthCounts[i] ? <span className="ml-1 text-[10px] text-[var(--color-text-faint)]">{monthCounts[i]}</span> : null}</button>)}
+          <button type="button" onClick={() => setMonthSel("all")} className={chip(month === "all")}>Whole year</button>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-1.5 text-[11px]">
+        <span className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-0.5 text-[var(--color-text)]">Total {visible.length}</span>
+        {STATUSES.filter((s) => summary[s]).map((s) => <span key={s} className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-0.5 text-[var(--color-text-muted)]">{s} {summary[s]}</span>)}
+      </div>
+
+      {/* Compact records for the selected employee / period */}
+      <Card className="overflow-hidden">
+        {visible.length === 0 ? <div className="flex h-24 items-center justify-center text-[13px] text-[var(--color-text-muted)]">No attendance records found.</div> :
+        <table className="w-full text-left text-[12px]">
+          <thead><tr className="border-b border-[var(--color-border)] text-[var(--color-text-muted)]"><th className="px-3 py-1.5 font-medium">Date</th><th className="px-3 py-1.5 font-medium">Status</th><th className="px-3 py-1.5 font-medium">Company</th><th className="w-16 px-3 py-1.5" /></tr></thead>
+          <tbody>
+            {visible.map((row) => <tr key={row.name} className="border-b border-[var(--color-border)] last:border-0 hover:bg-[var(--color-surface-2)]">
+              <td className="px-3 py-1 text-[var(--color-text)]">{month === "all" ? `${row.label}` : row.label}</td>
+              <td className={`px-3 py-1 font-medium ${STATUS_COLOR[row.status] || "text-[var(--color-text)]"}`} title={row.status}>{STATUS_SHORT[row.status] ? `${STATUS_SHORT[row.status]} · ` : ""}{row.status}</td>
+              <td className="px-3 py-1 text-[var(--color-text-muted)]">{row.company}</td>
+              <td className="px-3 py-1"><div className="flex justify-end gap-0.5"><button type="button" title="Edit attendance" onClick={() => { setEditing(row.name); setFormOpen(true); }} className="rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]"><Edit3 size={13} /></button><button type="button" title="Delete attendance" onClick={() => remove(row)} className="rounded p-1 text-[var(--color-text-muted)] hover:text-[var(--color-red-hover)]"><Trash2 size={13} /></button></div></td>
+            </tr>)}
+          </tbody>
+        </table>}
+      </Card>
+    </>}
   </div>;
 }

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Loader2, X } from "lucide-react";
 import { frappe } from "../../lib/api/frappeClient";
-import { Button, Card, Input, LinkField } from "../ui/primitives";
+import { Button, Card, DateField, Input, LinkField } from "../ui/primitives";
 
 export function HrRecordForm({ doctype, fields, recordName, onCancel, onSaved }) {
   const [values, setValues] = useState({});
@@ -103,6 +103,9 @@ export function HrRecordForm({ doctype, fields, recordName, onCancel, onSaved })
 function Field({ field, value, onChange }) {
   if (field.type === "link") {
     return <LinkField label={field.label} linkDoctype={field.linkDoctype} value={value} onChange={onChange} required={field.required} frappe={frappe} />;
+  }
+  if (field.type === "date") {
+    return <DateField label={field.label} value={value} onChange={onChange} required={field.required} />;
   }
   if (field.type === "select") {
     return (
