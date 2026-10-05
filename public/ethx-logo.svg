@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1240 350" role="img" aria-labelledby="title desc">
+  <title id="title">ETHX Softcon</title>
+  <desc id="desc">ETHX Softcon logo</desc>
+  <g transform="translate(94 45)">
+    <path fill="#f21d29" d="M0 0h306c-28 22-45 43-57 61H84c-9 0-16 7-16 16s7 16 16 16h142l-45 51H84c-9 0-16 7-16 16s7 16 16 16h70l-51 63H0z"/>
+    <path fill="#ffffff" d="M360 0h284l-40 57c-8 11-22 17-36 17H263c15-29 35-53 57-74zm-98 82h285c37 0 68 30 68 68v77c0 38-31 68-68 68H146l39-60c7-11 19-17 32-17h297c10 0 18-8 18-18s-8-18-18-18H303z"/>
+    <path fill="#ffffff" d="M671 0h9v247h-9z"/>
+    <text x="708" y="125" fill="#ffffff" font-family="Georgia, serif" font-size="115" letter-spacing="2">ETHX</text>
+    <path fill="#ffffff" d="M708 181h145v8H708z"/>
+    <text x="870" y="213" fill="#ffffff" font-family="Georgia, serif" font-size="74">Softcon</text>
+  </g>
+</svg>
