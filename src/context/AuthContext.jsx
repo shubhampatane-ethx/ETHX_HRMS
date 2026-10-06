@@ -8,6 +8,7 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null); // { email, roles, permissions }
   const [status, setStatus] = useState("loading"); // loading | authenticated | guest
 
+  // Resolves with the signed-in user ({ email, roles, permissions }) or null for guests.
   const loadSession = useCallback(async () => {
     setStatus("loading");
     try {
@@ -15,14 +16,17 @@ export function AuthProvider({ children }) {
       if (!email || email === "Guest") {
         setUser(null);
         setStatus("guest");
-        return;
+        return null;
       }
       const roles = effectiveRolesForUser(email);
-      setUser({ email, roles, permissions: rolesToPermissions(roles) });
+      const nextUser = { email, roles, permissions: rolesToPermissions(roles) };
+      setUser(nextUser);
       setStatus("authenticated");
+      return nextUser;
     } catch {
       setUser(null);
       setStatus("guest");
+      return null;
     }
   }, []);
 
@@ -39,7 +43,7 @@ export function AuthProvider({ children }) {
   const login = useCallback(
     async (usr, pwd) => {
       await frappe.login(usr, pwd);
-      await loadSession();
+      return loadSession();
     },
     [loadSession]
   );
@@ -61,4 +65,4 @@ export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
-}
+} 
