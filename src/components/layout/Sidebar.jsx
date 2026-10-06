@@ -41,8 +41,15 @@ export function Sidebar({ title, items }) {
   );
 }
 
-function GroupItem({ group, pathname }) {
-  const containsActive = group.children.some((c) => pathname === c.to || pathname.startsWith(`${c.to}/`));
+/** True when the current route belongs to this link or anywhere inside this group (any depth). */
+function hasActive(item, pathname) {
+  if (item.children) return item.children.some((c) => hasActive(c, pathname));
+  return pathname === item.to || pathname.startsWith(`${item.to}/`);
+}
+
+/** Collapsible group. Children can be links or further groups, so menus can nest (e.g. Settings > Leaves > ...). */
+function GroupItem({ group, pathname, nested = false }) {
+  const containsActive = hasActive(group, pathname);
   const [open, setOpen] = useState(containsActive);
 
   return (
@@ -50,14 +57,16 @@ function GroupItem({ group, pathname }) {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
         className={[
-          "flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-[13px] transition-colors",
+          "flex w-full items-center gap-2.5 rounded-md px-3 py-2 transition-colors",
+          nested ? "text-[12.5px]" : "text-[13px]",
           containsActive
             ? "text-[var(--color-text)]"
             : "text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]",
         ].join(" ")}
       >
-        {group.icon && <group.icon size={15} strokeWidth={1.75} />}
+        {group.icon && <group.icon size={nested ? 14 : 15} strokeWidth={1.75} />}
         <span className="flex-1 text-left">{group.label}</span>
         <ChevronDown
           size={13}
@@ -67,11 +76,15 @@ function GroupItem({ group, pathname }) {
       </button>
       {open && (
         <ul className="mt-0.5 space-y-0.5 border-l border-[var(--color-border)] pl-3.5">
-          {group.children.map((child) => (
-            <li key={child.to}>
-              <NavLeaf to={child.to} label={child.label} small />
-            </li>
-          ))}
+          {group.children.map((child) =>
+            child.children ? (
+              <GroupItem key={child.label} group={child} pathname={pathname} nested />
+            ) : (
+              <li key={child.to}>
+                <NavLeaf to={child.to} label={child.label} small />
+              </li>
+            )
+          )}
         </ul>
       )}
     </li>

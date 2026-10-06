@@ -10,6 +10,7 @@ import {
   TrendingUp,
   GraduationCap,
   FileBarChart,
+  Settings as SettingsIcon,
 } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
@@ -28,16 +29,17 @@ const TOP_NAV = [
   { to: "/hr/reports", label: "Reports", icon: FileBarChart },
 ];
 
-/** Every master/setting/report becomes its own real sidebar link, grouped for readability. */
+/** Every master/setting/report is still its own real link, but they all live under one "Settings" menu. */
 const SETUP_GROUPS = HR_SETUP_SECTIONS.map((section) => ({
-  label: section.title,
+  // the config already has a group called "Settings"; rename it so it doesn't read "Settings > Settings"
+  label: section.title === "Settings" ? "HR & Payroll Settings" : section.title,
   icon: section.icon,
   children: section.items
     .filter((item) => !item.disabled)
     .map((item) => ({ to: `/hr/setup/${slugify(item.doctype)}`, label: item.label })),
 }));
 
-const NAV = [...TOP_NAV, ...SETUP_GROUPS];
+const NAV = [...TOP_NAV, { label: "Settings", icon: SettingsIcon, children: SETUP_GROUPS }];
 
 /** Longest-prefix match across both top-level links and grouped children, for the topbar title. */
 function titleFor(pathname) {
