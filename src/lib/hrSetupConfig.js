@@ -36,6 +36,7 @@ export const HR_SETUP_SECTIONS = [
         label: "Company",
         doctype: "Company",
         kind: "list",
+        adminOnly: true, // companies are set up by the Administrator (Platform Admin > Organization), not by HR
         formFields: [
           { name: "company_name", label: "Company Name", type: "text", required: true },
           { name: "abbr", label: "Abbreviation", type: "text", required: true },

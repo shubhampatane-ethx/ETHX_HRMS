@@ -1,11 +1,11 @@
-import { Card } from "../../components/ui/primitives";
+import { DoctypeCrud } from "../hr/DoctypeView";
+import { findSetupItem } from "../../lib/hrSetupConfig";
 
+/**
+ * Company setup lives here (Administrator only). Each HR user is then tied to
+ * one of these companies from the HR Users page.
+ */
 export default function Organization() {
-  return (
-    <Card className="p-6">
-      <p className="text-[13px] text-[var(--color-text-muted)]">
-        Organization - build this out against the matching ERPNext doctype(s) or your custom my_hrms app API.
-      </p>
-    </Card>
-  );
+  const company = findSetupItem("company");
+  return <DoctypeCrud item={{ ...company, section: "Organization" }} />;
 }

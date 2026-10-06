@@ -44,6 +44,10 @@ export default function Login() {
     setLoading(true);
     try {
       const signedIn = await login(usr, pwd);
+      if (!signedIn) {
+        setError("Signed in, but the session could not be started. Please try again.");
+        return;
+      }
 
       // Land on the workspace that matches this account. Only go back to the page the
       // user was on before if it belongs to that workspace - otherwise e.g. signing in as
@@ -53,8 +57,15 @@ export default function Login() {
       const from = location.state?.from?.pathname;
       const canReturn = from && home !== "/" && (from === home || from.startsWith(`${home}/`));
       navigate(canReturn ? from : home, { replace: true });
-    } catch {
-      setError("Invalid email or password.");
+    } catch (err) {
+      const noReply = err?.code === "ECONNABORTED" || !err?.response;
+      setError(
+        noReply
+          ? "Can't reach the ERPNext server. Check your connection and try again."
+          : err.response.status === 401 || err.response.status === 403
+            ? "Invalid email or password."
+            : "Sign-in failed. Please try again."
+      );
     } finally {
       setLoading(false);
     }

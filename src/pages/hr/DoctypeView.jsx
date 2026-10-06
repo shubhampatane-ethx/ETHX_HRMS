@@ -17,6 +17,15 @@ export default function DoctypeView() {
   const { doctype: slug } = useParams();
   const item = findSetupItem(slug);
 
+  if (item?.adminOnly) {
+    return (
+      <Card className="p-6">
+        <p className="text-[13px] text-[var(--color-text-muted)]">{item.label} setup is managed by your Administrator.</p>
+        <BackLink />
+      </Card>
+    );
+  }
+
   if (!item) {
     return (
       <Card className="p-6">
@@ -56,7 +65,7 @@ function Header({ item }) {
 /* Masters: live list + create + delete against a real ERPNext doctype    */
 /* ---------------------------------------------------------------------- */
 
-function DoctypeCrud({ item }) {
+export function DoctypeCrud({ item }) {
   const [rows, setRows] = useState([]);
   const [state, setState] = useState("loading"); // loading | ok | error
   const [showForm, setShowForm] = useState(false);

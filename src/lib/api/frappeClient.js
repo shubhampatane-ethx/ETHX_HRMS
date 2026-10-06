@@ -23,6 +23,8 @@ import axios from "axios";
 const client = axios.create({
   baseURL: "/api",
   withCredentials: true,
+  // Never wait forever on a slow/unreachable ERPNext server - fail with a clear error instead.
+  timeout: 20000,
   headers: {
     "Content-Type": "application/json",
     // Belt-and-braces: tell any cache (browser, proxy) never to reuse a
@@ -91,6 +93,7 @@ async function refreshCsrfToken() {
     const res = await fetch(`/app?_=${Date.now()}`, {
       credentials: "include",
       cache: "no-store",
+      signal: AbortSignal.timeout(8000),
     });
     const html = await res.text();
     const match =

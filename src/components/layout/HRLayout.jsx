@@ -35,7 +35,7 @@ const SETUP_GROUPS = HR_SETUP_SECTIONS.map((section) => ({
   label: section.title === "Settings" ? "HR & Payroll Settings" : section.title,
   icon: section.icon,
   children: section.items
-    .filter((item) => !item.disabled)
+    .filter((item) => !item.disabled && !item.adminOnly)
     .map((item) => ({ to: `/hr/setup/${slugify(item.doctype)}`, label: item.label })),
 }));
 
