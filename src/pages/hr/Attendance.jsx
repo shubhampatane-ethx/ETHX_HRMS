@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { CalendarCheck, Edit3, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { CalendarCheck, Check, Edit3, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { frappe } from "../../lib/api/frappeClient";
+import { getCheckinsBetween, hm, summariseCheckins } from "../../lib/employeePortal";
 import { HrRecordForm } from "../../components/hr/HrRecordForm";
 import { Button, Card } from "../../components/ui/primitives";
 
@@ -41,6 +42,7 @@ export default function Attendance() {
   const [editing, setEditing] = useState(null);
   const [formOpen, setFormOpen] = useState(false);
   const [activeEmployee, setActiveEmployee] = useState(null);
+  const [confirming, setConfirming] = useState(false);
   const [yearSel, setYearSel] = useState(null);
   const [monthSel, setMonthSel] = useState(null); // null = latest month with data, "all" = whole year
 
@@ -48,7 +50,23 @@ export default function Attendance() {
     setState("loading");
     try {
       // limit: 0 -> fetch ALL attendance records so every month/year is complete
-      setRows(await frappe.getList("Attendance", { fields: ["name", "employee_name", "employee", "attendance_date", "status", "company"], limit: 0, orderBy: "attendance_date desc" }));
+      const att = await frappe.getList("Attendance", { fields: ["name", "employee_name", "employee", "attendance_date", "status", "company"], limit: 0, orderBy: "attendance_date desc" });
+      // Employees punch in/out via Employee Checkin; ERPNext doesn't turn that into Attendance by itself,
+      // so show punched-in days that have no attendance record yet (HR can confirm them with one click).
+      let derived = [];
+      try {
+        const since = new Date(Date.now() - 400 * 86400000);
+        const [logs, visible] = await Promise.all([
+          getCheckinsBetween(null, `${since.getFullYear()}-${String(since.getMonth() + 1).padStart(2, "0")}-${String(since.getDate()).padStart(2, "0")}`, "9999-12-31"),
+          frappe.getList("Employee", { fields: ["name", "employee_name", "company"], limit: 0 }), // only employees this HR user may see
+        ]);
+        const known = new Map(visible.map((e) => [e.name, e]));
+        const have = new Set(att.map((r) => `${r.employee}|${r.attendance_date}`));
+        derived = summariseCheckins(logs.filter((l) => known.has(l.employee)))
+          .filter((d) => !have.has(`${d.employee}|${d.attendance_date}`))
+          .map((d) => ({ ...d, name: `punch-${d.employee}-${d.attendance_date}`, employee_name: known.get(d.employee).employee_name, company: known.get(d.employee).company, status: "Present", derived: true }));
+      } catch { /* checkins not readable - show saved attendance only */ }
+      setRows([...att, ...derived].sort((a, b) => b.attendance_date.localeCompare(a.attendance_date)));
       setState("ready");
     } catch { setRows([]); setState("error"); }
   }
@@ -86,12 +104,28 @@ export default function Attendance() {
     return counts;
   }, [visible]);
 
+  const unconfirmed = visible.filter((r) => r.derived);
   async function remove(row) { if (!window.confirm(`Delete attendance for ${row.employee_name || row.employee || row.name} on ${row.attendance_date}?`)) return; try { await frappe.deleteDoc("Attendance", row.name); load(); } catch (error) { window.alert(error?.response?.data?.exception || "ERPNext could not delete this attendance record."); } }
+  async function confirmRows(list) {
+    if (!list.length || !window.confirm(`Save ${list.length} punched-in day(s) as Present in ERPNext?`)) return;
+    setConfirming(true);
+    let failed = 0;
+    let last = "";
+    for (const r of list) {
+      try {
+        const doc = await frappe.createDoc("Attendance", { employee: r.employee, attendance_date: r.attendance_date, status: "Present", company: r.company });
+        await frappe.submitDoc(await frappe.getDoc("Attendance", doc.name));
+      } catch (e) { failed += 1; last = e?.response?.data?.exception || e.message || ""; }
+    }
+    setConfirming(false);
+    if (failed) window.alert(`${failed} day(s) could not be saved. ${last}`);
+    load();
+  }
   function closeForm() { setFormOpen(false); setEditing(null); }
   function pickEmployee(id) { setActiveEmployee(id); setYearSel(null); setMonthSel(null); }
 
   return <div className="space-y-4">
-    <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4"><div className="flex flex-wrap items-center justify-between gap-4"><div><div className="mb-1 flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--color-red-hover)]"><CalendarCheck size={14} /> Workforce tracking</div><h2 className="text-base font-semibold text-[var(--color-text)]">Attendance</h2></div><div className="flex gap-2"><Button variant="secondary" onClick={load} disabled={state === "loading"}><RefreshCw size={14} /> Refresh</Button><Button onClick={() => { setEditing(null); setFormOpen(true); }}><Plus size={14} /> Mark attendance</Button></div></div></section>
+    <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4"><div className="flex flex-wrap items-center justify-between gap-4"><div><div className="mb-1 flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--color-red-hover)]"><CalendarCheck size={14} /> Workforce tracking</div><h2 className="text-base font-semibold text-[var(--color-text)]">Attendance</h2></div><div className="flex gap-2">{unconfirmed.length > 0 && <Button variant="secondary" onClick={() => confirmRows(unconfirmed)} disabled={confirming}><Check size={14} /> {confirming ? "Saving…" : `Confirm ${unconfirmed.length} punched-in`}</Button>}<Button variant="secondary" onClick={load} disabled={state === "loading"}><RefreshCw size={14} /> Refresh</Button><Button onClick={() => { setEditing(null); setFormOpen(true); }}><Plus size={14} /> Mark attendance</Button></div></div></section>
     {formOpen && <HrRecordForm doctype="Attendance" fields={FIELDS} recordName={editing} onCancel={closeForm} onSaved={() => { closeForm(); load(); }} />}
 
     {state === "loading" && <Card><div className="flex h-32 items-center justify-center text-[13px] text-[var(--color-text-muted)]">Loading attendance...</div></Card>}
@@ -131,13 +165,14 @@ export default function Attendance() {
       <Card className="overflow-hidden">
         {visible.length === 0 ? <div className="flex h-24 items-center justify-center text-[13px] text-[var(--color-text-muted)]">No attendance records found.</div> :
         <table className="w-full text-left text-[12px]">
-          <thead><tr className="border-b border-[var(--color-border)] text-[var(--color-text-muted)]"><th className="px-3 py-1.5 font-medium">Date</th><th className="px-3 py-1.5 font-medium">Status</th><th className="px-3 py-1.5 font-medium">Company</th><th className="w-16 px-3 py-1.5" /></tr></thead>
+          <thead><tr className="border-b border-[var(--color-border)] text-[var(--color-text-muted)]"><th className="px-3 py-1.5 font-medium">Date</th><th className="px-3 py-1.5 font-medium">Status</th><th className="px-3 py-1.5 font-medium">In / Out</th><th className="px-3 py-1.5 font-medium">Company</th><th className="w-16 px-3 py-1.5" /></tr></thead>
           <tbody>
             {visible.map((row) => <tr key={row.name} className="border-b border-[var(--color-border)] last:border-0 hover:bg-[var(--color-surface-2)]">
               <td className="px-3 py-1 text-[var(--color-text)]">{month === "all" ? `${row.label}` : row.label}</td>
-              <td className={`px-3 py-1 font-medium ${STATUS_COLOR[row.status] || "text-[var(--color-text)]"}`} title={row.status}>{STATUS_SHORT[row.status] ? `${STATUS_SHORT[row.status]} · ` : ""}{row.status}</td>
+              <td className={`px-3 py-1 font-medium ${STATUS_COLOR[row.status] || "text-[var(--color-text)]"}`} title={row.status}>{STATUS_SHORT[row.status] ? `${STATUS_SHORT[row.status]} · ` : ""}{row.status}{row.derived && <span className="ml-2 rounded bg-[var(--color-surface-2)] px-1.5 py-0.5 text-[10px] font-normal text-[var(--color-amber)]">{row.stillIn ? "Punched in" : "Unconfirmed"}</span>}</td>
+              <td className="px-3 py-1 text-[var(--color-text-muted)]">{row.in_time ? `${hm(row.in_time)} – ${row.stillIn ? "…" : hm(row.out_time) || "…"}` : "—"}{row.derived && row.working_hours ? ` · ${row.working_hours}h` : ""}</td>
               <td className="px-3 py-1 text-[var(--color-text-muted)]">{row.company}</td>
-              <td className="px-3 py-1"><div className="flex justify-end gap-0.5"><button type="button" title="Edit attendance" onClick={() => { setEditing(row.name); setFormOpen(true); }} className="rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]"><Edit3 size={13} /></button><button type="button" title="Delete attendance" onClick={() => remove(row)} className="rounded p-1 text-[var(--color-text-muted)] hover:text-[var(--color-red-hover)]"><Trash2 size={13} /></button></div></td>
+              <td className="px-3 py-1">{row.derived ? <div className="flex justify-end"><button type="button" title="Confirm as Present" disabled={confirming} onClick={() => confirmRows([row])} className="rounded p-1 text-[var(--color-green)] hover:bg-[var(--color-surface-2)]"><Check size={14} /></button></div> : <div className="flex justify-end gap-0.5"><button type="button" title="Edit attendance" onClick={() => { setEditing(row.name); setFormOpen(true); }} className="rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]"><Edit3 size={13} /></button><button type="button" title="Delete attendance" onClick={() => remove(row)} className="rounded p-1 text-[var(--color-text-muted)] hover:text-[var(--color-red-hover)]"><Trash2 size={13} /></button></div>}</td>
             </tr>)}
           </tbody>
         </table>}

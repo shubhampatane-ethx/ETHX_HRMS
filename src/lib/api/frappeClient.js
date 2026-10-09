@@ -122,7 +122,7 @@ async function getUserRoles(user) {
 }
 
 /** Generic doctype list, e.g. getList("Employee", { filters, fields, limit }) */
-async function getList(doctype, { filters = [], fields = ["name"], limit = 20, orderBy } = {}) {
+async function getList(doctype, { filters = [], fields = ["name"], limit = 20, orderBy, parent } = {}) {
   const res = await client.get("/method/frappe.client.get_list", {
     params: {
       doctype,
@@ -130,6 +130,8 @@ async function getList(doctype, { filters = [], fields = ["name"], limit = 20, o
       fields: JSON.stringify(fields),
       limit_page_length: limit,
       order_by: orderBy,
+      // child tables (e.g. Training Event Employee) need their parent doctype for non-admin users
+      ...(parent ? { parent } : {}),
     },
   });
   return res.data.message;
@@ -160,6 +162,35 @@ async function callMethod(method, params = {}) {
   return res.data.message;
 }
 
+/** Submit a (draft) document: pass the full doc as returned by getDoc. */
+async function submitDoc(doc) {
+  const res = await client.post("/method/frappe.client.submit", { doc });
+  return res.data.message;
+}
+
+/** Upload a browser File and (optionally) attach it to a document. */
+async function uploadFile(file, { doctype, docname, isPrivate = true } = {}) {
+  const form = new FormData();
+  form.append("file", file, file.name);
+  form.append("is_private", isPrivate ? "1" : "0");
+  if (doctype && docname) {
+    form.append("doctype", doctype);
+    form.append("docname", docname);
+  }
+  const res = await client.post("/method/upload_file", form, { headers: { "Content-Type": "multipart/form-data" } });
+  return res.data.message;
+}
+
+/** Change the signed-in user's own password (needs the current password). */
+async function changePassword(oldPassword, newPassword) {
+  const res = await client.post("/method/frappe.core.doctype.user.user.update_password", {
+    old_password: oldPassword,
+    new_password: newPassword,
+    logout_all_sessions: 0,
+  });
+  return res.data.message;
+}
+
 export const frappe = {
   client,
   login,
@@ -172,4 +203,7 @@ export const frappe = {
   updateDoc,
   deleteDoc,
   callMethod,
+  submitDoc,
+  uploadFile,
+  changePassword,
 };

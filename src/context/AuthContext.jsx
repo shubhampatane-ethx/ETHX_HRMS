@@ -1,8 +1,31 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { frappe } from "../lib/api/frappeClient";
-import { effectiveRolesForUser, rolesToPermissions } from "../permissions/roles";
+import { ADMIN_USERNAME, effectiveRolesForUser, rolesToPermissions } from "../permissions/roles";
 
 const AuthContext = createContext(null);
+
+/**
+ * Administrator -> Admin workspace. A user holding an HR role -> HR workspace.
+ * A user whose only relevant role is "Employee" -> Employee portal; if they have never
+ * set their own password (HR gave them a temporary one) they must change it first.
+ * Anything we can't read or recognise keeps the previous behaviour (HR).
+ */
+async function resolveAccount(email) {
+  if (email === ADMIN_USERNAME) return { roles: effectiveRolesForUser(email), mustChangePassword: false };
+  try {
+    const doc = await frappe.getDoc("User", email);
+    const erpRoles = (doc.roles || []).map((r) => r.role);
+    if (erpRoles.some((r) => r === "HR Manager" || r === "HR User")) return { roles: ["HR User"], mustChangePassword: false };
+    if (erpRoles.includes("Employee")) {
+      let flagged = false;
+      try { flagged = localStorage.getItem(`pwchanged:${email}`) === "1"; } catch { /* ignore */ }
+      return { roles: ["Employee"], mustChangePassword: !doc.last_password_reset_date && !flagged };
+    }
+  } catch {
+    /* fall through to the legacy default */
+  }
+  return { roles: effectiveRolesForUser(email), mustChangePassword: false };
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null); // { email, roles, permissions }
@@ -18,8 +41,8 @@ export function AuthProvider({ children }) {
         setStatus("guest");
         return null;
       }
-      const roles = effectiveRolesForUser(email);
-      const nextUser = { email, roles, permissions: rolesToPermissions(roles) };
+      const { roles, mustChangePassword } = await resolveAccount(email);
+      const nextUser = { email, roles, permissions: rolesToPermissions(roles), mustChangePassword };
       setUser(nextUser);
       setStatus("authenticated");
       return nextUser;
@@ -54,8 +77,10 @@ export function AuthProvider({ children }) {
     setStatus("guest");
   }, []);
 
+  const markPasswordChanged = useCallback(() => setUser((u) => (u ? { ...u, mustChangePassword: false } : u)), []);
+
   return (
-    <AuthContext.Provider value={{ user, status, login, logout, refresh: loadSession }}>
+    <AuthContext.Provider value={{ user, status, login, logout, refresh: loadSession, markPasswordChanged }}>
       {children}
     </AuthContext.Provider>
   );
@@ -65,4 +90,4 @@ export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
-} 
+}

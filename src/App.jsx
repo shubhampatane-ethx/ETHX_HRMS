@@ -14,12 +14,17 @@ import Roles from "./pages/admin/Roles";
 import Settings from "./pages/admin/Settings";
 import AuditLogs from "./pages/admin/AuditLogs";
 
+import { EmployeeLayout } from "./components/employee/EmployeeShell";
+
+import { EmpDashboard, EmpProfile, EmpAttendance, EmpLeave, EmpApprovals, EmpCalendar, EmpTimesheet, EmpExpenses, EmpPayslips, EmpDocuments, EmpAssets, EmpHelp, EmpNotifications, EmpGoals, EmpTraining, EmpBenefits, EmpSearch } from "./pages/employee/EmployeePages";
+
 import { HRLayout } from "./components/layout/HRLayout";
 import HRDashboard from "./pages/hr/Dashboard";
 import Employees from "./pages/hr/Employees";
 import Attendance from "./pages/hr/Attendance";
 import Leave from "./pages/hr/Leave";
 import Payroll from "./pages/hr/Payroll";
+import Timesheets from "./pages/hr/Timesheets";
 import Recruitment from "./pages/hr/Recruitment";
 import Onboarding from "./pages/hr/Onboarding";
 import Performance from "./pages/hr/Performance";
@@ -48,11 +53,34 @@ export default function App() {
             </Route>
           </Route>
 
+          <Route element={<RequirePermission permission="dashboard.employee" />}>
+            <Route path="/employee" element={<EmployeeLayout />}>
+              <Route index element={<EmpDashboard />} />
+              <Route path="profile" element={<EmpProfile />} />
+              <Route path="attendance" element={<EmpAttendance />} />
+              <Route path="leave" element={<EmpLeave />} />
+              <Route path="approvals" element={<EmpApprovals />} />
+              <Route path="calendar" element={<EmpCalendar />} />
+              <Route path="timesheet" element={<EmpTimesheet />} />
+              <Route path="expenses" element={<EmpExpenses />} />
+              <Route path="payslips" element={<EmpPayslips />} />
+              <Route path="documents" element={<EmpDocuments />} />
+              <Route path="assets" element={<EmpAssets />} />
+              <Route path="help" element={<EmpHelp />} />
+              <Route path="notifications" element={<EmpNotifications />} />
+              <Route path="goals" element={<EmpGoals />} />
+              <Route path="training" element={<EmpTraining />} />
+              <Route path="benefits" element={<EmpBenefits />} />
+              <Route path="search" element={<EmpSearch />} />
+            </Route>
+          </Route>
+
           <Route path="/hr" element={<HRLayout />}>
             <Route element={<RequirePermission permission="dashboard.hr" />}>
               <Route index element={<HRDashboard />} />
               <Route path="employees" element={<Employees />} />
               <Route path="attendance" element={<Attendance />} />
+              <Route path="timesheets" element={<Timesheets />} />
               <Route path="leave" element={<Leave />} />
               <Route path="payroll" element={<Payroll />} />
               <Route path="recruitment" element={<Recruitment />} />
@@ -77,5 +105,6 @@ function HomeRedirect() {
   const role = primaryAppRole(user?.roles);
   if (role === "admin") return <Navigate to="/admin" replace />;
   if (role === "hr") return <Navigate to="/hr" replace />;
+  if (role === "employee") return <Navigate to="/employee" replace />;
   return <Navigate to="/unauthorized" replace />;
 }

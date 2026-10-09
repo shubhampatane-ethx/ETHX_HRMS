@@ -53,7 +53,7 @@ export default function Login() {
       // user was on before if it belongs to that workspace - otherwise e.g. signing in as
       // HR after logging out of an /admin page would end on "Not authorized".
       const role = primaryAppRole(signedIn?.roles);
-      const home = role === "admin" ? "/admin" : role === "hr" ? "/hr" : "/";
+      const home = role === "admin" ? "/admin" : role === "hr" ? "/hr" : role === "employee" ? "/employee" : "/";
       const from = location.state?.from?.pathname;
       const canReturn = from && home !== "/" && (from === home || from.startsWith(`${home}/`));
       navigate(canReturn ? from : home, { replace: true });

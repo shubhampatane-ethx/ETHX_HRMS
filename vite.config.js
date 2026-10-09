@@ -14,6 +14,9 @@ export default defineConfig({
     proxy: {
       // Proxies /api/* to your ERPNext/Frappe site during dev so session
       // cookies + CSRF work without CORS pain. Point target at your site.
+      // Uploaded files (policies, letters, bills) are served by ERPNext from /files and /private
+      '/files': { target: 'http://45.195.159.86:8280', changeOrigin: true, cookieDomainRewrite: 'localhost' },
+      '/private': { target: 'http://45.195.159.86:8280', changeOrigin: true, cookieDomainRewrite: 'localhost' },
       '/api': {
         target: 'http://45.195.159.86:8280',
         changeOrigin: true,

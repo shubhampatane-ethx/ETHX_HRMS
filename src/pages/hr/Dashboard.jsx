@@ -5,6 +5,7 @@ import {
   LineChart, Plus, UserCheck, UserPlus, UserSearch, Users, Wallet,
 } from "lucide-react";
 import { frappe } from "../../lib/api/frappeClient";
+import { getCheckinsBetween, summariseCheckins } from "../../lib/employeePortal";
 import { useAuth } from "../../context/AuthContext";
 import { Card } from "../../components/ui/primitives";
 
@@ -88,14 +89,23 @@ export default function HRDashboard() {
   useEffect(() => {
     async function load() {
       const from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
-      const [emp, att, leave] = await Promise.allSettled([
+      const [emp, att, leave, chk] = await Promise.allSettled([
         frappe.getList("Employee", { filters: [["status", "=", "Active"]], fields: ["name", "employee_name", "department"], limit: 0 }),
         frappe.getList("Attendance", { filters: [["attendance_date", ">=", iso(from)], ["docstatus", "<", 2]], fields: ["employee", "attendance_date", "status"], limit: 0 }),
         frappe.getList("Leave Application", { filters: [["status", "=", "Open"], ["docstatus", "<", 2]], fields: ["name", "employee_name", "leave_type", "from_date", "to_date", "total_leave_days"], limit: 0, orderBy: "from_date asc" }),
+        getCheckinsBetween(null, iso(from), iso(now)),
       ]);
+      // Punch-ins without an attendance record yet count as present (only for employees this HR user can see)
+      let attendance = att.status === "fulfilled" ? att.value : null;
+      if (attendance && chk.status === "fulfilled" && emp.status === "fulfilled") {
+        const mine = new Set(emp.value.map((e) => e.name));
+        const have = new Set(attendance.map((r) => `${r.employee}|${r.attendance_date}`));
+        const extra = summariseCheckins(chk.value.filter((l) => mine.has(l.employee))).filter((d) => !have.has(`${d.employee}|${d.attendance_date}`));
+        attendance = [...attendance, ...extra.map((d) => ({ employee: d.employee, attendance_date: d.attendance_date, status: "Present" }))];
+      }
       setData({
         employees: emp.status === "fulfilled" ? emp.value : null,
-        attendance: att.status === "fulfilled" ? att.value : null,
+        attendance,
         leave: leave.status === "fulfilled" ? leave.value : null,
       });
     }
