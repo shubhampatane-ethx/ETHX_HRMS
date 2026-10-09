@@ -1,0 +1,31 @@
+fix(timesheet): rework employee & HR timesheets, add review flow, fix CSRF after refresh
+
+Employee timesheet
+- Draft timesheets can be edited and deleted; returned drafts can be fixed and resubmitted
+- Days already logged in another timesheet stay editable; new entries start after the existing ones
+- Retrying a failed "Save & submit" updates the same draft instead of creating a duplicate
+- Time slots use whole minutes, so entries no longer overlap or produce "09:60" times
+- "Fill" skips leave days, halves half-day leave, tops up partly filled days and keeps extra rows
+- Projects match by name or ID and link to the ERPNext Project; typed tasks link to assigned tasks
+- Activity Type is filled automatically, so employees no longer hit "Activity Type is mandatory"
+- CSV import handles quoted fields, ; and tab separators, US-style dates and header rows (HR export too)
+- Warns before switching month or closing with unsaved entries; shows an error if the overlap check fails
+- Projects used in recent timesheets are offered as one-click suggestions
+
+HR timesheets
+- Hours are counted in the month of each entry, so cross-month sheets show in both months and both CSVs
+- Approve or "Return for correction" (cancel + editable copy with HR's note)
+- Defaults to submitted timesheets; status filters: awaiting review / approved / draft / all
+- CSV export uses data already loaded (no per-sheet requests) and blocks spreadsheet formulas
+- Detail view shows free-text notes and ERPNext's own status (Billed, Payslip...)
+
+Shared / fixes
+- CSRF token is fetched after a page refresh and on demand, and refreshed once on CSRFTokenError
+- Logout always clears the session, even if the server call fails
+- My Approvals awaited the wrong value in each request, so the page always failed - fixed
+- useAsync clears old data when its inputs change (no previous month shown under a new label)
+- Assigned-task search matches the exact email, not part of it
+- Dev proxy for /app and /me; role presets updated for timesheet review and draft delete
+
+New files: src/lib/timesheets.js, src/pages/employee/EmpTimesheet.jsx
+After deploy: Admin → Roles → re-apply the HR Manager, HR User and Employee presets

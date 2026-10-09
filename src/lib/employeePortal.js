@@ -1,6 +1,7 @@
 // Employee portal: helpers, settings, async hook and ERPNext API calls in one file.
 import { useEffect, useRef, useState } from "react";
 import { frappe } from "./api/frappeClient";
+import { getReviewsSafe, reviewOf } from "./timesheets";
 
 /* ===== employeeUtils.js ===== */
 export const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -117,15 +118,23 @@ export const CONTACTS = [
 ];
 
 /* ===== useAsync.js ===== */
-/** Run an async loader when deps change. Returns { data, error, loading, reload }. */
+/**
+ * Run an async loader when deps change. Returns { data, error, loading, reload }.
+ * When deps change (e.g. another month or year) the previous data is cleared and loading is
+ * set, so pages never show last month's data under this month's label. reload() keeps the
+ * current data on screen while it refreshes.
+ */
 export function useAsync(fn, deps = []) {
   const [state, setState] = useState({ data: null, error: null, loading: true });
   const [tick, setTick] = useState(0);
   const fnRef = useRef(fn);
   fnRef.current = fn;
+  const lastTick = useRef(tick);
 
   useEffect(() => {
     let off = false;
+    if (lastTick.current === tick) setState({ data: null, error: null, loading: true });
+    lastTick.current = tick;
     fnRef
       .current()
       .then((data) => !off && setState({ data, error: null, loading: false }))
@@ -242,12 +251,13 @@ export async function getApprovals(emp) {
       (r) => ({ title: r.leave_type, detail: `${r.total_leave_days || ""} day(s)`, from: r.from_date, to: r.to_date, status: r.status, pending: r.status === "Open" })],
     ["Attendance", "/employee/attendance", getAttendanceRequests(emp),
       (r) => ({ title: `Attendance request (${r.reason || "correction"})`, detail: stripHtml(r.explanation || ""), from: r.from_date, to: r.to_date, status: attReqStatus(r.docstatus), pending: r.docstatus === 0 })],
-    ["Timesheet", "/employee/timesheet", frappe.getList("Timesheet", { filters: [["employee", "=", emp], ["docstatus", "<", 2]], fields: ["name", "start_date", "end_date", "total_hours", "status", "docstatus", "creation"], orderBy: "creation desc", limit: 50 }),
-      (r) => ({ title: "Timesheet", detail: `${Number(r.total_hours || 0).toFixed(2)} h`, from: r.start_date, to: r.end_date, status: r.status, pending: r.docstatus === 0 })],
+    ["Timesheet", "/employee/timesheet", getTimesheets(emp, 50),
+      // Drafts are with the employee, not awaiting anyone; only submitted & unreviewed ones are pending.
+      (r) => ({ title: "Timesheet", detail: `${Number(r.total_hours || 0).toFixed(2)} h${r.review.note ? ` · HR: ${r.review.note}` : ""}`, from: r.start_date, to: r.end_date, status: r.review.label, pending: r.review.key === "pending" })],
     ["Expense", "/employee/expenses", frappe.getList("Expense Claim", { filters: [["employee", "=", emp], ["docstatus", "<", 2]], fields: ["name", "posting_date", "total_claimed_amount", "status", "approval_status", "docstatus", "creation"], orderBy: "creation desc", limit: 50 }),
       (r) => ({ title: "Expense claim", detail: String(r.total_claimed_amount ?? ""), from: r.posting_date, to: r.posting_date, status: r.status, pending: r.docstatus === 0 || r.approval_status === "Draft" })],
   ];
-  const results = await Promise.allSettled(jobs.map((j) => j[3]));
+  const results = await Promise.allSettled(jobs.map((j) => j[2])); // j = [type, link, request, mapper]
   const items = [];
   const failed = [];
   results.forEach((res, i) => {
@@ -312,11 +322,18 @@ export async function getTeamAvailability(employee, days = 14) {
 
 /* --------------------------------- work --------------------------------- */
 
+// _assign holds a JSON list like ["a@x.com"]; match the quoted address so a@x.com doesn't also match ba@x.com
 export const getAssignedTasks = (user) =>
-  frappe.getList("Task", { filters: [["_assign", "like", `%${user}%`], ["status", "not in", ["Completed", "Cancelled"]]], fields: ["name", "subject", "project", "status", "priority", "exp_end_date"], orderBy: "modified desc", limit: 50 });
+  frappe.getList("Task", { filters: [["_assign", "like", `%"${user}"%`], ["status", "not in", ["Completed", "Cancelled"]]], fields: ["name", "subject", "project", "status", "priority", "exp_end_date"], orderBy: "modified desc", limit: 50 });
 
-export const getTimesheets = (emp) =>
-  frappe.getList("Timesheet", { filters: [["employee", "=", emp], ["docstatus", "<", 2]], fields: ["name", "start_date", "end_date", "total_hours", "status", "docstatus"], orderBy: "start_date desc", limit: 40 });
+/** The employee's timesheets (newest first) with HR's review state on each row (r.review). */
+export async function getTimesheets(emp, limit = 0) {
+  const rows = await frappe.getList("Timesheet", { filters: [["employee", "=", emp], ["docstatus", "<", 2]], fields: ["name", "start_date", "end_date", "total_hours", "status", "docstatus", "amended_from", "creation"], orderBy: "start_date desc", limit });
+  const { reviews, reviewsError } = await getReviewsSafe(rows.map((r) => r.name));
+  const out = rows.map((r) => ({ ...r, review: reviewOf(r, reviews) }));
+  out.reviewsError = reviewsError;
+  return out;
+}
 
 export const getPayslips = (emp) =>
   frappe.getList("Salary Slip", { filters: [["employee", "=", emp], ["docstatus", "=", 1]], fields: ["name", "start_date", "end_date", "posting_date", "gross_pay", "total_deduction", "net_pay", "currency", "status"], orderBy: "end_date desc", limit: 0 });
@@ -406,12 +423,24 @@ export function summariseCheckins(logs) {
   return [...days.values()].filter((d) => d.in_time).map(({ openIn, hours, ...d }) => ({ ...d, working_hours: Number(hours.toFixed(2)), stillIn: openIn != null }));
 }
 
-/** Timesheet entries keep the project/task the employee typed as "Project: ..." / "Task: ..." lines in the description. */
+/**
+ * Timesheet entries keep what the employee typed as "Project: ..." / "Task: ..." / "Notes: ..."
+ * lines in the description. Any other text (e.g. entries made in ERPNext desk) is returned as notes.
+ */
 export function parseWorkNote(description = "", link = {}) {
-  const text = String(description || "");
-  const pick = (key) => new RegExp(`^${key}:\\s*(.*)$`, "mi").exec(text)?.[1]?.trim() || "";
-  const project = pick("Project");
-  const task = pick("Task");
-  const notes = project || task ? "" : text.replace(/<[^>]*>/g, " ").trim();
-  return { project: project || link.project || "", task: task || link.task || "", notes };
+  const text = String(description || "").replace(/<br\s*\/?>/gi, "\n").replace(/<\/(p|div)>/gi, "\n").replace(/<[^>]*>/g, " ");
+  let project = "";
+  let task = "";
+  const notes = [];
+  text.split(/\r?\n/).forEach((raw) => {
+    const line = raw.trim();
+    if (!line) return;
+    const m = /^(Project|Task|Notes):\s*(.*)$/i.exec(line);
+    const key = m?.[1].toLowerCase();
+    if (key === "project" && !project) project = m[2].trim();
+    else if (key === "task" && !task) task = m[2].trim();
+    else if (key === "notes") notes.push(m[2].trim());
+    else notes.push(line);
+  });
+  return { project: project || link.project || "", task: task || link.task || "", notes: notes.filter(Boolean).join(" ") };
 }

@@ -41,6 +41,9 @@ export function AuthProvider({ children }) {
         setStatus("guest");
         return null;
       }
+      // Session survived a page refresh but the in-memory CSRF token didn't - fetch it now
+      // (non-blocking) so the first save doesn't have to wait for it.
+      frappe.refreshCsrfToken();
       const { roles, mustChangePassword } = await resolveAccount(email);
       const nextUser = { email, roles, permissions: rolesToPermissions(roles), mustChangePassword };
       setUser(nextUser);
@@ -72,9 +75,14 @@ export function AuthProvider({ children }) {
   );
 
   const logout = useCallback(async () => {
-    await frappe.logout();
-    setUser(null);
-    setStatus("guest");
+    try {
+      await frappe.logout();
+    } catch {
+      /* even if the server call fails, sign the user out of this app */
+    } finally {
+      setUser(null);
+      setStatus("guest");
+    }
   }, []);
 
   const markPasswordChanged = useCallback(() => setUser((u) => (u ? { ...u, mustChangePassword: false } : u)), []);

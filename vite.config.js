@@ -17,6 +17,9 @@ export default defineConfig({
       // Uploaded files (policies, letters, bills) are served by ERPNext from /files and /private
       '/files': { target: 'http://45.195.159.86:8280', changeOrigin: true, cookieDomainRewrite: 'localhost' },
       '/private': { target: 'http://45.195.159.86:8280', changeOrigin: true, cookieDomainRewrite: 'localhost' },
+      // Server-rendered pages the client reads the CSRF token from (see refreshCsrfToken).
+      '/app': { target: 'http://45.195.159.86:8280', changeOrigin: true, cookieDomainRewrite: 'localhost' },
+      '/me': { target: 'http://45.195.159.86:8280', changeOrigin: true, cookieDomainRewrite: 'localhost' },
       '/api': {
         target: 'http://45.195.159.86:8280',
         changeOrigin: true,

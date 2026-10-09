@@ -38,10 +38,17 @@ const client = axios.create({
 });
 
 let csrfToken = null;
+let csrfPromise = null;
 
-client.interceptors.request.use((config) => {
-  if (csrfToken && ["post", "put", "delete"].includes(config.method)) {
-    config.headers["X-Frappe-CSRF-Token"] = csrfToken;
+const MUTATING = ["post", "put", "patch", "delete"];
+const isLoginCall = (url = "") => url.includes("/method/login");
+
+client.interceptors.request.use(async (config) => {
+  if (MUTATING.includes(config.method) && !isLoginCall(config.url)) {
+    // The token lives only in memory, so after a page refresh it is gone even though the
+    // session cookie is still valid. Fetch it lazily before the first write.
+    if (!csrfToken) await refreshCsrfToken();
+    if (csrfToken) config.headers["X-Frappe-CSRF-Token"] = csrfToken;
   }
   // Cache-bust every request with a unique query param as a second layer of
   // defense on top of the Cache-Control header above (some intermediary
@@ -52,7 +59,15 @@ client.interceptors.request.use((config) => {
 
 client.interceptors.response.use(
   (res) => res,
-  (err) => {
+  async (err) => {
+    const cfg = err.config;
+    // Stale token (session rotated, other tab logged in again): refresh once and retry.
+    if (err.response?.data?.exc_type === "CSRFTokenError" && cfg && !cfg._csrfRetried) {
+      cfg._csrfRetried = true;
+      csrfToken = null;
+      await refreshCsrfToken();
+      return client(cfg);
+    }
     // Don't treat every 403 as "session expired" - a logged-in user can get
     // a 403 from a specific doctype's permission rules (e.g. HR/Employee
     // users lacking access to some field/doctype) without their session
@@ -77,32 +92,45 @@ async function login(usr, pwd) {
 }
 
 async function logout() {
-  await client.post("/method/logout");
-  csrfToken = null;
+  try {
+    await client.post("/method/logout");
+  } finally {
+    csrfToken = null;
+  }
 }
+
+const CSRF_PATTERNS = [/"csrf_token":\s*"([a-f0-9]+)"/i, /csrf_token\s*=\s*"([a-f0-9]+)"/i, /name="csrf_token"\s+value="([a-f0-9]+)"/i];
 
 /**
  * Frappe doesn't reliably expose a dedicated whitelisted "give me a CSRF
  * token" API endpoint across versions - the token normally only travels
- * embedded in a full page's boot script. So once logged in, we fetch the
- * desk shell HTML (same session cookie applies) and pull the token out of
- * it, e.g. `"csrf_token":"abc123..."` inside the embedded boot JSON.
+ * embedded in a full page's boot script. So once logged in, we fetch a
+ * server-rendered page (same session cookie applies) and pull the token out of
+ * it. /app is the desk (System Users); /me is the website page every logged-in
+ * user can open, so portal-only Employee logins still get a token.
+ * Concurrent callers share one in-flight fetch.
  */
-async function refreshCsrfToken() {
-  try {
-    const res = await fetch(`/app?_=${Date.now()}`, {
-      credentials: "include",
-      cache: "no-store",
-      signal: AbortSignal.timeout(8000),
-    });
-    const html = await res.text();
-    const match =
-      html.match(/"csrf_token":\s*"([a-f0-9]+)"/i) || html.match(/csrf_token\s*=\s*"([a-f0-9]+)"/i);
-    csrfToken = match?.[1] ?? null;
-  } catch {
-    csrfToken = null;
-  }
-  return csrfToken;
+function refreshCsrfToken() {
+  if (csrfPromise) return csrfPromise;
+  csrfPromise = (async () => {
+    let token = null;
+    for (const path of ["/app", "/me"]) {
+      try {
+        const res = await fetch(`${path}?_=${Date.now()}`, { credentials: "include", cache: "no-store", signal: AbortSignal.timeout(8000) });
+        const html = await res.text();
+        for (const re of CSRF_PATTERNS) {
+          const m = html.match(re);
+          if (m) { token = m[1]; break; }
+        }
+        if (token) break;
+      } catch {
+        /* try the next page */
+      }
+    }
+    csrfToken = token;
+    return token;
+  })().finally(() => { csrfPromise = null; });
+  return csrfPromise;
 }
 
 async function getLoggedUser() {
@@ -168,6 +196,12 @@ async function submitDoc(doc) {
   return res.data.message;
 }
 
+/** Cancel a submitted document (docstatus 1 -> 2). */
+async function cancelDoc(doctype, name) {
+  const res = await client.post("/method/frappe.client.cancel", { doctype, name });
+  return res.data.message;
+}
+
 /** Upload a browser File and (optionally) attach it to a document. */
 async function uploadFile(file, { doctype, docname, isPrivate = true } = {}) {
   const form = new FormData();
@@ -193,6 +227,7 @@ async function changePassword(oldPassword, newPassword) {
 
 export const frappe = {
   client,
+  refreshCsrfToken,
   login,
   logout,
   getLoggedUser,
@@ -204,6 +239,7 @@ export const frappe = {
   deleteDoc,
   callMethod,
   submitDoc,
+  cancelDoc,
   uploadFile,
   changePassword,
 };
