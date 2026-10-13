@@ -67,7 +67,7 @@ export default function AdminDashboard() {
     async function load() {
       // HR users = real User records holding an HR role (Has Role rows also exist for reports/pages, so filter on parenttype)
       const hrUsers = frappe
-        .getList("Has Role", { filters: [["role", "in", ["HR Manager", "HR User"]], ["parenttype", "=", "User"]], fields: ["parent", "role"], limit: 0 })
+        .getList("Has Role", { parent: "User", filters: [["role", "in", ["HR Manager", "HR User"]], ["parenttype", "=", "User"]], fields: ["parent", "role"], limit: 0 })
         .then(async (rows) => {
           const names = [...new Set(rows.map((r) => r.parent))];
           if (!names.length) return [];
@@ -115,7 +115,7 @@ export default function AdminDashboard() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2.5">
-            <Link to="/admin/users" className="flex items-center gap-2 rounded-lg bg-[var(--color-red)] px-4 py-2.5 text-[13px] font-medium text-white transition-colors hover:bg-[var(--color-red-hover)]"><Plus size={15} /> Create HR user</Link>
+            <Link to="/admin/users" className="flex items-center gap-2 rounded-lg bg-[var(--color-red)] px-4 py-2.5 text-[13px] font-medium text-[var(--color-on-accent)] transition-colors hover:bg-[var(--color-red-hover)]"><Plus size={15} /> Create HR user</Link>
             <Link to="/admin/organization" className="flex items-center gap-2 rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-4 py-2.5 text-[13px] font-medium text-[var(--color-text)] transition-colors hover:border-[var(--color-text-faint)]"><Building2 size={15} /> Organization</Link>
           </div>
         </div>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { Building2, Pencil, Plus, X } from "lucide-react";
+import { Building2, KeyRound, Pencil, Plus, Power, Trash2, X } from "lucide-react";
 import { frappe } from "../../lib/api/frappeClient";
+import { dmyHm, errMsg as portalErr, useAsync } from "../../lib/employeePortal";
 import { Button, Card, Input, LinkField, Table } from "../../components/ui/primitives";
 
 /**
@@ -10,7 +11,7 @@ import { Button, Card, Input, LinkField, Table } from "../../components/ui/primi
  * server, so the HR user can't read other companies' data even by calling
  * the API directly. Administrator is exempt.
  */
-async function setUserCompany(email, company) {
+export async function setUserCompany(email, company) {
   // Replace any existing company restriction for this user
   const existing = await frappe.getList("User Permission", {
     filters: [["user", "=", email], ["allow", "=", "Company"]],
@@ -32,11 +33,13 @@ export default function AdminUsers() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [detail, setDetail] = useState(null);
 
   async function load() {
     setLoading(true);
     try {
       const hasRole = await frappe.getList("Has Role", {
+        parent: "User",
         filters: [["role", "in", ["HR Manager", "HR User"]], ["parenttype", "=", "User"]],
         fields: ["parent", "role"],
         limit: 0,
@@ -92,7 +95,7 @@ export default function AdminUsers() {
         ) : (
           <Table
             columns={[
-              { key: "full_name", label: "Name" },
+              { key: "full_name", label: "Name", render: (r) => <button type="button" onClick={() => setDetail(r)} className="text-left text-[var(--color-text)] hover:text-[var(--color-red-hover)] hover:underline">{r.full_name || r.name}</button> },
               { key: "name", label: "Email" },
               { key: "role", label: "Role" },
               {
@@ -141,15 +144,16 @@ export default function AdminUsers() {
       </Card>
 
       {showForm && <CreateHRModal onClose={() => setShowForm(false)} onCreated={load} />}
+      {detail && <HRUserModal user={detail} onClose={() => setDetail(null)} onChanged={load} onChangeCompany={() => { setEditing(detail); setDetail(null); }} />}
       {editing && <AssignCompanyModal user={editing} onClose={() => setEditing(null)} onSaved={load} />}
     </div>
   );
 }
 
-function ModalShell({ title, onClose, children }) {
+function ModalShell({ title, onClose, children, wide = false }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-      <div className="w-full max-w-md rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+      <div className={`max-h-[90vh] w-full overflow-y-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-5 ${wide ? "max-w-2xl" : "max-w-md"}`}>
         <div className="flex items-center justify-between">
           <h2 className="text-[14px] font-semibold text-[var(--color-text)]">{title}</h2>
           <button onClick={onClose} className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
@@ -302,6 +306,115 @@ function CreateHRModal({ onClose, onCreated }) {
           </Button>
         </div>
       </form>
+    </ModalShell>
+  );
+}
+
+/* ---------------------- HR user: everything about one account ---------------------- */
+
+function HRUserModal({ user, onClose, onChanged, onChangeCompany }) {
+  const q = useAsync(async () => {
+    const [doc, emps] = await Promise.all([
+      frappe.getDoc("User", user.name),
+      user.company ? frappe.getList("Employee", { filters: [["company", "=", user.company]], fields: ["name", "employee_name", "status"], limit: 0 }).catch(() => null) : null,
+    ]);
+    return { doc, emps };
+  }, [user.name]);
+  const [busy, setBusy] = useState("");
+  const [error, setError] = useState("");
+  const [note, setNote] = useState("");
+  const [pwd, setPwd] = useState("");
+  const doc = q.data?.doc;
+  const emps = q.data?.emps;
+  const roleNow = doc?.roles?.some((r) => r.role === "HR Manager") ? "HR Manager" : "HR User";
+
+  async function run(label, fn, done) {
+    setBusy(label);
+    setError("");
+    setNote("");
+    try {
+      await fn();
+      setNote(done);
+      onChanged();
+      q.reload();
+    } catch (e) {
+      setError(portalErr(e, "ERPNext refused this change."));
+    }
+    setBusy("");
+  }
+
+  const setRole = (role) => run("role", () => {
+    const keep = (doc.roles || []).map((r) => r.role).filter((r) => r !== "HR Manager" && r !== "HR User");
+    return frappe.updateDoc("User", user.name, { roles: [...keep, role].map((r) => ({ role: r })) });
+  }, `Role changed to ${role}.`);
+  const toggle = () => run("enable", () => frappe.updateDoc("User", user.name, { enabled: doc.enabled ? 0 : 1 }), doc.enabled ? "Account disabled - they can no longer sign in." : "Account enabled.");
+  const reset = () => run("pwd", async () => { await frappe.updateDoc("User", user.name, { new_password: pwd }); setPwd(""); }, "Password changed.");
+  const remove = async () => {
+    if (!window.confirm(`Delete ${user.full_name || user.name} permanently? Disabling the account is usually safer.`)) return;
+    setBusy("delete");
+    setError("");
+    try {
+      await frappe.deleteDoc("User", user.name);
+      onChanged();
+      onClose();
+    } catch (e) {
+      setError(portalErr(e, "ERPNext couldn't delete this user - it is probably linked to other records. Disable it instead."));
+      setBusy("");
+    }
+  };
+
+  const info = doc ? [
+    ["Email", doc.email || doc.name], ["Account", doc.enabled ? "Enabled" : "Disabled"], ["User type", doc.user_type],
+    ["Company", user.company || "Not assigned (sees every company)"], ["Mobile", doc.mobile_no || doc.phone],
+    ["Last login", dmyHm(doc.last_login) || "Never"], ["Last active", dmyHm(doc.last_active) || "—"], ["Created", dmyHm(doc.creation)],
+  ] : [];
+
+  return (
+    <ModalShell title={user.full_name || user.name} onClose={onClose} wide>
+      {q.loading && !doc && <p className="py-8 text-center text-[13px] text-[var(--color-text-muted)]">Loading…</p>}
+      {q.error && <p className="text-[13px] text-[var(--color-red-hover)]">{portalErr(q.error, "Couldn't load this user.")}</p>}
+      {doc && (
+        <div className="mt-4 space-y-5">
+          <dl className="grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-2">
+            {info.filter(([, v]) => v).map(([k, v]) => <div key={k}><dt className="text-[11px] uppercase tracking-wide text-[var(--color-text-faint)]">{k}</dt><dd className="mt-0.5 text-[13px] text-[var(--color-text)]">{v}</dd></div>)}
+          </dl>
+
+          <section>
+            <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Roles</h3>
+            <div className="flex flex-wrap gap-1.5">{(doc.roles || []).map((r) => <span key={r.role} className="rounded-full border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-2.5 py-0.5 text-[12px] text-[var(--color-text)]">{r.role}</span>)}</div>
+            <div className="mt-3 flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]">
+              HR level
+              <select value={roleNow} disabled={Boolean(busy)} onChange={(e) => setRole(e.target.value)} className="rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-2.5 py-1 text-[12px] text-[var(--color-text)] outline-none focus:border-[var(--color-red)]"><option>HR User</option><option>HR Manager</option></select>
+            </div>
+          </section>
+
+          <section>
+            <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Employees in {user.company || "their company"}</h3>
+            {!user.company ? <p className="text-[12px] text-[var(--color-amber)]">No company assigned yet - this HR user can see every company's employees.</p> : emps == null ? <p className="text-[12px] text-[var(--color-text-muted)]">Couldn't load employees.</p> : (
+              <>
+                <p className="mb-2 text-[12px] text-[var(--color-text-muted)]">{emps.filter((e) => e.status === "Active").length} active of {emps.length}</p>
+                <div className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto">{emps.map((e) => <span key={e.name} className="rounded border border-[var(--color-border)] px-2 py-0.5 text-[11px] text-[var(--color-text-muted)]">{e.employee_name}</span>)}</div>
+              </>
+            )}
+          </section>
+
+          <section>
+            <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Actions</h3>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="secondary" onClick={onChangeCompany} disabled={Boolean(busy)}><Building2 size={14} /> Change company</Button>
+              <Button variant="secondary" onClick={toggle} disabled={Boolean(busy)}><Power size={14} /> {doc.enabled ? "Disable account" : "Enable account"}</Button>
+              <Button variant="ghost" onClick={remove} disabled={Boolean(busy)}><Trash2 size={14} /> Delete</Button>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <input type="text" value={pwd} onChange={(e) => setPwd(e.target.value)} placeholder="New password" autoComplete="off" className="w-56 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-3 py-2 text-[13px] text-[var(--color-text)] placeholder:text-[var(--color-text-faint)] outline-none focus:border-[var(--color-red)]" />
+              <Button variant="secondary" onClick={reset} disabled={Boolean(busy) || pwd.length < 8}><KeyRound size={14} /> {busy === "pwd" ? "Saving…" : "Set password"}</Button>
+            </div>
+          </section>
+
+          {note && <p className="text-[12px] text-[var(--color-green)]">{note}</p>}
+          {error && <p className="rounded-md border border-[var(--color-red-deep)] bg-[var(--color-red-wash)] px-3 py-2 text-[12px] text-[var(--color-red-hover)]">{error}</p>}
+        </div>
+      )}
     </ModalShell>
   );
 }

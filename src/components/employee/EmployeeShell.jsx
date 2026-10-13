@@ -1,7 +1,8 @@
 // Employee portal: shared UI pieces, employee context and the portal layout in one file.
-import { createContext, useContext, useEffect, useState } from "react";
+import { PageLoading } from "../PageLoading";
+import { createContext, useContext, useEffect, useState, Suspense } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
-import { AlertCircle, ArrowRight, Bell, CalendarCheck, CalendarClock, CalendarDays, ClipboardCheck, FileText, Inbox, Laptop, LayoutDashboard, LifeBuoy, Loader2, Receipt, Search, Target, Timer, UserRound, Wallet, X } from "lucide-react";
+import { AlertCircle, ArrowRight, Bell, CalendarCheck, CalendarClock, CalendarDays, ClipboardCheck, FileText, Inbox, Laptop, LayoutDashboard, LifeBuoy, Loader2, Receipt, Search, Target, Timer, UserRound, Users, Wallet, X } from "lucide-react";
 import { errMsg, friendlyError, getMyEmployee, isoDate, useAsync } from "../../lib/employeePortal";
 import { frappe } from "../../lib/api/frappeClient";
 import { Brand } from "../Brand";
@@ -85,9 +86,9 @@ export function Stat({ to, icon: Icon, label, value, sub, accent = "var(--color-
   return to ? <Link to={to} className={`${cls} hover:border-[var(--color-border-strong)]`}>{body}</Link> : <div className={cls}>{body}</div>;
 }
 
-const GOOD = ["Approved", "Present", "Paid", "Completed", "Submitted", "Closed", "Resolved", "Active", "Billed", "Reimbursed", "Done"];
-const WARN = ["Open", "Pending", "Draft", "Unpaid", "Half Day", "On Leave", "Work From Home", "In Progress", "Working", "Replied", "On Hold", "Pending Review"];
-const BAD = ["Rejected", "Absent", "Cancelled", "Overdue", "Expired"];
+const GOOD = ["Approved", "Present", "Paid", "Completed", "Submitted", "Closed", "Resolved", "Active", "Billed", "Reimbursed", "Done", "Accepted", "Joined", "Cleared", "Hired", "Filled", "Finalized"];
+const WARN = ["Open", "Pending", "Draft", "Unpaid", "Half Day", "On Leave", "Work From Home", "In Progress", "In Process", "Working", "Replied", "On Hold", "Pending Review", "Pending Approval", "Sent", "Awaiting Joining", "Partly Approved"];
+const BAD = ["Rejected", "Absent", "Cancelled", "Overdue", "Expired", "Declined", "No-show", "Withdrawn"];
 
 export function StatusPill({ status }) {
   const tone = GOOD.includes(status) ? "var(--color-green)" : WARN.includes(status) ? "var(--color-amber)" : BAD.includes(status) ? "var(--color-red-hover)" : "var(--color-text-muted)";
@@ -254,7 +255,7 @@ export function ChangePasswordForm({ forced = false, onCancel }) {
         if (!(await recorded())) { try { localStorage.setItem(`pwchanged:${user.email}`, "1"); } catch { /* ignore */ } }
       }
       markPasswordChanged();
-      window.location.assign("/employee"); // fresh session + token after the password change
+      window.location.assign(user.roles?.includes("Projects Manager") ? "/pm" : "/employee"); // fresh session + token after the password change
     } catch (x) {
       setErr(errMsg(x, "Couldn't change the password. Check your current password and try again."));
       setBusy(false);
@@ -277,7 +278,7 @@ export function ChangePasswordForm({ forced = false, onCancel }) {
   );
 }
 
-function ForcedPasswordScreen() {
+export function ForcedPasswordScreen() {
   const { logout } = useAuth();
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-[var(--color-bg)] px-4 py-10">
@@ -299,6 +300,7 @@ const NAV = [
   { to: "/employee/attendance", label: "Attendance", icon: CalendarCheck },
   { to: "/employee/leave", label: "Leave", icon: CalendarClock },
   { to: "/employee/approvals", label: "My Approvals", icon: ClipboardCheck },
+  { to: "/employee/team", label: "My Team", icon: Users },
   { to: "/employee/calendar", label: "Calendar & Holidays", icon: CalendarDays },
   { to: "/employee/timesheet", label: "Timesheet", icon: Timer },
   { to: "/employee/expenses", label: "Expense Claims", icon: Receipt },
@@ -319,7 +321,10 @@ const NAV = [
   { to: "/employee/search", label: "Search", icon: Search },
 ];
 
-const flat = NAV.flatMap((n) => (n.children ? n.children : [n]));
+// Shown only to people on interview panels (ERPNext "Interviewer" role).
+const INTERVIEWS_NAV = { to: "/employee/interviews", label: "My Interviews", icon: ClipboardCheck };
+
+const flat = [...NAV, INTERVIEWS_NAV].flatMap((n) => (n.children ? n.children : [n]));
 function titleFor(pathname) {
   const match = [...flat].sort((a, b) => b.to.length - a.to.length).find((n) => pathname === n.to || pathname.startsWith(`${n.to}/`));
   return match?.label ?? "Employee Portal";
@@ -337,7 +342,7 @@ function Gate() {
       </div>
     );
   }
-  return <Outlet />;
+  return <Suspense fallback={<PageLoading />}><Outlet /></Suspense>;
 }
 
 export function EmployeeLayout() {
@@ -347,7 +352,7 @@ export function EmployeeLayout() {
   return (
     <EmployeeProvider>
       <div className="flex h-screen overflow-hidden bg-[var(--color-bg)]">
-        <Sidebar title="Employee Portal" items={NAV} />
+        <Sidebar title="Employee Portal" items={(user?.erpRoles || []).includes("Interviewer") ? [...NAV.slice(0, -1), INTERVIEWS_NAV, NAV[NAV.length - 1]] : NAV} />
         <div className="flex min-w-0 flex-1 flex-col">
           <Topbar roleLabel="Employee" pageTitle={titleFor(pathname)} />
           <main className="flex-1 overflow-y-auto p-6">

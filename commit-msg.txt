@@ -1,0 +1,23 @@
+feat(hr): leave, lifecycle, performance, training, reports, my team, resources; code splitting
+
+HR modules (previously read-only lists)
+- Leave: approve / reject with reason, apply on an employee's behalf (leave approver defaulted), balances, allocations
+- Lifecycle: promotions and transfers update the employee on submit (revised CTC); exits with separation checklist,
+  mark as left and disable the portal login
+- Performance: appraisal templates (KRA weightages = 100%), cycles (add employees, create appraisals, start, complete),
+  appraisals, goals with progress
+- Training: programs, events with invitees, mark completed / cancelled, feedback
+- Reports: headcount, joiners & leavers with attrition, leave, attendance, utilisation - all with CSV
+
+Managers and resourcing
+- My Team (employee portal and PM): direct reports, who's in today, upcoming leave, approve / reject their leave
+  through a server rule (own reports or leave approver only, never own leave)
+- Resources (HR and PM): capacity vs assigned vs approved hours, bench and over-allocation
+- Holiday lists without weekly offs: Saturday and Sunday treated as off (compliance, resources)
+
+Admin and clean-up
+- ERPNext Setup gains the "Manager self-service" module; HR preset covers the new doctypes
+- Roles & Permissions: lift ERPNext's automatic Employee restriction for HR / PM logins
+- Has Role queries pass the parent doctype (fixes 403 on the admin dashboard)
+- Pages are lazy-loaded: main bundle ~320 KB instead of ~800 KB
+- Removed unused admin/Projects.jsx; README updated (changes, deploy steps, open decisions)

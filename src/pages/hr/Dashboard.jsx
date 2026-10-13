@@ -186,7 +186,7 @@ export default function HRDashboard() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2.5">
-            <Link to="/hr/attendance" className="flex items-center gap-2 rounded-lg bg-[var(--color-red)] px-4 py-2.5 text-[13px] font-medium text-white transition-colors hover:bg-[var(--color-red-hover)]"><Plus size={15} /> Mark attendance</Link>
+            <Link to="/hr/attendance" className="flex items-center gap-2 rounded-lg bg-[var(--color-red)] px-4 py-2.5 text-[13px] font-medium text-[var(--color-on-accent)] transition-colors hover:bg-[var(--color-red-hover)]"><Plus size={15} /> Mark attendance</Link>
             <Link to="/hr/leave" className="flex items-center gap-2 rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-4 py-2.5 text-[13px] font-medium text-[var(--color-text)] transition-colors hover:border-[var(--color-text-faint)]"><CalendarClock size={15} /> Review leave</Link>
             <Link to="/hr/employees" className="flex items-center gap-2 rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-4 py-2.5 text-[13px] font-medium text-[var(--color-text)] transition-colors hover:border-[var(--color-text-faint)]"><UserPlus size={15} /> Add employee</Link>
           </div>

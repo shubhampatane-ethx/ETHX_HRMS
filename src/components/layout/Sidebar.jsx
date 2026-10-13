@@ -81,7 +81,7 @@ function GroupItem({ group, pathname, nested = false }) {
               <GroupItem key={child.label} group={child} pathname={pathname} nested />
             ) : (
               <li key={child.to}>
-                <NavLeaf to={child.to} label={child.label} small />
+                <NavLeaf to={child.to} label={child.label} small end={Boolean(child.end)} />
               </li>
             )
           )}

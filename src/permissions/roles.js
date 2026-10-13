@@ -34,6 +34,13 @@ export const PERMISSIONS = {
     "payroll.manage",
     "recruitment.view",
     "reports.view",
+    // ...and can open the HR workspace itself (route guard + remaining HR sections)
+    "dashboard.hr",
+    "dashboard.pm",
+    "leave.create",
+    "onboarding.view",
+    "performance.view",
+    "training.view",
   ],
   HR_USER: [
     "dashboard.hr",
@@ -48,6 +55,8 @@ export const PERMISSIONS = {
     "payroll.view",
     "payroll.manage",
     "recruitment.view",
+    "recruitment.manage",
+    "interviews.own",
     "onboarding.view",
     "performance.view",
     "training.view",
@@ -62,17 +71,24 @@ export const PERMISSIONS = {
     "leave.own.apply",
     "payroll.own.view",
   ],
+  PROJECT_MANAGER: [
+    "dashboard.pm",
+    "projects.manage",
+    "assignments.manage",
+    "timesheets.team.view",
+    "requisitions.raise",
+    "interviews.own",
+  ],
 };
 
 export const ADMIN_USERNAME = "Administrator";
 
 /**
- * Product access is deliberately simple: the ERPNext Administrator account
- * uses the Admin workspace; every other authenticated account uses HR.
- * ERPNext must still enforce the matching server-side doctype permissions.
+ * App roles for an account. The ERPNext Administrator uses the Admin workspace; every other account is resolved
+ * from its real ERPNext roles in AuthContext (deny by default). ERPNext still enforces doctype permissions.
  */
 export function effectiveRolesForUser(username) {
-  return username === ADMIN_USERNAME ? ["System Manager"] : ["HR User"];
+  return username === ADMIN_USERNAME ? ["System Manager"] : [];
 }
 
 /**
@@ -85,6 +101,7 @@ const ROLE_MAP = {
   "HR Manager": "HR_USER",
   "HR User": "HR_USER",
   Employee: "EMPLOYEE",
+  "Projects Manager": "PROJECT_MANAGER", // ERPNext's standard Projects Manager role
 };
 
 export function rolesToPermissions(erpRoles = []) {
@@ -96,10 +113,11 @@ export function rolesToPermissions(erpRoles = []) {
   return Array.from(perms);
 }
 
-/** Highest-priority app role for routing/layout purposes (Admin > HR > Employee). */
+/** Highest-priority app role for routing/layout purposes (Admin > HR > Project Manager > Employee). */
 export function primaryAppRole(erpRoles = []) {
   if (erpRoles.includes("System Manager")) return "admin";
   if (erpRoles.some((r) => ["HR Manager", "HR User"].includes(r))) return "hr";
+  if (erpRoles.includes("Projects Manager")) return "pm";
   if (erpRoles.includes("Employee")) return "employee";
   return null;
 }
