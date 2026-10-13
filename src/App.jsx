@@ -7,6 +7,9 @@ import Login from "./pages/Login";
 import Unauthorized from "./pages/Unauthorized";
 
 import { AdminLayout } from "./components/layout/AdminLayout";
+import { PMLayout } from "./components/layout/PMLayout";
+import { PMAssignments, PMDashboard, PMProjects } from "./pages/pm/PMPages";
+import ProjectManagers from "./pages/admin/ProjectManagers";
 import AdminDashboard from "./pages/admin/Dashboard";
 import AdminUsers from "./pages/admin/Users";
 import Organization from "./pages/admin/Organization";
@@ -46,10 +49,21 @@ export default function App() {
             <Route path="/admin" element={<AdminLayout />}>
               <Route index element={<AdminDashboard />} />
               <Route path="users" element={<AdminUsers />} />
+              <Route path="employees" element={<Employees />} />
+              <Route path="project-managers" element={<ProjectManagers />} />
               <Route path="organization" element={<Organization />} />
               <Route path="roles" element={<Roles />} />
               <Route path="settings" element={<Settings />} />
               <Route path="audit-logs" element={<AuditLogs />} />
+            </Route>
+          </Route>
+
+          <Route element={<RequirePermission permission="dashboard.pm" />}>
+            <Route path="/pm" element={<PMLayout />}>
+              <Route index element={<PMDashboard />} />
+              <Route path="projects" element={<PMProjects />} />
+              <Route path="assignments" element={<PMAssignments />} />
+              <Route path="timesheets" element={<Timesheets readOnly />} />
             </Route>
           </Route>
 
@@ -105,6 +119,7 @@ function HomeRedirect() {
   const role = primaryAppRole(user?.roles);
   if (role === "admin") return <Navigate to="/admin" replace />;
   if (role === "hr") return <Navigate to="/hr" replace />;
+  if (role === "pm") return <Navigate to="/pm" replace />;
   if (role === "employee") return <Navigate to="/employee" replace />;
   return <Navigate to="/unauthorized" replace />;
 }

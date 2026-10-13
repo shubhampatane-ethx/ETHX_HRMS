@@ -1,11 +1,12 @@
 // Employee portal: Timesheet page and the monthly timesheet editor.
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, Pencil, Plus, Send, Trash2, Upload, X } from "lucide-react";
 import { Async, Grid, inputCls, Modal, Notice, PageHeader, Panel, StatusPill, useEmployee } from "../../components/employee/EmployeeShell";
 import { Button } from "../../components/ui/primitives";
 import { useAuth } from "../../context/AuthContext";
 import { frappe } from "../../lib/api/frappeClient";
 import { dmy, errMsg, friendlyError, getAssignedTasks, getHolidays, getTimesheets, isoDate, MONTHS_LONG, pad, parseWorkNote, useAsync, WEEKDAYS } from "../../lib/employeePortal";
+import { getMyAssignments, parseAssignment } from "../../lib/assignments";
 import { composeDescription, csvToEntries, DAY_MINUTES, getEntriesBetween, getLeaveDays, getProjects, matchTask, minutesOf, parseCsv, projectResolver, roundHours, slotDay, submitTimesheet, withActivityType } from "../../lib/timesheets";
 
 /** Review state pill: Draft / Returned / Pending Review / Approved (+ ERPNext's own status when it says more). */
@@ -189,6 +190,8 @@ function MonthlyEditor({ employee, tasks, editName, doc, recentNames, onClose, o
     return map;
   }, [emp, from, savedName]);
 
+  const assigned = useAsync(() => getMyAssignments(employee.user_id, from, to), [emp, from]);
+  const assignments = useMemo(() => (assigned.data || []).map(parseAssignment), [assigned.data]);
   const resolveProject = useMemo(() => projectResolver(projects.data || []), [projects.data]);
   const holidayMap = useMemo(() => Object.fromEntries((holidays.data?.holidays || []).map((h) => [h.date, h])), [holidays.data]);
   const listHasWeeklyOffs = (holidays.data?.holidays || []).some((h) => h.weeklyOff);
@@ -256,6 +259,48 @@ function MonthlyEditor({ employee, tasks, editName, doc, recentNames, onClose, o
     change(() => n);
     setInfo(`Filled empty working days with ${hrs} h${skippedLeave ? `; skipped ${skippedLeave} leave day(s)` : ""}. Days you already filled were left as they are.`);
   }
+
+  /**
+   * Fill empty working days from the projects a Project Manager assigned to this employee:
+   * every day between the start date and the ETA gets the assigned hours per day, with the role as the task.
+   * Skips weekly offs, holidays and leave; days already filled or logged elsewhere are left alone.
+   */
+  function fillFromAssignments(auto = false) {
+    if (!assignments.length) return setInfo("You have no project assignments for this month.");
+    const label = (id) => { const p = (projects.data || []).find((x) => x.name === id); return p ? projectLabel(p) : id; };
+    const n = { ...days };
+    const used = new Set();
+    let daysFilled = 0;
+    list.filter((d) => !d.off && !d.future).forEach((d) => {
+      if (d.leave && !d.leave.half) return;
+      if ((n[d.date] || []).some((e) => Number(e.hours) > 0)) return;
+      const active = assignments.filter((a) => a.start <= d.date && d.date <= a.end && a.status !== "Cancelled");
+      if (!active.length) return;
+      const total = active.reduce((s, a) => s + a.hoursPerDay, 0);
+      const want = roundHours((d.leave?.half ? total / 2 : total) - (d.logged?.hours || 0));
+      if (want <= 0) return;
+      n[d.date] = active.map((a) => { used.add(label(a.project)); return { ...blank(), project: label(a.project), hours: String(roundHours((a.hoursPerDay / total) * want)), task: a.role, notes: `ETA ${dmy(a.eta)}` }; });
+      daysFilled += 1;
+    });
+    if (used.size) {
+      const merged = [...myProjects];
+      used.forEach((p) => { if (!merged.some((x) => x.toLowerCase() === p.toLowerCase())) merged.push(p); });
+      if (merged.length !== myProjects.length) { setMyProjects(merged); saveList(storeKey, merged); }
+    }
+    if (!daysFilled) return setInfo("Nothing to fill - your assigned days are already filled, on leave or logged in another timesheet.");
+    change(() => n);
+    setInfo(`${auto ? "Filled automatically" : "Filled"} from your project assignments: ${daysFilled} day(s). Review and adjust before saving.`);
+  }
+
+  // Pre-fill a new timesheet once everything it depends on has loaded (once per month)
+  const autoFor = useRef(null);
+  const ready = !holidays.loading && !leave.loading && !existing.loading && !assigned.loading && !projects.loading;
+  useEffect(() => {
+    if (editName || !ready || autoFor.current === from) return;
+    autoFor.current = from;
+    if (assignments.length && !Object.values(days).some((arr) => arr.some((e) => Number(e.hours) > 0))) fillFromAssignments(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, from]);
 
   function importCsv(e) {
     const file = e.target.files?.[0];
@@ -407,11 +452,21 @@ function MonthlyEditor({ employee, tasks, editName, doc, recentNames, onClose, o
           Fill empty working days with
           <input type="number" min="0.25" max="24" step="0.25" value={fill} onChange={(e) => setFill(e.target.value)} className={`${cell} !w-20`} /> h
           <Button type="button" variant="secondary" onClick={fillWorking} disabled={waiting}>Fill</Button>
+          <Button type="button" variant="secondary" onClick={() => fillFromAssignments(false)} disabled={waiting || assigned.loading || !assignments.length} title="Fill from the projects your Project Manager assigned to you">From my assignments ({assignments.length})</Button>
           <Button type="button" variant="ghost" onClick={() => { if (!dirty || window.confirm("Clear everything you've entered for this month?")) change(() => ({})); }}>Clear</Button>
           <input ref={fileInput} type="file" accept=".csv,text/csv" className="hidden" onChange={importCsv} />
           <Button type="button" variant="secondary" onClick={() => fileInput.current?.click()}><Upload size={14} /> Import CSV</Button>
           <span className="text-[11px] text-[var(--color-text-faint)]">CSV: date, hours, project, task - or any file with Date / Hours / Project / Task headers</span>
         </div>
+
+        {assignments.length > 0 && (
+          <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)] px-4 py-3 text-[12px]">
+            <p className="mb-1.5 font-medium text-[var(--color-text)]">Your project assignments this month</p>
+            <ul className="space-y-1 text-[var(--color-text-muted)]">
+              {assignments.map((a) => <li key={a.name}><b className="text-[var(--color-text)]">{(projects.data || []).find((p) => p.name === a.project) ? projectLabel((projects.data || []).find((p) => p.name === a.project)) : a.project}</b> as {a.role} · {dmy(a.start)} to ETA {dmy(a.eta)} · {a.hoursPerDay} h/day</li>)}
+            </ul>
+          </div>
+        )}
 
         {existing.error && <Notice>Couldn't check the hours you've already logged this month ({friendlyError(existing.error)}). Saving may fail if days overlap with another timesheet.</Notice>}
         {leave.error && <Notice tone="info">Couldn't load your leave for this month, so leave days aren't marked.</Notice>}

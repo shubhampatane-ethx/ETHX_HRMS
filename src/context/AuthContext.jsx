@@ -6,7 +6,7 @@ const AuthContext = createContext(null);
 
 /**
  * Administrator -> Admin workspace. A user holding an HR role -> HR workspace.
- * A user whose only relevant role is "Employee" -> Employee portal; if they have never
+ * A user with the Projects Manager role -> Project Manager workspace. A user whose only relevant role is "Employee" -> Employee portal; if they have never
  * set their own password (HR gave them a temporary one) they must change it first.
  * Anything we can't read or recognise keeps the previous behaviour (HR).
  */
@@ -16,10 +16,13 @@ async function resolveAccount(email) {
     const doc = await frappe.getDoc("User", email);
     const erpRoles = (doc.roles || []).map((r) => r.role);
     if (erpRoles.some((r) => r === "HR Manager" || r === "HR User")) return { roles: ["HR User"], mustChangePassword: false };
-    if (erpRoles.includes("Employee")) {
+    const isPm = erpRoles.includes("Projects Manager");
+    if (isPm || erpRoles.includes("Employee")) {
+      // Admin gave them a temporary password: they must set their own first
       let flagged = false;
       try { flagged = localStorage.getItem(`pwchanged:${email}`) === "1"; } catch { /* ignore */ }
-      return { roles: ["Employee"], mustChangePassword: !doc.last_password_reset_date && !flagged };
+      const roles = [...(isPm ? ["Projects Manager"] : []), ...(erpRoles.includes("Employee") ? ["Employee"] : [])];
+      return { roles, mustChangePassword: !doc.last_password_reset_date && !flagged };
     }
   } catch {
     /* fall through to the legacy default */

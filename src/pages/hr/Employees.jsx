@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { Check, Copy, Edit3, KeyRound, Plus, RefreshCw, Trash2, Users } from "lucide-react";
+import { Check, Copy, Edit3, KeyRound, Plus, RefreshCw, Trash2, Users, X } from "lucide-react";
 import { frappe } from "../../lib/api/frappeClient";
-import { errMsg } from "../../lib/employeePortal";
+import { dmy, dmyHm, errMsg, useAsync } from "../../lib/employeePortal";
 import { HrRecordForm } from "../../components/hr/HrRecordForm";
 import { Button, Card, Table } from "../../components/ui/primitives";
 
@@ -97,6 +97,7 @@ export default function Employees() {
   const [editing, setEditing] = useState(null);
   const [formOpen, setFormOpen] = useState(false);
   const [loginFor, setLoginFor] = useState(null);
+  const [detail, setDetail] = useState(null);
 
   async function load() {
     setState("loading");
@@ -150,7 +151,7 @@ export default function Employees() {
         {state === "loading" && <div className="flex h-40 items-center justify-center text-[13px] text-[var(--color-text-muted)]">Loading employees...</div>}
         {state === "error" && <div className="p-6 text-[13px] text-[var(--color-text-muted)]">Could not load Employee records. Check ERPNext permissions and connectivity.</div>}
         {state === "ready" && <Table columns={[
-          { key: "employee_name", label: "Name" },
+          { key: "employee_name", label: "Name", render: (row) => <button type="button" onClick={() => setDetail(row)} className="text-left text-[var(--color-text)] hover:text-[var(--color-red-hover)] hover:underline">{row.employee_name || row.name}</button> },
           { key: "department", label: "Department" },
           { key: "designation", label: "Designation" },
           { key: "company", label: "Company" },
@@ -166,6 +167,7 @@ export default function Employees() {
         ]} rows={employees} emptyLabel="No employees found." />}
       </Card>
 
+      {detail && <EmployeeDetail employee={detail} onClose={() => setDetail(null)} onEdit={() => { setEditing(detail.name); setFormOpen(true); setDetail(null); window.scrollTo?.({ top: 0 }); }} onLogin={() => { setLoginFor(detail); setDetail(null); }} />}
       {loginFor && <LoginModal employee={loginFor} onClose={() => setLoginFor(null)} onDone={load} />}
     </div>
   );
@@ -245,6 +247,106 @@ function LoginModal({ employee, onClose, onDone }) {
             </div>
           </form>
         )}
+      </div>
+    </div>
+  );
+}
+
+/* ----------------------------- full employee details ----------------------------- */
+
+const SKIP = new Set(["name", "owner", "creation", "modified", "modified_by", "docstatus", "idx", "doctype", "naming_series", "amended_from", "lft", "rgt", "old_parent", "image", "parent", "parentfield", "parenttype", "unsaved"]);
+const GROUPS = [
+  ["Employment", ["employee", "employee_name", "first_name", "middle_name", "last_name", "company", "department", "designation", "branch", "grade", "employment_type", "status", "date_of_joining", "scheduled_confirmation_date", "final_confirmation_date", "contract_end_date", "notice_number_of_days", "date_of_retirement", "relieving_date", "reason_for_leaving", "reports_to", "leave_policy", "holiday_list", "default_shift", "attendance_device_id", "expense_approver", "leave_approver", "shift_request_approver", "payroll_cost_center", "cost_center", "ctc", "salary_currency", "salary_mode", "bank_name", "bank_ac_no", "iban"]],
+  ["Personal", ["salutation", "gender", "date_of_birth", "blood_group", "marital_status", "family_background", "health_details", "bio"]],
+  ["Contact", ["cell_number", "personal_email", "company_email", "prefered_contact_email", "prefered_email", "current_address", "current_accommodation_type", "permanent_address", "permanent_accommodation_type"]],
+  ["Emergency contact", ["person_to_be_contacted", "relation", "emergency_phone_number"]],
+  ["Documents & insurance", ["passport_number", "valid_upto", "date_of_issue", "place_of_issue", "health_insurance_provider", "health_insurance_no"]],
+  ["Sign-in", ["user_id", "create_user_permission"]],
+];
+const pretty = (k) => k.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+function show(v) {
+  if (v === 1 || v === "1") return "Yes";
+  if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v)) return v.length > 10 ? dmyHm(v) : dmy(v);
+  return String(v).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+}
+const filled = (v) => v !== null && v !== undefined && v !== "" && v !== 0 && v !== "0" && typeof v !== "object";
+
+function EmployeeDetail({ employee, onClose, onEdit, onLogin }) {
+  const q = useAsync(async () => {
+    const doc = await frappe.getDoc("Employee", employee.name);
+    let login = null;
+    if (doc.user_id) { try { login = await frappe.getDoc("User", doc.user_id); } catch { /* HR may not be allowed to read users */ } }
+    return { doc, login };
+  }, [employee.name]);
+  const doc = q.data?.doc;
+  const login = q.data?.login;
+
+  const used = new Set();
+  const groups = doc ? GROUPS.map(([title, keys]) => {
+    const rows = keys.filter((k) => filled(doc[k])).map((k) => { used.add(k); return [pretty(k), show(doc[k])]; });
+    return [title, rows];
+  }) : [];
+  const other = doc ? Object.keys(doc).filter((k) => !used.has(k) && !SKIP.has(k) && filled(doc[k])).map((k) => [pretty(k), show(doc[k])]) : [];
+  const tables = doc ? Object.keys(doc).filter((k) => Array.isArray(doc[k]) && doc[k].length) : [];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-[15px] font-semibold text-[var(--color-text)]">{employee.employee_name || employee.name}</h2>
+            <p className="mt-0.5 text-[12px] text-[var(--color-text-muted)]">{employee.name}{employee.designation ? ` · ${employee.designation}` : ""}{employee.company ? ` · ${employee.company}` : ""}</p>
+          </div>
+          <button type="button" onClick={onClose} className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]"><X size={16} /></button>
+        </div>
+
+        {q.loading && !doc && <p className="py-8 text-center text-[13px] text-[var(--color-text-muted)]">Loading details…</p>}
+        {q.error && <p className="text-[13px] text-[var(--color-red-hover)]">{errMsg(q.error, "Couldn't load this employee.")}</p>}
+
+        {doc && (
+          <div className="space-y-5">
+            {[...groups, ...(other.length ? [["Other details", other]] : [])].filter(([, rows]) => rows.length).map(([title, rows]) => (
+              <section key={title}>
+                <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{title}</h3>
+                <dl className="grid grid-cols-1 gap-x-8 gap-y-2.5 sm:grid-cols-2">
+                  {rows.map(([k, v]) => <div key={k}><dt className="text-[11px] text-[var(--color-text-faint)]">{k}</dt><dd className="text-[13px] text-[var(--color-text)]">{v}</dd></div>)}
+                </dl>
+              </section>
+            ))}
+
+            {doc.user_id && (
+              <section>
+                <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Portal login</h3>
+                {login ? (
+                  <dl className="grid grid-cols-1 gap-x-8 gap-y-2.5 sm:grid-cols-2">
+                    {[["Account", login.enabled ? "Enabled" : "Disabled"], ["Last login", dmyHm(login.last_login) || "Never"], ["Last active", dmyHm(login.last_active) || "—"], ["Roles", (login.roles || []).map((r) => r.role).join(", ") || "—"]].map(([k, v]) => <div key={k}><dt className="text-[11px] text-[var(--color-text-faint)]">{k}</dt><dd className="text-[13px] text-[var(--color-text)]">{v}</dd></div>)}
+                  </dl>
+                ) : <p className="text-[12px] text-[var(--color-text-muted)]">Login details aren't visible to your account.</p>}
+              </section>
+            )}
+
+            {tables.map((k) => {
+              const cols = [...new Set(doc[k].flatMap((r) => Object.keys(r)))].filter((c) => !SKIP.has(c) && doc[k].some((r) => filled(r[c]))).slice(0, 6);
+              return (
+                <section key={k}>
+                  <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{pretty(k)}</h3>
+                  <div className="overflow-x-auto rounded-md border border-[var(--color-border)]">
+                    <table className="w-full text-left text-[12px]">
+                      <thead><tr className="border-b border-[var(--color-border)] text-[var(--color-text-muted)]">{cols.map((c) => <th key={c} className="px-3 py-1.5 font-medium">{pretty(c)}</th>)}</tr></thead>
+                      <tbody>{doc[k].map((r, i) => <tr key={r.name || i} className="border-b border-[var(--color-border)] last:border-0">{cols.map((c) => <td key={c} className="px-3 py-1.5 text-[var(--color-text)]">{filled(r[c]) ? show(r[c]) : "—"}</td>)}</tr>)}</tbody>
+                    </table>
+                  </div>
+                </section>
+              );
+            })}
+            <p className="text-[11px] text-[var(--color-text-faint)]">Created {dmyHm(doc.creation)} by {doc.owner} · last changed {dmyHm(doc.modified)} by {doc.modified_by}</p>
+          </div>
+        )}
+
+        <div className="mt-5 flex justify-end gap-2">
+          <Button variant="secondary" onClick={onLogin}><KeyRound size={14} /> {employee.user_id ? "Reset password" : "Create login"}</Button>
+          <Button onClick={onEdit}><Edit3 size={14} /> Edit employee</Button>
+        </div>
       </div>
     </div>
   );

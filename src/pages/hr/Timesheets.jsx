@@ -68,7 +68,7 @@ function Row({ r, showEmployee, onOpen }) {
   );
 }
 
-export default function Timesheets() {
+export default function Timesheets({ readOnly = false }) {
   const thisYear = new Date().getFullYear();
   const [year, setYear] = useState(thisYear);
   const [monthSel, setMonthSel] = useState(null); // null = latest month with data, "all" = whole year
@@ -211,12 +211,12 @@ export default function Timesheets() {
         </Card>
       )}
 
-      {open && <Detail sheet={open} onClose={() => setOpen(null)} onChanged={() => { setOpen(null); q.reload(); }} />}
+      {open && <Detail sheet={open} readOnly={readOnly} onClose={() => setOpen(null)} onChanged={() => { setOpen(null); q.reload(); }} />}
     </div>
   );
 }
 
-function Detail({ sheet, onClose, onChanged }) {
+function Detail({ sheet, onClose, onChanged, readOnly = false }) {
   const q = useAsync(() => frappe.getDoc("Timesheet", sheet.name), [sheet.name]);
   const d = q.data;
   const review = sheet.review;
@@ -227,7 +227,7 @@ function Detail({ sheet, onClose, onChanged }) {
 
   const logs = (d?.time_logs || []).map((l) => ({ ...l, w: parseWorkNote(l.description, { project: l.project, task: l.task }) }));
   const hasNotes = logs.some((l) => l.w.notes);
-  const canReview = d?.docstatus === 1;
+  const canReview = (d?.docstatus === 1) && !readOnly;
 
   async function confirm() {
     if (mode === "return" && !note.trim()) return setErr("Tell the employee what to correct.");

@@ -4,6 +4,8 @@ import { ArrowLeft, FileBarChart2, Plus, Trash2, X, Loader2 } from "lucide-react
 import { frappe } from "../../lib/api/frappeClient";
 import { Card, Table, Button, Input, LinkField } from "../../components/ui/primitives";
 import { findSetupItem } from "../../lib/hrSetupConfig";
+import { useAuth } from "../../context/AuthContext";
+import { hasPermission } from "../../permissions/roles";
 
 const DEFAULT_FIELDS = ["name", "modified", "owner"];
 const DEFAULT_COLUMNS = [
@@ -16,8 +18,9 @@ const FALLBACK_FORM_FIELDS = [{ name: "name", label: "Name", type: "text", requi
 export default function DoctypeView() {
   const { doctype: slug } = useParams();
   const item = findSetupItem(slug);
+  const { user } = useAuth();
 
-  if (item?.adminOnly) {
+  if (item?.adminOnly && !hasPermission(user, "dashboard.admin")) {
     return (
       <Card className="p-6">
         <p className="text-[13px] text-[var(--color-text-muted)]">{item.label} setup is managed by your Administrator.</p>

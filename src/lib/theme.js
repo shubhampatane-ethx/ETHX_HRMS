@@ -1,0 +1,63 @@
+export const THEME_OPTIONS = [
+  {
+    id: "ember",
+    name: "Ember",
+    detail: "Charcoal surfaces with a vivid red accent",
+    swatches: ["#0a0a0c", "#f20d32", "#f2f2f4"],
+  },
+  {
+    id: "daylight",
+    name: "Daylight",
+    detail: "Bright surfaces with a warm red accent",
+    swatches: ["#f3f5f4", "#bf1232", "#202722"],
+  },
+  {
+    id: "evergreen",
+    name: "Evergreen",
+    detail: "Deep green surfaces with a mint accent",
+    swatches: ["#0b1412", "#00b77b", "#e8f1ec"],
+  },
+  {
+    id: "pink",
+    name: "Pink",
+    detail: "Soft rose surfaces with a confident pink accent",
+    swatches: ["#fff5fa", "#c0165b", "#26131e"],
+  },
+];
+
+const DEFAULT_THEME = THEME_OPTIONS[0].id;
+const isTheme = (value) => THEME_OPTIONS.some((theme) => theme.id === value);
+const themeKey = (company) => company ? `hrms-theme:${company}` : "hrms-theme";
+
+export function getSavedTheme(company) {
+  try {
+    const saved = localStorage.getItem(themeKey(company));
+    return isTheme(saved) ? saved : DEFAULT_THEME;
+  } catch {
+    return DEFAULT_THEME;
+  }
+}
+
+export function hasSavedTheme(scope) {
+  if (!scope) return false;
+  try {
+    return isTheme(localStorage.getItem(themeKey(scope)));
+  } catch {
+    return false;
+  }
+}
+
+export function applySavedTheme(company) {
+  document.documentElement.dataset.theme = getSavedTheme(company);
+}
+
+export function saveTheme(value, company) {
+  const theme = isTheme(value) ? value : DEFAULT_THEME;
+  document.documentElement.dataset.theme = theme;
+  try {
+    localStorage.setItem(themeKey(company), theme);
+  } catch {
+    // Keep the selected theme active for this session if storage is unavailable.
+  }
+  return theme;
+}

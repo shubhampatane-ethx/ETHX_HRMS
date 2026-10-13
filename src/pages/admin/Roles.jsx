@@ -10,7 +10,7 @@ import { Button, Card } from "../../components/ui/primitives";
  * Custom DocPerm first - so granting one permission never wipes the others.
  */
 const PM = "frappe.core.page.permission_manager.permission_manager";
-const ROLES = ["HR Manager", "HR User", "Employee"];
+const ROLES = ["HR Manager", "HR User", "Projects Manager", "Employee"];
 const FLAGS = ["read", "write", "create", "delete", "submit", "cancel", "amend", "report", "export", "share", "print", "email"];
 
 // Everything HR needs to add an employee AND give them a login in one go. Each line below was a
@@ -27,7 +27,20 @@ const HR_PRESET = [
   { doctype: "Designation", perms: ["read"], why: "Pick the designation" },
 ];
 // Everything the employee portal reads or writes as a signed-in employee.
+// ERPNext's standard "Projects Manager" role is our Project Manager: projects, assigning tasks to people, team timesheets.
+const PM_PRESET = [
+  { doctype: "Project", perms: ["read", "write", "create"], why: "Create and manage projects" },
+  { doctype: "Task", perms: ["read", "write", "create", "delete", "share"], why: "Assignments are tasks assigned to employees" },
+  { doctype: "ToDo", perms: ["read", "write", "create"], why: "Assigning a task to an employee" },
+  { doctype: "Employee", perms: ["read"], why: "Choose employees to assign" },
+  { doctype: "Company", perms: ["read"], why: "Company on projects" },
+  { doctype: "Department", perms: ["read"], why: "Employee details" },
+  { doctype: "Designation", perms: ["read"], why: "Employee details" },
+  { doctype: "Timesheet", perms: ["read"], why: "See the team's timesheets" },
+  { doctype: "Activity Type", perms: ["read"], why: "Timesheet details" },
+];
 const PRESETS = {
+  "Projects Manager": PM_PRESET,
   "HR Manager": HR_PRESET,
   "HR User": HR_PRESET,
   Employee: [
@@ -382,7 +395,7 @@ function AccountCheck() {
       const user = await frappe.getDoc("User", email.trim());
       const roles = (user.roles || []).map((r) => r.role);
       const isHr = roles.some((r) => r === "HR Manager" || r === "HR User");
-      const wanted = isHr ? HR_PRESET : roles.includes("Employee") ? PRESETS.Employee : [];
+      const wanted = isHr ? HR_PRESET : roles.includes("Projects Manager") ? PM_PRESET : roles.includes("Employee") ? PRESETS.Employee : [];
       const lines = await Promise.all(wanted.map(async (p) => {
         const rows = await getPerms(p.doctype);
         return { ...p, missing: missingFlags(rows, roles, p.perms, p.permlevel ?? 0) };

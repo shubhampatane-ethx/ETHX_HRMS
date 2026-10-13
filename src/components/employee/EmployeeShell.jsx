@@ -254,7 +254,7 @@ export function ChangePasswordForm({ forced = false, onCancel }) {
         if (!(await recorded())) { try { localStorage.setItem(`pwchanged:${user.email}`, "1"); } catch { /* ignore */ } }
       }
       markPasswordChanged();
-      window.location.assign("/employee"); // fresh session + token after the password change
+      window.location.assign(user.roles?.includes("Projects Manager") ? "/pm" : "/employee"); // fresh session + token after the password change
     } catch (x) {
       setErr(errMsg(x, "Couldn't change the password. Check your current password and try again."));
       setBusy(false);
@@ -277,7 +277,7 @@ export function ChangePasswordForm({ forced = false, onCancel }) {
   );
 }
 
-function ForcedPasswordScreen() {
+export function ForcedPasswordScreen() {
   const { logout } = useAuth();
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-[var(--color-bg)] px-4 py-10">

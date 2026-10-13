@@ -12,15 +12,77 @@
   --color-text-muted: #8b8d93;
   --color-text-faint: #5a5b60;
 
-  --color-red: #e8102a;
-  --color-red-hover: #ff2b45;
+  --color-red: #f20d32;
+  --color-red-hover: #d60b2b;
   --color-red-deep: #8a0a1c;
-  --color-red-wash: #e8102a1a;
+  --color-red-wash: #f20d3226;
 
   --color-green: #1fae67;
   --color-amber: #d99a1b;
+  --color-pattern: rgba(255, 255, 255, 0.6);
+  --color-on-accent: #ffffff;
 
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+:root[data-theme="daylight"] {
+  color-scheme: light;
+  --color-bg: #f4f6f7;
+  --color-surface: #ffffff;
+  --color-surface-2: #e9edf0;
+  --color-border: #d8dfe3;
+  --color-border-strong: #b5c0c7;
+  --color-text: #141719;
+  --color-text-muted: #4d585f;
+  --color-text-faint: #68757d;
+  --color-red: #bf1232;
+  --color-red-hover: #990d28;
+  --color-red-deep: #69091d;
+  --color-red-wash: #bf123229;
+  --color-green: #18784d;
+  --color-amber: #956000;
+  --color-pattern: rgba(20, 23, 25, 0.35);
+  --color-on-accent: #ffffff;
+}
+
+:root[data-theme="evergreen"] {
+  color-scheme: dark;
+  --color-bg: #0b1412;
+  --color-surface: #111d19;
+  --color-surface-2: #192823;
+  --color-border: #263a32;
+  --color-border-strong: #385247;
+  --color-text: #e8f1ec;
+  --color-text-muted: #9caf9f;
+  --color-text-faint: #6f887a;
+  --color-red: #00b77b;
+  --color-red-hover: #009362;
+  --color-red-deep: #07563c;
+  --color-red-wash: #00b77b33;
+  --color-green: #39d992;
+  --color-amber: #e1b75e;
+  --color-pattern: rgba(232, 241, 236, 0.55);
+  --color-on-accent: #06271b;
+}
+
+:root[data-theme="pink"] {
+  color-scheme: light;
+  --color-bg: #fff5fa;
+  --color-surface: #fffafd;
+  --color-surface-2: #f8e9f1;
+  --color-border: #edd5e1;
+  --color-border-strong: #dcb9cb;
+  --color-text: #26131e;
+  --color-text-muted: #705563;
+  --color-text-faint: #927b88;
+  --color-red: #c0165b;
+  --color-red-hover: #970f46;
+  --color-red-deep: #690b31;
+  --color-red-wash: #c0165b2b;
+  --color-green: #28765c;
+  --color-amber: #936000;
+  --color-pattern: rgba(66, 27, 49, 0.3);
+  --color-on-accent: #ffffff;
 }
 
 html, body, #root {
@@ -41,6 +103,7 @@ body {
 }
 *::-webkit-scrollbar { width: 8px; height: 8px; }
 *::-webkit-scrollbar-thumb { background: var(--color-border-strong); border-radius: 4px; }
+
 
 :focus-visible {
   outline: 2px solid var(--color-red);

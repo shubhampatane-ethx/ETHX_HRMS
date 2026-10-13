@@ -36,7 +36,7 @@ export function StatCard({ label, value, trend }) {
 export function Button({ children, variant = "primary", className = "", ...props }) {
   const base = "inline-flex items-center justify-center gap-1.5 rounded-md px-3.5 py-2 text-[13px] font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none";
   const variants = {
-    primary: "bg-[var(--color-red)] text-white hover:bg-[var(--color-red-hover)]",
+    primary: "bg-[var(--color-red)] text-[var(--color-on-accent)] hover:bg-[var(--color-red-hover)]",
     secondary:
       "bg-[var(--color-surface-2)] text-[var(--color-text)] border border-[var(--color-border-strong)] hover:border-[var(--color-red-deep)]",
     ghost: "text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-2)]",
