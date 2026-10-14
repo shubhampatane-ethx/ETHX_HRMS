@@ -41,6 +41,19 @@ Branch: `feat/recruitment` · 3 commits · 54 files changed.
 - Pages load on demand (code splitting): the first download is ~320 KB instead of ~800 KB
 - Removed the unused `src/pages/admin/Projects.jsx`
 
+
+refactor(hr-nav): remove HR Reports tab, move Onboarding/Performance/Training under Recruitment
+
+- Remove the top-level "Reports" item from the HR sidebar, plus its
+  /hr/reports route and lazy import in App.jsx
+- Remove the Reports quick-access card from the HR dashboard
+- Move Onboarding, Performance and Training into the Recruitment menu,
+  keeping their existing /hr/* URLs
+- Drop the lucide icon imports these changes left unused
+- Recruitment > Reports (/hr/recruitment/reports) is unchanged
+
+
+
 ### Bugs fixed during testing
 - Training "Mark completed" was rejected by ERPNext (attendee rows lost their names)
 - Exit resignation date wasn't saved (the employee is now updated before the separation is created)

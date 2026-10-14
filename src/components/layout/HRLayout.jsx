@@ -8,10 +8,6 @@ import {
   Timer,
   Wallet,
   UserSearch,
-  ClipboardList,
-  TrendingUp,
-  GraduationCap,
-  FileBarChart,
   Settings as SettingsIcon,
   ArrowLeft,
   ArrowRightLeft,
@@ -46,12 +42,11 @@ export const TOP_NAV = [
       { to: "/hr/recruitment/offers", label: "Offers" },
       { to: "/hr/recruitment/reports", label: "Reports" },
       { to: "/hr/recruitment/setup", label: "Setup & Retention" },
+      { to: "/hr/onboarding", label: "Onboarding" },
+      { to: "/hr/performance", label: "Performance" },
+      { to: "/hr/training", label: "Training" },
     ],
   },
-  { to: "/hr/onboarding", label: "Onboarding", icon: ClipboardList },
-  { to: "/hr/performance", label: "Performance", icon: TrendingUp },
-  { to: "/hr/training", label: "Training", icon: GraduationCap },
-  { to: "/hr/reports", label: "Reports", icon: FileBarChart },
 ];
 
 /** Every master/setting/report is still its own real link, but they all live under one "Settings" menu. */

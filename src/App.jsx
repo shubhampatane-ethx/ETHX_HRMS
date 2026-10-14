@@ -67,7 +67,6 @@ const MyInterviews = lazy(() => import("./pages/hr/recruitment/MyInterviews"));
 const Onboarding = lazy(() => import("./pages/hr/Onboarding"));
 const Performance = lazy(() => import("./pages/hr/Performance"));
 const Training = lazy(() => import("./pages/hr/Training"));
-const Reports = lazy(() => import("./pages/hr/Reports"));
 const DoctypeView = lazy(() => import("./pages/hr/DoctypeView"));
 
 export default function App() {
@@ -157,7 +156,6 @@ export default function App() {
               <Route path="onboarding" element={<Onboarding />} />
               <Route path="performance" element={<Performance />} />
               <Route path="training" element={<Training />} />
-              <Route path="reports" element={<Reports />} />
               <Route path="setup/:doctype" element={<DoctypeView />} />
             </Route>
           </Route>

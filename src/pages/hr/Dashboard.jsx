@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  ArrowRight, Building2, CalendarCheck, CalendarClock, ClipboardList, FileBarChart, GraduationCap,
+  ArrowRight, Building2, CalendarCheck, CalendarClock, ClipboardList, GraduationCap,
   LineChart, Plus, UserCheck, UserPlus, UserSearch, Users, Wallet,
 } from "lucide-react";
 import { frappe } from "../../lib/api/frappeClient";
@@ -37,7 +37,6 @@ const QUICK_LINKS = [
   { to: "/hr/onboarding", label: "Onboarding", hint: "New joiners", icon: ClipboardList },
   { to: "/hr/performance", label: "Performance", hint: "Reviews & goals", icon: LineChart },
   { to: "/hr/training", label: "Training", hint: "Programs", icon: GraduationCap },
-  { to: "/hr/reports", label: "Reports", hint: "Insights", icon: FileBarChart },
 ];
 
 function greeting(hour) {
