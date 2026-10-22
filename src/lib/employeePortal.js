@@ -1,7 +1,7 @@
 // Employee portal: helpers, settings, async hook and ERPNext API calls in one file.
 import { useEffect, useRef, useState } from "react";
 import { frappe } from "./api/frappeClient";
-import { getReviewsSafe, listTimesheets, reviewOf } from "./timesheets";
+import { getReviewsSafe, reviewOf } from "./timesheets";
 
 /* ===== employeeUtils.js ===== */
 export const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -167,7 +167,7 @@ export async function listTry(doctype, opts, basicFields) {
   }
 }
 
-const EMP_FULL = ["name", "employee_name", "first_name", "last_name", "company", "department", "designation", "branch", "reports_to", "date_of_joining", "holiday_list", "default_shift", "employment_type", "status", "gender", "date_of_birth", "blood_group", "marital_status", "personal_email", "company_email", "cell_number", "current_address", "permanent_address", "person_to_be_contacted", "emergency_phone_number", "relation", "image", "passport_number", "valid_upto", "date_of_issue", "contract_end_date", "health_insurance_provider", "health_insurance_no", "grade", "user_id"];
+const EMP_FULL = ["name", "employee_name", "first_name", "last_name", "company", "department", "designation", "branch", "reports_to", "date_of_joining", "holiday_list", "default_shift", "employment_type", "status", "gender", "date_of_birth", "blood_group", "marital_status", "personal_email", "company_email", "cell_number", "current_address", "permanent_address", "person_to_be_contacted", "emergency_phone_number", "relation", "image", "passport_number", "valid_upto", "date_of_issue", "contract_end_date", "health_insurance_provider", "health_insurance_no", "grade", "user_id", "leave_approver", "expense_approver"];
 const EMP_BASIC = ["name", "employee_name", "company", "department", "designation", "reports_to", "date_of_joining", "status", "user_id"];
 
 /** The Employee record linked to the signed-in ERPNext user (Employee.user_id). */
@@ -237,7 +237,7 @@ export async function getLeaveBalance(emp, date = isoDate()) {
 export const getLeaveTypes = () => frappe.getList("Leave Type", { fields: ["name"], limit: 0 });
 
 export function getLeaveApplications(emp, limit = 0) {
-  return frappe.getList("Leave Application", { filters: [["employee", "=", emp], ["docstatus", "<", 2]], fields: ["name", "leave_type", "from_date", "to_date", "total_leave_days", "half_day", "status", "docstatus", "description", "posting_date", "creation"], orderBy: "from_date desc", limit });
+  return frappe.getList("Leave Application", { filters: [["employee", "=", emp], ["docstatus", "<", 2]], fields: ["name", "leave_type", "from_date", "to_date", "total_leave_days", "half_day", "status", "docstatus", "description", "posting_date", "creation", "leave_approver", "leave_approver_name"], orderBy: "from_date desc", limit });
 }
 
 /* ------------------------------ approvals ------------------------------ */
@@ -247,15 +247,15 @@ const attReqStatus = (d) => (d === 0 ? "Pending" : d === 1 ? "Approved" : "Cance
 /** Leave, attendance, timesheet and expense requests in one normalised list. */
 export async function getApprovals(emp) {
   const jobs = [
-    ["Leave", "/employee/leave", frappe.getList("Leave Application", { filters: [["employee", "=", emp], ["docstatus", "<", 2]], fields: ["name", "leave_type", "from_date", "to_date", "total_leave_days", "status", "creation"], orderBy: "creation desc", limit: 50 }),
-      (r) => ({ title: r.leave_type, detail: `${r.total_leave_days || ""} day(s)`, from: r.from_date, to: r.to_date, status: r.status, pending: r.status === "Open" })],
+    ["Leave", "/employee/leave", frappe.getList("Leave Application", { filters: [["employee", "=", emp], ["docstatus", "<", 2]], fields: ["name", "leave_type", "from_date", "to_date", "total_leave_days", "status", "creation", "leave_approver", "leave_approver_name"], orderBy: "creation desc", limit: 50 }),
+      (r) => ({ approver: r.leave_approver_name || r.leave_approver || "", title: r.leave_type, detail: `${r.total_leave_days || ""} day(s)`, from: r.from_date, to: r.to_date, status: r.status, pending: r.status === "Open" })],
     ["Attendance", "/employee/attendance", getAttendanceRequests(emp),
       (r) => ({ title: `Attendance request (${r.reason || "correction"})`, detail: stripHtml(r.explanation || ""), from: r.from_date, to: r.to_date, status: attReqStatus(r.docstatus), pending: r.docstatus === 0 })],
     ["Timesheet", "/employee/timesheet", getTimesheets(emp, 50),
       // Drafts are with the employee, not awaiting anyone; only submitted & unreviewed ones are pending.
-      (r) => ({ title: "Timesheet", detail: `${Number(r.total_hours || 0).toFixed(2)} h${r.review.note ? ` · HR: ${r.review.note}` : ""}`, from: r.start_date, to: r.end_date, status: r.review.label, pending: ["pending", "partial"].includes(r.review.key) })],
-    ["Expense", "/employee/expenses", frappe.getList("Expense Claim", { filters: [["employee", "=", emp], ["docstatus", "<", 2]], fields: ["name", "posting_date", "total_claimed_amount", "status", "approval_status", "docstatus", "creation"], orderBy: "creation desc", limit: 50 }),
-      (r) => ({ title: "Expense claim", detail: String(r.total_claimed_amount ?? ""), from: r.posting_date, to: r.posting_date, status: r.status, pending: r.docstatus === 0 || r.approval_status === "Draft" })],
+      (r) => ({ title: "Timesheet", detail: `${Number(r.total_hours || 0).toFixed(2)} h${r.review.note ? ` · HR: ${r.review.note}` : ""}`, from: r.start_date, to: r.end_date, status: r.review.label, pending: r.review.key === "pending" })],
+    ["Expense", "/employee/expenses", frappe.getList("Expense Claim", { filters: [["employee", "=", emp], ["docstatus", "<", 2]], fields: ["name", "posting_date", "total_claimed_amount", "status", "approval_status", "docstatus", "creation", "expense_approver", "expense_approver_name", "remark"], orderBy: "creation desc", limit: 50 }),
+      (r) => ({ approver: r.expense_approver_name || r.expense_approver || "", reason: r.approval_status === "Rejected" ? stripHtml(r.remark || "") : "", title: "Expense claim", detail: String(r.total_claimed_amount ?? ""), from: r.posting_date, to: r.posting_date, status: r.status, pending: r.docstatus === 0 || r.approval_status === "Draft" })],
   ];
   const results = await Promise.allSettled(jobs.map((j) => j[2])); // j = [type, link, request, mapper]
   const items = [];
@@ -328,7 +328,7 @@ export const getAssignedTasks = (user) =>
 
 /** The employee's timesheets (newest first) with HR's review state on each row (r.review). */
 export async function getTimesheets(emp, limit = 0) {
-  const rows = await listTimesheets({ filters: [["employee", "=", emp], ["docstatus", "<", 2]], fields: ["name", "start_date", "end_date", "total_hours", "status", "docstatus", "amended_from", "creation"], orderBy: "start_date desc", limit });
+  const rows = await frappe.getList("Timesheet", { filters: [["employee", "=", emp], ["docstatus", "<", 2]], fields: ["name", "start_date", "end_date", "total_hours", "status", "docstatus", "amended_from", "creation"], orderBy: "start_date desc", limit });
   const { reviews, reviewsError } = await getReviewsSafe(rows.map((r) => r.name));
   const out = rows.map((r) => ({ ...r, review: reviewOf(r, reviews) }));
   out.reviewsError = reviewsError;
@@ -339,7 +339,7 @@ export const getPayslips = (emp) =>
   frappe.getList("Salary Slip", { filters: [["employee", "=", emp], ["docstatus", "=", 1]], fields: ["name", "start_date", "end_date", "posting_date", "gross_pay", "total_deduction", "net_pay", "currency", "status"], orderBy: "end_date desc", limit: 0 });
 
 export const getExpenseClaims = (emp) =>
-  frappe.getList("Expense Claim", { filters: [["employee", "=", emp], ["docstatus", "<", 2]], fields: ["name", "posting_date", "total_claimed_amount", "total_sanctioned_amount", "total_amount_reimbursed", "status", "approval_status", "docstatus"], orderBy: "posting_date desc", limit: 0 });
+  frappe.getList("Expense Claim", { filters: [["employee", "=", emp], ["docstatus", "<", 2]], fields: ["name", "posting_date", "total_claimed_amount", "total_sanctioned_amount", "total_amount_reimbursed", "status", "approval_status", "docstatus", "expense_approver", "expense_approver_name", "remark"], orderBy: "posting_date desc", limit: 0 });
 
 /* ------------------------- documents, assets, help ------------------------- */
 
@@ -443,4 +443,4 @@ export function parseWorkNote(description = "", link = {}) {
     else notes.push(line);
   });
   return { project: project || link.project || "", task: task || link.task || "", notes: notes.filter(Boolean).join(" ") };
-}
+} 
