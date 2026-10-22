@@ -306,7 +306,7 @@ export async function reviewTimesheet({ name, action, note = "", version = 0, pr
   try {
     return await frappe.callMethod("ethx_review_timesheet", { timesheet: name, action, note, version, ...(projects ? { projects: JSON.stringify(projects) } : {}) });
   } catch (e) {
-    const missing = e?.response?.status === 404 || /not found|not whitelisted|has no attribute/i.test(String(e?.response?.data?.exception || ""));
+    const missing = e?.response?.status === 404 || /not found|not whitelisted|has no attribute|Failed to get method|No module named/i.test(String(e?.response?.data?.exception || ""));
     if (!missing) throw e;
     if (action === "approve") return approveTimesheet(name, note);
     if (action === "return") return returnTimesheet(name, note);

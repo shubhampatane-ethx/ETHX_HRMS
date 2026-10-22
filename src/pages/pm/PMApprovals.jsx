@@ -12,7 +12,7 @@ async function loadQueue() {
   try {
     return { rows: await frappe.callMethod("ethx_pm_timesheet_queue"), ready: true };
   } catch (e) {
-    const missing = e?.response?.status === 404 || /not found|not whitelisted|has no attribute/i.test(String(e?.response?.data?.exception || ""));
+    const missing = e?.response?.status === 404 || /not found|not whitelisted|has no attribute|Failed to get method|No module named/i.test(String(e?.response?.data?.exception || ""));
     if (missing) return { rows: [], ready: false };
     throw e;
   }

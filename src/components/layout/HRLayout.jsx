@@ -12,6 +12,7 @@ import {
   ArrowLeft,
   ArrowRightLeft,
   Gauge,
+  Receipt,
 } from "lucide-react";
 import { useMemo, Suspense } from "react";
 import { Sidebar } from "./Sidebar";
@@ -28,6 +29,7 @@ export const TOP_NAV = [
   { to: "/hr/attendance", label: "Attendance", icon: CalendarCheck },
   { to: "/hr/timesheets", label: "Timesheets", icon: Timer },
   { to: "/hr/leave", label: "Leave", icon: CalendarDays },
+  { to: "/hr/expenses", label: "Expense Claims", icon: Receipt },
   { to: "/hr/payroll", label: "Payroll", icon: Wallet },
   {
     label: "Recruitment",

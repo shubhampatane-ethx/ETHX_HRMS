@@ -1,14 +1,17 @@
 import { Link } from "react-router-dom";
-import { Briefcase, Building2, ClipboardList, ShieldCheck, SlidersHorizontal, UserCog } from "lucide-react";
+import { Briefcase, Building2, ClipboardList, ScrollText, ShieldCheck, SlidersHorizontal, UserCog, Wrench } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { HR_SETUP_SECTIONS, slugify } from "../../lib/hrSetupConfig";
 import { Card } from "../../components/ui/primitives";
+import BrandStudio from "./BrandStudio";
 
 const PLATFORM = [
   { to: "/admin/users", label: "HR Users", hint: "Create and manage HR accounts", icon: UserCog },
-  { to: "/admin/project-managers", label: "Project Managers", hint: "Who can assign projects", icon: ClipboardList },
-  { to: "/admin/organization", label: "Organization", hint: "Companies", icon: Building2 },
+  { to: "/admin/users?tab=project-managers", label: "Project Managers", hint: "Who can assign projects", icon: ClipboardList },
+  { to: "/admin/organization", label: "Organization & approvers", hint: "Companies, leave and expense approvers", icon: Building2 },
   { to: "/admin/roles", label: "Roles & Permissions", hint: "What HR, Project Managers and employees may do", icon: ShieldCheck },
+  { to: "/admin/setup", label: "ERPNext Setup", hint: "Custom fields and server rules", icon: Wrench },
+  { to: "/admin/audit-logs", label: "Audit Logs", hint: "Who changed what", icon: ScrollText },
 ];
 
 function Tile({ to, label, hint, icon: Icon }) {
@@ -39,8 +42,10 @@ export default function Settings() {
 
       <section>
         <h3 className="mb-3 text-[13px] font-semibold text-[var(--color-text)]">Platform</h3>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">{PLATFORM.map((t) => <Tile key={t.to} {...t} />)}</div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">{PLATFORM.map((t) => <Tile key={t.to} {...t} />)}</div>
       </section>
+
+      <BrandStudio />
 
       {hrSettings.length > 0 && (
         <section>

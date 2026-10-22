@@ -309,7 +309,7 @@ export async function prepareInterviewers(users, applicantName) {
     try {
       // Server method (ERPNext Setup) adds only the Interviewer role; older sites fall back to editing the User.
       await frappe.callMethod("ethx_add_interviewer", { user: u }).catch(async (e) => {
-        if (!(e?.response?.status === 404 || /not found|not whitelisted|has no attribute/i.test(String(e?.response?.data?.exception || "")))) throw e;
+        if (!(e?.response?.status === 404 || /not found|not whitelisted|has no attribute|Failed to get method|No module named/i.test(String(e?.response?.data?.exception || "")))) throw e;
         const doc = await frappe.getDoc("User", u);
         if (!(doc.roles || []).some((r) => r.role === "Interviewer")) {
           await frappe.updateDoc("User", u, { roles: [...doc.roles.map((r) => ({ role: r.role })), { role: "Interviewer" }] });
@@ -603,7 +603,7 @@ export async function anonymise(applicant) {
   try {
     return await frappe.callMethod("ethx_anonymise_applicant", { applicant: applicant.name });
   } catch (e) {
-    const notInstalled = e?.response?.status === 404 || /not found|not whitelisted|has no attribute/i.test(String(e?.response?.data?.exception || ""));
+    const notInstalled = e?.response?.status === 404 || /not found|not whitelisted|has no attribute|Failed to get method|No module named/i.test(String(e?.response?.data?.exception || ""));
     if (!notInstalled) throw e;
   }
   // Fallback when the server method isn't installed: clear what the REST API can edit.

@@ -6,12 +6,14 @@ import { RECRUITMENT_FIELDS, RECRUITMENT_SCRIPTS, RECRUITMENT_TRACK, SOURCES } f
 import { TIMESHEET_FIELDS, TIMESHEET_SCRIPTS, TIMESHEET_TRACK } from "./timesheetSetup";
 import { SECURITY_FIELDS, SECURITY_SCRIPTS, SECURITY_TRACK, SECURITY_PROPERTIES } from "./securitySetup";
 import { TEAM_SCRIPTS } from "./teamSetup";
+import { APPROVAL_FIELDS, APPROVAL_SCRIPTS, APPROVAL_TRACK } from "./approvalSetup";
 
 export const MODULES = [
   { id: "recruitment", label: "Recruitment", fields: RECRUITMENT_FIELDS, scripts: RECRUITMENT_SCRIPTS, track: RECRUITMENT_TRACK },
   { id: "timesheets", label: "Timesheet review", fields: TIMESHEET_FIELDS, scripts: TIMESHEET_SCRIPTS, track: TIMESHEET_TRACK, migrate: "ethx_migrate_timesheet_reviews" },
   { id: "security", label: "Security & audit", fields: SECURITY_FIELDS, scripts: SECURITY_SCRIPTS, track: SECURITY_TRACK, properties: SECURITY_PROPERTIES },
   { id: "team", label: "Manager self-service", fields: [], scripts: TEAM_SCRIPTS, track: [] },
+  { id: "approvals", label: "Leave & expense approvals", fields: APPROVAL_FIELDS, scripts: APPROVAL_SCRIPTS, track: APPROVAL_TRACK },
 ];
 
 const ALL_FIELDS = MODULES.flatMap((m) => m.fields);
@@ -86,7 +88,9 @@ export async function runSetup(onStep = () => {}) {
         const exists = await frappe.getList("Server Script", { filters: [["name", "=", s.name]], fields: ["name"], limit: 1 });
         const body = s.script_type === "API"
           ? { script_type: "API", api_method: s.api_method, allow_guest: 0, script: s.script.trim(), disabled: 0 }
-          : { script_type: "DocType Event", reference_doctype: s.reference_doctype, doctype_event: s.doctype_event, script: s.script.trim(), disabled: 0 };
+          : s.script_type === "Scheduler Event"
+            ? { script_type: "Scheduler Event", event_frequency: s.event_frequency || "Daily", script: s.script.trim(), disabled: 0 }
+            : { script_type: "DocType Event", reference_doctype: s.reference_doctype, doctype_event: s.doctype_event, script: s.script.trim(), disabled: 0 };
         if (exists.length) await frappe.updateDoc("Server Script", s.name, body);
         else await frappe.createDoc("Server Script", { name: s.name, __newname: s.name, ...body });
         step(`${m.label}: server rule installed - ${s.what}`);

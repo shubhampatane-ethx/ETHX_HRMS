@@ -26,7 +26,7 @@ const FEATURES = [
 // Browsers paint autofilled inputs white/blue; keep them on-theme instead.
 const inputClass =
   "w-full rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] py-3 pl-10 pr-3 text-[14px] text-[var(--color-text)] placeholder:text-[var(--color-text-faint)] outline-none transition-colors focus:border-[var(--color-red)] focus:ring-4 focus:ring-[var(--color-red-wash)] " +
-  "[&:-webkit-autofill]:shadow-[inset_0_0_0_1000px_#18181c] [&:-webkit-autofill]:[-webkit-text-fill-color:#f2f2f4] [&:-webkit-autofill]:[caret-color:#f2f2f4]";
+  "[&:-webkit-autofill]:shadow-[inset_0_0_0_1000px_var(--color-surface-2)] [&:-webkit-autofill]:[-webkit-text-fill-color:var(--color-text)] [&:-webkit-autofill]:[caret-color:var(--color-text)]";
 
 export default function Login() {
   const { login } = useAuth();
@@ -77,7 +77,7 @@ export default function Login() {
       <aside className="relative hidden overflow-hidden border-r border-[var(--color-border)] min-[800px]:flex min-[800px]:flex-col min-[800px]:justify-center min-[800px]:gap-12 min-[800px]:px-10 min-[800px]:py-16 xl:px-16">
         <div
           className="pointer-events-none absolute inset-0"
-          style={{ background: "radial-gradient(700px 500px at 0% 0%, rgba(232,16,42,0.28), transparent 65%), radial-gradient(600px 450px at 100% 100%, rgba(232,16,42,0.14), transparent 65%)" }}
+          style={{ background: "radial-gradient(700px 500px at 0% 0%, color-mix(in srgb, var(--color-red) 28%, transparent), transparent 65%), radial-gradient(600px 450px at 100% 100%, color-mix(in srgb, var(--color-red) 14%, transparent), transparent 65%)" }}
         />
         {/* faint grid */}
         <div
@@ -90,7 +90,7 @@ export default function Login() {
         <div className="relative max-w-xl">
           <h2 className="text-balance text-[1.75rem] font-medium leading-[1.2] tracking-tight xl:text-[2rem] text-[var(--color-text)]">
             People operations,<br />
-            <span className="bg-gradient-to-r from-[var(--color-red-hover)] to-[#ff7a8a] bg-clip-text text-transparent">built for the way your team works.</span>
+            <span className="bg-gradient-to-r from-[var(--color-red-hover)] to-[color-mix(in_srgb,var(--color-red)_55%,var(--color-text))] bg-clip-text text-transparent">built for the way your team works.</span>
           </h2>
           <p className="mt-3 text-[13px] leading-6 text-[var(--color-text-muted)]">
             One workspace for everything HR, connected to your ERPNext data.
@@ -98,7 +98,7 @@ export default function Login() {
 
           <div className="mt-6 grid grid-cols-1 gap-2.5 xl:grid-cols-2">
             {FEATURES.map(({ icon: Icon, title, text }) => (
-              <div key={title} className="flex items-start gap-3 rounded-xl border border-white/[0.07] bg-white/[0.03] p-3.5 backdrop-blur-sm">
+              <div key={title} className="flex items-start gap-3 rounded-xl border border-[var(--color-border)] bg-[color-mix(in_srgb,var(--color-surface)_70%,transparent)] p-3.5 backdrop-blur-sm">
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--color-red-wash)] text-[var(--color-red-hover)]"><Icon size={16} strokeWidth={1.9} /></span>
                 <div className="min-w-0">
                   <p className="text-[13px] font-medium text-[var(--color-text)]">{title}</p>
@@ -114,7 +114,7 @@ export default function Login() {
 
       {/* Sign-in */}
       <main className="relative flex items-center justify-center px-5 py-10">
-        <div className="pointer-events-none absolute inset-0 min-[800px]:hidden" style={{ background: "radial-gradient(500px 300px at 50% 0%, rgba(232,16,42,0.18), transparent 70%)" }} />
+        <div className="pointer-events-none absolute inset-0 min-[800px]:hidden" style={{ background: "radial-gradient(500px 300px at 50% 0%, color-mix(in srgb, var(--color-red) 18%, transparent), transparent 70%)" }} />
         <div className="relative w-full max-w-[400px]">
           <div className="mb-8 min-[800px]:hidden"><LoginBrand /></div>
 
@@ -147,7 +147,7 @@ export default function Login() {
               </div>
             )}
 
-            <button type="submit" disabled={loading} className="group flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--color-red)] py-3 text-[14px] font-medium text-white shadow-[0_8px_24px_-8px_rgba(232,16,42,0.6)] transition-all hover:bg-[var(--color-red-hover)] disabled:cursor-not-allowed disabled:opacity-70">
+            <button type="submit" disabled={loading} className="group flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--color-red)] py-3 text-[14px] font-medium text-[var(--color-on-accent)] shadow-[0_8px_24px_-8px_color-mix(in_srgb,var(--color-red)_60%,transparent)] transition-all hover:bg-[var(--color-red-hover)] disabled:cursor-not-allowed disabled:opacity-70">
               {loading ? <><Loader2 size={16} className="animate-spin" /> Signing in...</> : <>Sign in <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" /></>}
             </button>
           </form>

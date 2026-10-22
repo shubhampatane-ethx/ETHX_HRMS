@@ -174,7 +174,7 @@ export default function HRDashboard() {
     <div className="space-y-6">
       {/* Hero */}
       <section className="relative overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-7 py-7">
-        <div className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(600px 220px at 100% 0%, rgba(232,16,42,0.22), transparent 70%), radial-gradient(400px 200px at 0% 100%, rgba(232,16,42,0.08), transparent 70%)" }} />
+        <div className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(600px 220px at 100% 0%, color-mix(in srgb, var(--color-red) 22%, transparent), transparent 70%), radial-gradient(400px 200px at 0% 100%, color-mix(in srgb, var(--color-red) 8%, transparent), transparent 70%)" }} />
         <div className="relative flex flex-wrap items-center justify-between gap-5">
           <div>
             <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-[var(--color-red-hover)]">{DAYS[now.getDay()]}, {String(now.getDate()).padStart(2, "0")} {MONTHS[now.getMonth()]} {now.getFullYear()}</p>

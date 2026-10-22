@@ -143,7 +143,7 @@ export function PMAssignments() {
   async function setStatus(a, status, text) {
     if (!window.confirm(text)) return;
     try {
-      await setAssignmentStatus(a.name, status);
+      await setAssignmentStatus(a.name, status, a);
       assignments.reload();
     } catch (e) {
       window.alert(errMsg(e, "Couldn't update the assignment."));

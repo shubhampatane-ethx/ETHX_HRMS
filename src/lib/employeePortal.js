@@ -1,7 +1,7 @@
 // Employee portal: helpers, settings, async hook and ERPNext API calls in one file.
 import { useEffect, useRef, useState } from "react";
 import { frappe } from "./api/frappeClient";
-import { getReviewsSafe, reviewOf } from "./timesheets";
+import { getReviewsSafe, listTimesheets, reviewOf } from "./timesheets";
 
 /* ===== employeeUtils.js ===== */
 export const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -253,9 +253,9 @@ export async function getApprovals(emp) {
       (r) => ({ title: `Attendance request (${r.reason || "correction"})`, detail: stripHtml(r.explanation || ""), from: r.from_date, to: r.to_date, status: attReqStatus(r.docstatus), pending: r.docstatus === 0 })],
     ["Timesheet", "/employee/timesheet", getTimesheets(emp, 50),
       // Drafts are with the employee, not awaiting anyone; only submitted & unreviewed ones are pending.
-      (r) => ({ title: "Timesheet", detail: `${Number(r.total_hours || 0).toFixed(2)} h${r.review.note ? ` · HR: ${r.review.note}` : ""}`, from: r.start_date, to: r.end_date, status: r.review.label, pending: r.review.key === "pending" })],
-    ["Expense", "/employee/expenses", frappe.getList("Expense Claim", { filters: [["employee", "=", emp], ["docstatus", "<", 2]], fields: ["name", "posting_date", "total_claimed_amount", "status", "approval_status", "docstatus", "creation", "expense_approver", "expense_approver_name", "remark"], orderBy: "creation desc", limit: 50 }),
-      (r) => ({ approver: r.expense_approver_name || r.expense_approver || "", reason: r.approval_status === "Rejected" ? stripHtml(r.remark || "") : "", title: "Expense claim", detail: String(r.total_claimed_amount ?? ""), from: r.posting_date, to: r.posting_date, status: r.status, pending: r.docstatus === 0 || r.approval_status === "Draft" })],
+      (r) => ({ title: "Timesheet", detail: `${Number(r.total_hours || 0).toFixed(2)} h${r.review.note ? ` · HR: ${r.review.note}` : ""}`, from: r.start_date, to: r.end_date, status: r.review.label, pending: ["pending", "partial"].includes(r.review.key) })],
+    ["Expense", "/employee/expenses", frappe.getList("Expense Claim", { filters: [["employee", "=", emp], ["docstatus", "<", 2]], fields: ["name", "posting_date", "total_claimed_amount", "status", "approval_status", "docstatus", "creation", "expense_approver", "remark"], orderBy: "creation desc", limit: 50 }),
+      (r) => ({ approver: r.expense_approver || "", reason: r.approval_status === "Rejected" ? stripHtml(r.remark || "") : "", title: "Expense claim", detail: String(r.total_claimed_amount ?? ""), from: r.posting_date, to: r.posting_date, status: r.status, pending: r.docstatus === 0 || r.approval_status === "Draft" })],
   ];
   const results = await Promise.allSettled(jobs.map((j) => j[2])); // j = [type, link, request, mapper]
   const items = [];
@@ -328,7 +328,7 @@ export const getAssignedTasks = (user) =>
 
 /** The employee's timesheets (newest first) with HR's review state on each row (r.review). */
 export async function getTimesheets(emp, limit = 0) {
-  const rows = await frappe.getList("Timesheet", { filters: [["employee", "=", emp], ["docstatus", "<", 2]], fields: ["name", "start_date", "end_date", "total_hours", "status", "docstatus", "amended_from", "creation"], orderBy: "start_date desc", limit });
+  const rows = await listTimesheets({ filters: [["employee", "=", emp], ["docstatus", "<", 2]], fields: ["name", "start_date", "end_date", "total_hours", "status", "docstatus", "amended_from", "creation"], orderBy: "start_date desc", limit });
   const { reviews, reviewsError } = await getReviewsSafe(rows.map((r) => r.name));
   const out = rows.map((r) => ({ ...r, review: reviewOf(r, reviews) }));
   out.reviewsError = reviewsError;
@@ -339,7 +339,7 @@ export const getPayslips = (emp) =>
   frappe.getList("Salary Slip", { filters: [["employee", "=", emp], ["docstatus", "=", 1]], fields: ["name", "start_date", "end_date", "posting_date", "gross_pay", "total_deduction", "net_pay", "currency", "status"], orderBy: "end_date desc", limit: 0 });
 
 export const getExpenseClaims = (emp) =>
-  frappe.getList("Expense Claim", { filters: [["employee", "=", emp], ["docstatus", "<", 2]], fields: ["name", "posting_date", "total_claimed_amount", "total_sanctioned_amount", "total_amount_reimbursed", "status", "approval_status", "docstatus", "expense_approver", "expense_approver_name", "remark"], orderBy: "posting_date desc", limit: 0 });
+  frappe.getList("Expense Claim", { filters: [["employee", "=", emp], ["docstatus", "<", 2]], fields: ["name", "posting_date", "total_claimed_amount", "total_sanctioned_amount", "total_amount_reimbursed", "status", "approval_status", "docstatus", "expense_approver", "remark", "creation"], orderBy: "posting_date desc, creation desc", limit: 0 });
 
 /* ------------------------- documents, assets, help ------------------------- */
 
@@ -377,19 +377,28 @@ export const getFeedback = (emp) =>
   listTry("Employee Performance Feedback", { filters: [["employee", "=", emp], ["docstatus", "=", 1]], fields: ["name", "reviewer_name", "appraisal_cycle", "feedback", "total_score", "added_on", "creation"], orderBy: "creation desc", limit: 20 }, ["name", "reviewer_name", "feedback", "creation"]);
 
 export const getAppraisals = (emp) =>
-  listTry("Appraisal", { filters: [["employee", "=", emp], ["docstatus", "<", 2]], fields: ["name", "appraisal_cycle", "start_date", "end_date", "status", "final_score"], orderBy: "creation desc", limit: 10 }, ["name", "appraisal_cycle", "status"]);
+  listTry("Appraisal", { filters: [["employee", "=", emp], ["docstatus", "<", 2]], fields: ["name", "appraisal_cycle", "start_date", "end_date", "final_score", "docstatus"], orderBy: "creation desc", limit: 10 }, ["name", "appraisal_cycle", "start_date", "end_date", "final_score", "docstatus"]).then((rows) => rows.map((r) => ({ ...r, status: r.status || (r.docstatus === 1 ? "Completed" : r.docstatus === 2 ? "Cancelled" : "In Progress") })));
 
 export async function getMyTraining(emp) {
   const rows = await frappe.getList("Training Event Employee", { filters: [["employee", "=", emp]], fields: ["parent", "status", "attendance", "is_mandatory"], parent: "Training Event", limit: 0 }).catch(() =>
     frappe.getList("Training Event Employee", { filters: [["employee", "=", emp]], fields: ["parent", "status", "attendance"], parent: "Training Event", limit: 0 })
   );
   if (!rows.length) return [];
-  const events = await frappe.getList("Training Event", { filters: [["name", "in", rows.map((r) => r.parent)]], fields: ["name", "event_name", "start_time", "end_time", "status", "location", "type"], limit: 0 });
-  return rows.map((r) => ({ ...r, event: events.find((e) => e.name === r.parent) || { name: r.parent, event_name: r.parent } }));
+  const events = await frappe.getList("Training Event", { filters: [["name", "in", rows.map((r) => r.parent)]], fields: ["name", "event_name", "start_time", "end_time", "event_status", "location", "type"], limit: 0 }).catch(() => frappe.getList("Training Event", { filters: [["name", "in", rows.map((r) => r.parent)]], fields: ["name", "event_name", "start_time", "end_time"], limit: 0 }));
+  return rows.map((r) => {
+    const ev = events.find((e) => e.name === r.parent);
+    return { ...r, event: ev ? { ...ev, status: ev.event_status } : { name: r.parent, event_name: r.parent } };
+  });
 }
 
+// HRMS v15 calls the date claim_date, v16 payroll_date
 export const getBenefitClaims = (emp) =>
-  listTry("Employee Benefit Claim", { filters: [["employee", "=", emp], ["docstatus", "<", 2]], fields: ["name", "claim_date", "earning_component", "claimed_amount", "docstatus"], orderBy: "claim_date desc", limit: 20 }, ["name", "claim_date", "claimed_amount", "docstatus"]);
+  frappe.getList("Employee Benefit Claim", { filters: [["employee", "=", emp], ["docstatus", "<", 2]], fields: ["name", "claim_date", "earning_component", "claimed_amount", "docstatus"], orderBy: "creation desc", limit: 20 })
+    .catch((e) => {
+      if (e?.response?.data?.exc_type === "PermissionError") throw e;
+      return frappe.getList("Employee Benefit Claim", { filters: [["employee", "=", emp], ["docstatus", "<", 2]], fields: ["name", "payroll_date", "earning_component", "claimed_amount", "docstatus"], orderBy: "creation desc", limit: 20 })
+        .then((rows) => rows.map((r) => ({ ...r, claim_date: r.payroll_date })));
+    });
 
 export const getHelpArticles = (q) =>
   frappe.getList("Help Article", { filters: [["title", "like", `%${q}%`], ["published", "=", 1]], fields: ["name", "title", "category", "route"], limit: 10 });

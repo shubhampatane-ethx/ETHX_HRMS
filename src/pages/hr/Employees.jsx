@@ -6,11 +6,12 @@ import { HrRecordForm } from "../../components/hr/HrRecordForm";
 import { Button, Card, Table } from "../../components/ui/primitives";
 
 const FIELDS = [
-  { name: "employee_name", label: "Employee name", required: true },
-  { name: "first_name", label: "First name" },
+  // ERPNext builds the full name (employee_name) from first / middle / last name; these three plus gender and date
+  // of birth are mandatory on Employee.
+  { name: "first_name", label: "First name", required: true },
   { name: "last_name", label: "Last name" },
-  { name: "gender", label: "Gender", type: "select", options: ["Male", "Female", "Other"] },
-  { name: "date_of_birth", label: "Date of birth", type: "date" },
+  { name: "gender", label: "Gender", type: "link", linkDoctype: "Gender", required: true },
+  { name: "date_of_birth", label: "Date of birth", type: "date", required: true },
   { name: "date_of_joining", label: "Date of joining", type: "date", required: true },
   { name: "status", label: "Status", type: "select", options: ["Active", "Inactive", "Suspended", "Left"] },
   { name: "company", label: "Company", type: "link", linkDoctype: "Company", required: true },
@@ -39,7 +40,7 @@ async function step(label, fn) {
   }
 }
 
-const methodMissing = (e) => e?.response?.status === 404 || /not found|not whitelisted|has no attribute/i.test(String(e?.response?.data?.exception || ""));
+const methodMissing = (e) => e?.response?.status === 404 || /not found|not whitelisted|has no attribute|Failed to get method|No module named/i.test(String(e?.response?.data?.exception || ""));
 
 /**
  * Preferred path: the server method installed by Admin › ERPNext Setup. It can only create or reset plain employee

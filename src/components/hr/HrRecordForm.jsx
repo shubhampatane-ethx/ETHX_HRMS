@@ -3,7 +3,11 @@ import { Loader2, X } from "lucide-react";
 import { frappe } from "../../lib/api/frappeClient";
 import { Button, Card, DateField, Input, LinkField } from "../ui/primitives";
 
-export function HrRecordForm({ doctype, fields, recordName, onCancel, onSaved }) {
+/**
+ * submittable: the doctype is submittable (e.g. Attendance) - new records are submitted after saving, and editing a
+ * submitted record cancels it and saves an amended copy (ERPNext doesn't allow editing submitted records).
+ */
+export function HrRecordForm({ doctype, fields, recordName, onCancel, onSaved, submittable = false }) {
   const [values, setValues] = useState({});
   const [state, setState] = useState(recordName ? "loading" : "ready");
   const [error, setError] = useState("");
@@ -49,9 +53,18 @@ export function HrRecordForm({ doctype, fields, recordName, onCancel, onSaved })
         .filter(([, value]) => value !== undefined && value !== "")
     );
     try {
-      const saved = recordName
-        ? await frappe.updateDoc(doctype, recordName, payload)
-        : await frappe.createDoc(doctype, payload);
+      let saved;
+      if (submittable && recordName && Number(values.docstatus) === 1) {
+        await frappe.cancelDoc(doctype, recordName);
+        saved = await frappe.createDoc(doctype, { ...payload, amended_from: recordName });
+        await frappe.submitDoc(await frappe.getDoc(doctype, saved.name));
+      } else if (recordName) {
+        saved = await frappe.updateDoc(doctype, recordName, payload);
+        if (submittable && Number(saved?.docstatus) === 0) await frappe.submitDoc(await frappe.getDoc(doctype, recordName));
+      } else {
+        saved = await frappe.createDoc(doctype, payload);
+        if (submittable) await frappe.submitDoc(await frappe.getDoc(doctype, saved.name));
+      }
       onSaved(saved);
     } catch (err) {
       setError(errorMessage(err));

@@ -5,6 +5,37 @@ Branch: `feat/recruitment` · 3 commits · 54 files changed.
 
 ---
 
+## 22 Oct 2026 — Expense claims, approver rules, PM leave approvals, theme fixes
+
+### Fixed
+- **Expense claim "Value missing for Expense Claim: Exchange Rate"** (employee portal and HR › Expense Claim): ERPNext v16 makes `currency` and `exchange_rate` mandatory. Claims now send the company currency and rate; the new server rule also fills them (and fetches the real rate for foreign-currency claims).
+- **"Field not permitted in query" on Expense Claims**: the list asked for `expense_approver_name`, which doesn't exist on Expense Claim. Also fixed the same class of error on Goals (Appraisal has no `status`), Training (`event_status`) and Benefits (`claim_date` is `payroll_date` in v16).
+- **HR › Settings › Expense Claim** no longer opens a two-field form that ERPNext always rejects (`MandatoryError: exchange_rate, expenses`); it opens the new HR Expense Claims page.
+- **Leave approver by business unit never worked**: the approver lookup called a non-existent ERPNext method, so it always fell back to the Employee record. Fixed, and the business unit's approvers now come first.
+- **Themes**: the branding provider was never mounted, so the company theme and logo were never applied; the theme picker and the Brand studio (logo + shared theme) were lost in the previous commit — both restored. HR users without a Company user permission now get their personal theme. Ember now renders native dropdowns / date pickers dark; Login and dashboards use theme colours instead of hard-coded red/white.
+- Regressions from the previous commit restored: HR › Leave (approve/reject with reason, apply for an employee, balances & allocations), admin navigation (Settings, ERPNext Setup, PM workspace items, page loading), Users hub tabs, timesheet review fields and "Partly Approved" as pending.
+- Attendance marked by HR is now submitted (it stayed a draft); editing a submitted record cancels and amends it; cancelled records are hidden.
+- Add employee: first name, gender and date of birth are required (ERPNext rejected the save without them).
+- Lifecycle: future-dated promotions/transfers can't be submitted early (ERPNext refuses); company-only transfers ask for a detail row.
+- Completed / cancelled project assignments keep their employee (ERPNext clears `_assign`).
+- HR reports send the filters each report requires (Monthly Attendance Sheet, Birthday, Analytics, Leave Balance…); settings pages show numbers as numbers, not checkboxes.
+- Missing server methods are detected correctly ("Failed to get method…"), so pages fall back instead of erroring.
+
+### New
+- **Approver rules** (Admin › ERPNext Setup › "Leave & expense approvals"):
+  - Leave approver = employee's business unit (Department and its parents) in order, then the Employee record; anyone on approved leave today is skipped.
+  - Expense approver = the Expense Claim Type's approver, then the business unit's expense approvers, then the Employee record; skipped when on leave.
+  - Daily job (and an HR button) moves pending leave / expense requests away from approvers who are on leave.
+  - An expense claim can't be approved without a bill, nor rejected without a reason; only the assigned approver or HR can decide.
+- **Project Manager › Leave Approvals** tab: leave and expense claims waiting for the PM (as approver or line manager).
+- **HR › Expense Claims** page: all claims with bills, approver, approve / reject with reason, change approver, claim for an employee.
+- Employee claims: approver shown by name with source, "on leave → next approver" notice, "Add bill" for draft claims.
+- Roles & Permissions presets for the Leave Approver and Expense Approver roles; HR preset covers Expense Claim.
+
+**After deploying:** Admin › ERPNext Setup › Run setup, then Admin › Roles & Permissions › Apply everything; everyone signs out and back in.
+
+---
+
 ## 14 Oct 2026 — HR modules, manager self-service, resources (`da8924b`)
 
 ### HR modules (previously read-only lists)

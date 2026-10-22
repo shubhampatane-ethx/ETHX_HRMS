@@ -1,13 +1,14 @@
 // Employee portal: all employee pages in one file.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowRight, BadgeCheck, Ban, Bell, CalendarCheck, CalendarClock, CalendarDays, Check, CheckCheck, ChevronLeft, ChevronRight, ClipboardCheck, Download, ExternalLink, FileText, GraduationCap, HeartPulse, KeyRound, Laptop, LifeBuoy, LogIn, LogOut, Mail, Megaphone, Paperclip, Pencil, Phone, Plus, Receipt, Search, ShieldAlert, Target, Undo2, UserRound, Users, Wallet, Wrench } from "lucide-react";
+import { ArrowRight, BadgeCheck, Bell, CalendarCheck, CalendarClock, CalendarDays, CheckCheck, ChevronLeft, ChevronRight, ClipboardCheck, Download, ExternalLink, FileText, GraduationCap, HeartPulse, KeyRound, Laptop, LifeBuoy, LogIn, LogOut, Mail, Megaphone, Paperclip, Pencil, Phone, Plus, Receipt, Search, ShieldAlert, Target, Undo2, UserRound, Users, Wallet, Wrench } from "lucide-react";
 import { Async, ChangePasswordForm, chipCls, Empty, ErrorState, Field, Grid, inputCls, KeyValue, Loading, Modal, Notice, PageHeader, Panel, Skeleton, Stat, StatusPill, Tabs, useEmployee } from "../../components/employee/EmployeeShell";
 import { acknowledgePolicy, CONTACTS, createRequest, daysBetween, daysUntil, dmy, dmyHm, errMsg, EXPIRY_WARN_DAYS, getAcknowledged, getAnnouncements, getAppraisals, getApprovals, getAttendanceHistory, getAttendanceRequests, getBenefitClaims, getCheckinsBetween, getEvents, getExpenseClaims, getFeedback, getGoals, getHelpArticles, getHolidays, getLeaveApplications, getLeaveBalance, getLeaveTypes, getMyAssets, getMyDocuments, getMyLeavesBetween, getMyTraining, getNotifications, getPayslips, getPolicies, getRequests, getShiftAssignments, getTeamAvailability, getTodayAttendance, hm, hoursLabel, isoDate, LETTER_TYPES, money, MONTHS, MONTHS_LONG, nowStamp, pad, POLICY_FOLDER, REQUEST_CATEGORIES, stripHtml, summariseCheckins, useAsync, WEEKDAYS } from "../../lib/employeePortal";
 import { useAuth } from "../../context/AuthContext";
 import { Button, DateField } from "../../components/ui/primitives";
 import { frappe } from "../../lib/api/frappeClient";
-import { approversOnLeave, decideExpense, decideLeave, getBuApprovers, getExpenseApprover, getRejectionReasons, getWaitingForMe, pickApprover } from "../../lib/approvals";
+import { addBills, billCounts, createExpenseClaim, getApprovers, getRejectionReasons, pickApprover } from "../../lib/approvals";
+import { ApprovalQueue, useApprovalQueue } from "../../components/approvals/ApprovalQueue";
 
 /* ===== EmpApprovals.jsx ===== */
 const TYPES = ["All", "Leave", "Attendance", "Timesheet", "Expense"];
@@ -15,8 +16,7 @@ const TYPES = ["All", "Leave", "Attendance", "Timesheet", "Expense"];
 export function EmpApprovals() {
   const { employee } = useEmployee();
   const q = useAsync(() => getApprovals(employee.name), [employee.name]);
-  const { user } = useAuth();
-  const waiting = useAsync(() => getWaitingForMe(user.email), [user.email]);
+  const waiting = useApprovalQueue();
   const [tab, setTab] = useState("mine");
   const [type, setType] = useState("All");
   const [onlyPending, setOnlyPending] = useState(false);
@@ -26,7 +26,7 @@ export function EmpApprovals() {
     <>
       <PageHeader icon={ClipboardCheck} title="My Approvals" subtitle="Every request of yours in one place - and the ones waiting for your decision" />
       <Tabs value={tab} onChange={setTab} tabs={[{ id: "mine", label: "My requests" }, { id: "waiting", label: "Waiting for my approval", count: waitingCount }]} />
-      {tab === "waiting" && <WaitingForMe state={waiting} onChanged={waiting.reload} />}
+      {tab === "waiting" && <ApprovalQueue state={waiting} />}
       {tab === "mine" && <Async state={q}>
         {(d) => {
           const rows = d.items.filter((i) => (type === "All" || i.type === type) && (!onlyPending || i.pending));
@@ -53,79 +53,6 @@ export function EmpApprovals() {
         }}
       </Async>}
     </>
-  );
-}
-
-/** Leave and expense requests where I am the approver. Rejecting an expense claim needs a reason. */
-function WaitingForMe({ state, onChanged }) {
-  const [busy, setBusy] = useState("");
-  const [reject, setReject] = useState(null);
-
-  async function run(name, fn, question) {
-    if (question && !window.confirm(question)) return;
-    setBusy(name);
-    try { await fn(); onChanged(); } catch (e) { window.alert(e?.response ? errMsg(e, "ERPNext refused this.") : e?.message || "Something went wrong."); }
-    setBusy("");
-  }
-
-  return (
-    <Async state={state}>
-      {(d) => (
-        <>
-          {d.failed.length > 0 && <Notice tone="info">Couldn't load {d.failed.join(" and ")} requests - your account may not have approver access yet.</Notice>}
-          <Panel title="Leave requests" hint="You are the leave approver">
-            <Grid rows={d.leaves} empty="No leave requests are waiting for you." columns={[
-              { key: "employee_name", label: "Employee" },
-              { key: "leave_type", label: "Type" },
-              { key: "from_date", label: "Dates", render: (r) => `${dmy(r.from_date)}${r.to_date !== r.from_date ? ` – ${dmy(r.to_date)}` : ""}${r.half_day ? " (half day)" : ""}` },
-              { key: "total_leave_days", label: "Days" },
-              { key: "description", label: "Reason", render: (r) => <span className="text-[var(--color-text-muted)]">{stripHtml(r.description || "") || "—"}</span> },
-              { key: "_a", label: "", render: (r) => (
-                <div className="flex justify-end gap-2">
-                  <button type="button" disabled={busy === r.name} onClick={() => run(r.name, () => decideLeave(r.name, "Approved"), `Approve ${r.employee_name}'s leave?`)} className="flex items-center gap-1 text-[12px] text-[var(--color-green)] hover:underline disabled:opacity-50"><Check size={13} /> Approve</button>
-                  <button type="button" disabled={busy === r.name} onClick={() => run(r.name, () => decideLeave(r.name, "Rejected"), `Reject ${r.employee_name}'s leave?`)} className="flex items-center gap-1 text-[12px] text-[var(--color-red-hover)] hover:underline disabled:opacity-50"><Ban size={13} /> Reject</button>
-                </div>) },
-            ]} />
-          </Panel>
-          <Panel title="Expense claims" hint="You are the expense approver for these claims' expense types">
-            <Grid rows={d.expenses} empty="No expense claims are waiting for you." columns={[
-              { key: "employee_name", label: "Employee" },
-              { key: "posting_date", label: "Date", render: (r) => dmy(r.posting_date) },
-              { key: "total_claimed_amount", label: "Amount", render: (r) => money(r.total_claimed_amount) },
-              { key: "bills", label: "Bills", render: (r) => (d.bills[r.name] || []).length ? <span className="flex flex-wrap gap-x-3">{d.bills[r.name].map((b) => <a key={b.file_url} href={b.file_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-[12px] text-[var(--color-red-hover)] hover:underline"><Paperclip size={12} /> {b.file_name}</a>)}</span> : <span className="text-[var(--color-amber)]">none</span> },
-              { key: "_a", label: "", render: (r) => (
-                <div className="flex justify-end gap-2">
-                  <button type="button" disabled={busy === r.name} onClick={() => run(r.name, () => decideExpense(r.name, true), `Approve this claim of ${money(r.total_claimed_amount)}?`)} className="flex items-center gap-1 text-[12px] text-[var(--color-green)] hover:underline disabled:opacity-50"><Check size={13} /> Approve</button>
-                  <button type="button" disabled={busy === r.name} onClick={() => setReject(r)} className="flex items-center gap-1 text-[12px] text-[var(--color-red-hover)] hover:underline disabled:opacity-50"><Ban size={13} /> Reject</button>
-                </div>) },
-            ]} />
-          </Panel>
-          {reject && <RejectModal claim={reject} onClose={() => setReject(null)} onDone={() => { setReject(null); onChanged(); }} />}
-        </>
-      )}
-    </Async>
-  );
-}
-
-function RejectModal({ claim, onClose, onDone }) {
-  const [reason, setReason] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState("");
-  async function submit(e) {
-    e.preventDefault();
-    setBusy(true);
-    setErr("");
-    try { await decideExpense(claim.name, false, reason); onDone(); } catch (x) { setErr(x?.response ? errMsg(x, "ERPNext refused this.") : x?.message || "Something went wrong."); setBusy(false); }
-  }
-  return (
-    <Modal title={`Reject ${claim.employee_name}'s claim`} onClose={onClose}>
-      <form onSubmit={submit} className="space-y-3">
-        <p className="text-[13px] text-[var(--color-text-muted)]">{money(claim.total_claimed_amount)} · {dmy(claim.posting_date)}. The employee will see your reason.</p>
-        <Field label="Reason for rejection (required)"><textarea required minLength={5} rows={3} className={inputCls} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Receipt is unreadable / amount exceeds policy" /></Field>
-        {err && <Notice>{err}</Notice>}
-        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy || reason.trim().length < 5}>{busy ? "Rejecting…" : "Reject claim"}</Button></div>
-      </form>
-    </Modal>
   );
 }
 
@@ -520,7 +447,7 @@ export function EmpDashboard() {
   return (
     <>
       <section className="relative overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-7 py-7">
-        <div className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(600px 220px at 100% 0%, rgba(232,16,42,0.22), transparent 70%), radial-gradient(400px 200px at 0% 100%, rgba(232,16,42,0.08), transparent 70%)" }} />
+        <div className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(600px 220px at 100% 0%, color-mix(in srgb, var(--color-red) 22%, transparent), transparent 70%), radial-gradient(400px 200px at 0% 100%, color-mix(in srgb, var(--color-red) 8%, transparent), transparent 70%)" }} />
         <div className="relative flex flex-wrap items-center justify-between gap-5">
           <div>
             <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-[var(--color-red-hover)]">{WEEKDAYS[now.getDay()]}, {String(now.getDate()).padStart(2, "0")} {MONTHS[now.getMonth()]} {now.getFullYear()}</p>
@@ -693,8 +620,11 @@ export function EmpDocuments() {
 export function EmpExpenses() {
   const { employee } = useEmployee();
   const q = useAsync(() => getExpenseClaims(employee.name), [employee.name]);
-  const reasons = useAsync(() => getRejectionReasons((q.data || []).filter((r) => r.approval_status === "Rejected").map((r) => r.name)), [q.data]);
+  const names = (q.data || []).map((r) => r.name);
+  const reasons = useAsync(() => getRejectionReasons((q.data || []).filter((r) => r.approval_status === "Rejected" && !stripHtml(r.remark || "")).map((r) => r.name)), [q.data]);
+  const bills = useAsync(() => billCounts(names), [names.join(",")]);
   const [open, setOpen] = useState(false);
+  const [adding, setAdding] = useState(null);
 
   return (
     <>
@@ -705,7 +635,7 @@ export function EmpExpenses() {
           return (
             <>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                {[["Claimed (pending approval)", sum((r) => r.docstatus === 0, "total_claimed_amount")], ["Awaiting reimbursement", sum((r) => r.status === "Unpaid", "total_sanctioned_amount")], ["Reimbursed", sum((r) => r.status === "Paid", "total_amount_reimbursed")]].map(([l, v]) => (
+                {[["Claimed (pending approval)", sum((r) => r.docstatus === 0, "total_claimed_amount")], ["Awaiting reimbursement", sum((r) => r.status === "Unpaid" || r.status === "Partially Paid", "total_sanctioned_amount")], ["Reimbursed", sum((r) => r.status === "Paid" || r.status === "Partially Paid", "total_amount_reimbursed")]].map(([l, v]) => (
                   <div key={l} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5"><p className="text-[12px] text-[var(--color-text-muted)]">{l}</p><p className="mt-2 text-2xl font-semibold text-[var(--color-text)]">{money(v)}</p></div>
                 ))}
               </div>
@@ -714,10 +644,19 @@ export function EmpExpenses() {
                   { key: "name", label: "Claim" },
                   { key: "posting_date", label: "Date", render: (r) => dmy(r.posting_date) },
                   { key: "total_claimed_amount", label: "Claimed", render: (r) => money(r.total_claimed_amount) },
-                  { key: "total_sanctioned_amount", label: "Approved", render: (r) => (r.total_sanctioned_amount ? money(r.total_sanctioned_amount) : "—") },
-                  { key: "expense_approver_name", label: "Approver", render: (r) => r.expense_approver_name || r.expense_approver || "—" },
+                  { key: "total_sanctioned_amount", label: "Approved", render: (r) => (r.approval_status === "Approved" ? money(r.total_sanctioned_amount) : "—") },
+                  { key: "expense_approver", label: "Approver", render: (r) => r.expense_approver || "—" },
+                  { key: "bills", label: "Bills", render: (r) => {
+                    const n = bills.data?.[r.name];
+                    return (
+                      <span className="flex items-center gap-2">
+                        {n == null ? "—" : n ? <span className="flex items-center gap-1"><Paperclip size={12} /> {n}</span> : <span className="text-[var(--color-amber)]">none</span>}
+                        {r.docstatus === 0 && <button type="button" onClick={() => setAdding(r.name)} className="text-[11px] text-[var(--color-red-hover)] hover:underline">Add bill</button>}
+                      </span>
+                    );
+                  } },
                   { key: "approval_status", label: "Approval", render: (r) => <div><StatusPill status={r.approval_status} />{r.approval_status === "Rejected" && <p className="mt-1 max-w-xs text-[11px] text-[var(--color-red-hover)]">Reason: {stripHtml(r.remark || "") || reasons.data?.[r.name] || "not stated"}</p>}</div> },
-                  { key: "status", label: "Reimbursement", render: (r) => <StatusPill status={r.status} /> },
+                  { key: "status", label: "Reimbursement", render: (r) => <StatusPill status={r.approval_status === "Approved" ? r.status : r.docstatus === 0 ? "Pending" : r.status} /> },
                 ]} />
               </Panel>
             </>
@@ -725,42 +664,65 @@ export function EmpExpenses() {
         }}
       </Async>
       {open && <ClaimModal employee={employee} onClose={() => setOpen(false)} onSaved={() => { setOpen(false); q.reload(); }} />}
+      {adding && <AddBillModal claim={adding} onClose={() => setAdding(null)} onSaved={() => { setAdding(null); bills.reload(); }} />}
     </>
   );
 }
 
+function BillPicker({ files, setFiles }) {
+  const input = useRef(null);
+  return (
+    <div>
+      <input ref={input} type="file" multiple accept="image/*,.pdf" className="hidden" onChange={(e) => setFiles(Array.from(e.target.files || []))} />
+      <Button type="button" variant="secondary" onClick={() => input.current?.click()}><Paperclip size={14} /> {files.length ? `${files.length} bill(s) attached` : "Attach bills (required)"}</Button>
+      {files.length > 0 && <ul className="mt-2 space-y-0.5 text-[11px] text-[var(--color-text-muted)]">{files.map((x) => <li key={x.name} className="truncate">{x.name}</li>)}</ul>}
+      {!files.length && <p className="mt-1 text-[11px] text-[var(--color-text-faint)]">Photo or PDF of every bill / receipt. Claims can't be approved without one.</p>}
+    </div>
+  );
+}
+
+function AddBillModal({ claim, onClose, onSaved }) {
+  const [files, setFiles] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  async function submit(e) {
+    e.preventDefault();
+    setBusy(true);
+    setErr("");
+    try { await addBills(claim, files); onSaved(); } catch (x) { setErr(x?.message || "Upload failed."); setBusy(false); }
+  }
+  return (
+    <Modal title={`Add bills to ${claim}`} onClose={onClose}>
+      <form onSubmit={submit} className="space-y-3">
+        <BillPicker files={files} setFiles={setFiles} />
+        {err && <Notice>{err}</Notice>}
+        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy || !files.length}>{busy ? "Uploading…" : "Upload"}</Button></div>
+      </form>
+    </Modal>
+  );
+}
+
 function ClaimModal({ employee, onClose, onSaved }) {
-  const types = useAsync(() => frappe.getList("Expense Claim Type", { fields: ["name"], limit: 0 }), []);
+  const types = useAsync(() => frappe.getList("Expense Claim Type", { fields: ["name"], limit: 0, orderBy: "name asc" }), []);
   const [f, setF] = useState({ date: isoDate(), type: "", amount: "", description: "" });
   const [files, setFiles] = useState([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const input = useRef(null);
-  // approver comes from the expense type (ERPNext Expense Claim Type), then the employee, then the business unit
-  const approver = useAsync(() => getExpenseApprover(employee, f.type), [f.type]);
+  // approver: the expense type's approver, then the business unit's, then the employee record's - skipping anyone on leave
+  const approvers = useAsync(() => (f.type ? getApprovers(employee, "Expense Claim", f.type) : Promise.resolve([])), [f.type]);
+  const list = approvers.data || [];
+  const approver = pickApprover(list);
+  const skipped = list.length > 1 && list[0].on_leave && approver && approver.email !== list[0].email;
 
   async function submit(e) {
     e.preventDefault();
     if (!files.length) return setErr("Attach at least one bill or receipt - it is required for every claim.");
+    if (f.date > isoDate()) return setErr("The expense date can't be in the future.");
     setBusy(true);
     setErr("");
     try {
-      const amount = Number(f.amount);
-      const doc = await frappe.createDoc("Expense Claim", {
-        employee: employee.name,
-        company: employee.company,
-        posting_date: isoDate(),
-        expense_approver: approver.data?.email || undefined,
-        expenses: [{ expense_date: f.date, expense_type: f.type, description: f.description, amount, sanctioned_amount: amount }],
-      });
-      let failed = 0;
-      for (const file of files) {
-        try { await frappe.uploadFile(file, { doctype: "Expense Claim", docname: doc.name, isPrivate: true }); } catch { failed += 1; }
-      }
-      if (failed) {
-        await frappe.deleteDoc("Expense Claim", doc.name).catch(() => {}); // a claim without its bill must not exist
-        throw new Error(`${failed} bill(s) couldn't be uploaded, so the claim was not created. Please try again.`);
-      }
+      const { failed } = await createExpenseClaim({ employee, approver: approver?.email, files, lines: [{ expense_date: f.date, expense_type: f.type, description: f.description, amount: f.amount }] });
+      if (failed) window.alert(`${failed} of the bills couldn't be uploaded - the claim was created with the rest. Use "Add bill" to retry.`);
       onSaved();
     } catch (x) {
       setErr(x?.response ? errMsg(x, "Couldn't create the claim.") : x?.message || "Couldn't create the claim.");
@@ -769,20 +731,19 @@ function ClaimModal({ employee, onClose, onSaved }) {
     }
   }
 
+  const hint = !f.type ? undefined : approvers.loading && !approvers.data ? "Finding the approver…" : approver ? `Approver: ${approver.name}${approver.source ? ` (${approver.source})` : ""}` : "No approver is set for this expense type - HR will assign one.";
+
   return (
     <Modal title="New expense claim" onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
         <DateField label="Expense date" value={f.date} onChange={(v) => setF({ ...f, date: v })} required />
-        <Field label="Expense type" hint={f.type ? `Approver: ${approver.loading && !approver.data ? "…" : approver.data ? approver.data.name : "none set - HR will assign one"}` : undefined}><select required className={inputCls} value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })}><option value="">Select…</option>{(types.data || []).map((t) => <option key={t.name}>{t.name}</option>)}</select></Field>
+        <Field label="Expense type" hint={hint}><select required className={inputCls} value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })}><option value="">Select…</option>{(types.data || []).map((t) => <option key={t.name}>{t.name}</option>)}</select></Field>
+        {skipped && <Notice tone="info">{list[0].name} is on leave, so {approver.name} will approve this claim.</Notice>}
         <Field label="Amount"><input type="number" min="0.01" step="0.01" required className={inputCls} value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} /></Field>
         <Field label="Description"><textarea rows={2} className={inputCls} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} /></Field>
-        <div>
-          <input ref={input} type="file" multiple accept="image/*,.pdf" className="hidden" onChange={(e) => setFiles(Array.from(e.target.files || []))} />
-          <Button type="button" variant="secondary" onClick={() => input.current?.click()}><Paperclip size={14} /> {files.length ? `${files.length} bill(s) attached` : "Attach bills (required)"}</Button>
-          {files.length > 0 && <ul className="mt-2 space-y-0.5 text-[11px] text-[var(--color-text-muted)]">{files.map((x) => <li key={x.name} className="truncate">{x.name}</li>)}</ul>}
-        </div>
+        <BillPicker files={files} setFiles={setFiles} />
         {err && <Notice>{err}</Notice>}
-        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy || !files.length}>{busy ? "Submitting…" : "Submit claim"}</Button></div>
+        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy || !files.length || !f.type}>{busy ? "Submitting…" : "Submit claim"}</Button></div>
       </form>
     </Modal>
   );
@@ -987,14 +948,13 @@ function ApplyModal({ employee, balance, onClose, onSaved }) {
   const days = daysBetween(f.from_date, f.to_date) - (f.half_day ? 0.5 : 0);
   const left = balance.find((b) => b.leave_type === f.leave_type)?.remaining;
 
-  // Approver = the employee's business unit (Department) approvers; skip anyone on approved leave in those dates
-  const approvers = useAsync(() => getBuApprovers(employee, "Leave Application"), [employee.name]);
-  const avail = useAsync(() => approversOnLeave((approvers.data || []).map((a) => a.email), f.from_date, f.to_date), [approvers.data, f.from_date, f.to_date]);
+  // Approver = the employee's business unit (Department) approvers, then the Employee record's; anyone on leave today is skipped
+  const approvers = useAsync(() => getApprovers(employee, "Leave Application"), [employee.name]);
   const [chosen, setChosen] = useState("");
   const list = approvers.data || [];
-  const off = avail.data?.off || new Set();
-  const approver = chosen && !off.has(chosen) ? chosen : pickApprover(list, off)?.email || "";
-  const switched = list.length > 1 && off.has(list[0].email) && approver && approver !== list[0].email;
+  const auto = pickApprover(list);
+  const approver = list.find((a) => a.email === chosen && !a.on_leave)?.email || auto?.email || "";
+  const switched = list.length > 1 && list[0].on_leave && auto && auto.email !== list[0].email;
 
   async function submit(e) {
     e.preventDefault();
@@ -1019,13 +979,13 @@ function ApplyModal({ employee, balance, onClose, onSaved }) {
         </Field>
         <div className="grid grid-cols-2 gap-3"><DateField label="From" value={f.from_date} onChange={(v) => setF({ ...f, from_date: v, to_date: f.to_date < v ? v : f.to_date })} required /><DateField label="To" value={f.to_date} onChange={(v) => setF({ ...f, to_date: v })} required /></div>
         <label className="flex items-center gap-2 text-[13px] text-[var(--color-text-muted)]"><input type="checkbox" checked={f.half_day} onChange={(e) => setF({ ...f, half_day: e.target.checked })} /> Half day (on the first date)</label>
-        <Field label="Leave approver" hint={list.length ? "From your business unit (department). If the approver is on leave on these dates, the next one is chosen." : undefined}>
-          {approvers.loading && !approvers.data ? <p className="py-2 text-[13px] text-[var(--color-text-muted)]">Finding your approver…</p> : list.length === 0 ? <p className="py-2 text-[13px] text-[var(--color-amber)]">No approver is set for your business unit yet - ERPNext will assign the default one.</p> : (
-            <select className={inputCls} value={approver} onChange={(e) => setChosen(e.target.value)}>{list.map((a) => <option key={a.email} value={a.email} disabled={off.has(a.email)}>{a.name}{off.has(a.email) ? " (on leave)" : ""}</option>)}</select>
+        <Field label="Leave approver" hint={list.length ? "From your business unit (department). If an approver is on leave, the next one is used." : undefined}>
+          {approvers.loading && !approvers.data ? <p className="py-2 text-[13px] text-[var(--color-text-muted)]">Finding your approver…</p> : list.length === 0 ? <p className="py-2 text-[13px] text-[var(--color-amber)]">No approver is set for your business unit yet - HR will assign one.</p> : (
+            <select className={inputCls} value={approver} onChange={(e) => setChosen(e.target.value)}>{list.map((a) => <option key={a.email} value={a.email} disabled={a.on_leave}>{a.name}{a.on_leave ? " (on leave)" : ""}</option>)}</select>
           )}
         </Field>
-        {switched && <Notice tone="info">{list[0].name} is on leave on these dates, so {list.find((a) => a.email === approver)?.name} will approve instead.</Notice>}
-        {list.length > 0 && avail.data && !avail.data.known && <p className="text-[11px] text-[var(--color-text-faint)]">Couldn't check approvers' availability; HR will re-assign if your approver is away.</p>}
+        {switched && <Notice tone="info">{list[0].name} is on leave, so {auto.name} will approve instead.</Notice>}
+        {list.length > 0 && approvers.data && !approvers.data.checked && <p className="text-[11px] text-[var(--color-text-faint)]">Couldn't check approvers' availability; HR re-assigns if your approver is away.</p>}
         <Field label="Reason"><textarea rows={3} className={inputCls} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} /></Field>
         <p className="text-[12px] text-[var(--color-text-muted)]">Requesting about <b className="text-[var(--color-text)]">{Math.max(days, 0)}</b> day(s). Weekly offs and holidays are excluded automatically by ERPNext.</p>
         {err && <Notice>{err}</Notice>}

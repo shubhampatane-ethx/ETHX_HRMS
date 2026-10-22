@@ -1,8 +1,92 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronDown, LogOut, Settings, SlidersHorizontal, UserRound, Briefcase } from "lucide-react";
+import { Check, ChevronDown, LogOut, Palette, Settings, SlidersHorizontal, UserRound, Briefcase } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import { useBranding } from "../../context/BrandingContext";
 import { hasPermission } from "../../permissions/roles";
+import { getSavedTheme, hasSavedTheme, saveTheme, THEME_OPTIONS } from "../../lib/theme";
+
+function ThemeTile({ option, selected, onChoose }) {
+  const [background, accent, foreground] = option.swatches;
+  return (
+    <button
+      type="button"
+      role="menuitemradio"
+      aria-checked={selected}
+      onClick={onChoose}
+      className={`rounded-lg border p-1.5 text-left transition-all hover:-translate-y-px hover:shadow-sm ${selected ? "border-[var(--color-red)] bg-[var(--color-red-wash)] ring-1 ring-[var(--color-red-wash)]" : "border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-border-strong)]"}`}
+    >
+      <span className="flex h-9 overflow-hidden rounded" style={{ backgroundColor: background }}>
+        <span className="w-3 shrink-0 p-1" style={{ backgroundColor: `color-mix(in srgb, ${foreground} 9%, ${background})` }}>
+          <span className="block h-full rounded-[2px]" style={{ backgroundColor: `color-mix(in srgb, ${foreground} 24%, ${background})` }} />
+        </span>
+        <span className="flex flex-1 flex-col justify-between p-1.5">
+          <span className="block h-1 w-1/2 rounded-full" style={{ backgroundColor: `color-mix(in srgb, ${foreground} 45%, ${background})` }} />
+          <span className="flex gap-1"><span className="h-2 flex-1 rounded-[2px]" style={{ backgroundColor: accent }} /><span className="h-2 flex-1 rounded-[2px]" style={{ backgroundColor: `color-mix(in srgb, ${accent} 72%, ${background})` }} /><span className="h-2 flex-1 rounded-[2px]" style={{ backgroundColor: `color-mix(in srgb, ${foreground} 18%, ${background})` }} /></span>
+        </span>
+      </span>
+      <span className="mt-1.5 flex items-center justify-between gap-1 px-0.5">
+        <span className="truncate text-[11px] font-medium text-[var(--color-text)]">{option.name}</span>
+        {selected && <Check size={12} className="shrink-0 text-[var(--color-red-hover)]" />}
+      </span>
+    </button>
+  );
+}
+
+/** Personal theme picker. Overrides the company's shared theme for this account on this browser. */
+function ThemeMenu() {
+  const { user } = useAuth();
+  const { company } = useBranding();
+  const [override, setOverride] = useState(null);
+  const [open, setOpen] = useState(false);
+  const box = useRef(null);
+  const personal = hasSavedTheme(user?.email);
+  const companyTheme = THEME_OPTIONS.find((o) => o.id === company?.custom_hrms_theme)?.id;
+  const stored = personal ? getSavedTheme(user?.email) : companyTheme || getSavedTheme(company?.name);
+  const theme = override?.email === user?.email ? override.value : stored;
+  useOutside(open, box, () => setOpen(false));
+
+  function choose(value) {
+    setOverride({ email: user?.email, value: saveTheme(value, user?.email) });
+    setOpen(false);
+  }
+
+  return (
+    <div ref={box} className="relative">
+      <button type="button" title="Change theme" aria-label="Change theme" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)}
+        className="flex h-9 items-center gap-2 rounded-full border border-[var(--color-border-strong)] bg-[var(--color-surface)] px-2.5 text-[var(--color-text)] transition-colors hover:border-[var(--color-red)]">
+        <span className="relative flex h-6 w-6 items-center justify-center rounded-full bg-[var(--color-red-wash)] text-[var(--color-red-hover)]"><Palette size={14} strokeWidth={1.9} /><span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border border-[var(--color-surface)]" style={{ backgroundColor: THEME_OPTIONS.find((o) => o.id === theme)?.swatches[1] }} /></span>
+        <span className="hidden text-[11px] font-medium sm:inline">Theme</span>
+      </button>
+      {open && (
+        <div role="menu" aria-label="Choose theme" className="absolute right-0 top-full z-50 mt-2 w-72 rounded-xl border border-[var(--color-border-strong)] bg-[var(--color-surface)] p-2.5 shadow-xl">
+          <div className="mb-2 flex items-center justify-between px-0.5">
+            <p className="text-[11px] font-semibold text-[var(--color-text)]">Your theme</p>
+            <span className="text-[10px] text-[var(--color-text-faint)]">Saved for your account</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {THEME_OPTIONS.map((o) => <ThemeTile key={o.id} option={o} selected={theme === o.id} onChoose={() => choose(o.id)} />)}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Close a popup on outside click or Escape. */
+function useOutside(open, box, close) {
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDown = (e) => { if (!box.current?.contains(e.target)) close(); };
+    const onKey = (e) => { if (e.key === "Escape") close(); };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open, box, close]);
+}
 
 /** Menu entries in the account button, depending on who is signed in and where. */
 function accountMenu(user, roleLabel) {
@@ -28,17 +112,7 @@ export function Topbar({ roleLabel, pageTitle }) {
   const box = useRef(null);
   const items = accountMenu(user, roleLabel);
 
-  useEffect(() => {
-    if (!open) return undefined;
-    const onDown = (e) => { if (!box.current?.contains(e.target)) setOpen(false); };
-    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
+  useOutside(open, box, () => setOpen(false));
 
   const go = (to) => { setOpen(false); navigate(to); };
   const name = user?.email ?? "";
@@ -48,6 +122,7 @@ export function Topbar({ roleLabel, pageTitle }) {
       <h1 className="text-[15px] font-semibold text-[var(--color-text)]">{pageTitle}</h1>
 
       <div className="flex items-center gap-3">
+        <ThemeMenu />
         <div ref={box} className="relative">
           <button
             type="button"

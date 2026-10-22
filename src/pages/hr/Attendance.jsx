@@ -50,7 +50,7 @@ export default function Attendance() {
     setState("loading");
     try {
       // limit: 0 -> fetch ALL attendance records so every month/year is complete
-      const att = await frappe.getList("Attendance", { fields: ["name", "employee_name", "employee", "attendance_date", "status", "company"], limit: 0, orderBy: "attendance_date desc" });
+      const att = await frappe.getList("Attendance", { filters: [["docstatus", "<", 2]], fields: ["name", "employee_name", "employee", "attendance_date", "status", "company", "docstatus"], limit: 0, orderBy: "attendance_date desc" });
       // Employees punch in/out via Employee Checkin; ERPNext doesn't turn that into Attendance by itself,
       // so show punched-in days that have no attendance record yet (HR can confirm them with one click).
       let derived = [];
@@ -105,7 +105,7 @@ export default function Attendance() {
   }, [visible]);
 
   const unconfirmed = visible.filter((r) => r.derived);
-  async function remove(row) { if (!window.confirm(`Delete attendance for ${row.employee_name || row.employee || row.name} on ${row.attendance_date}?`)) return; try { await frappe.deleteDoc("Attendance", row.name); load(); } catch (error) { window.alert(error?.response?.data?.exception || "ERPNext could not delete this attendance record."); } }
+  async function remove(row) { if (!window.confirm(`Delete attendance for ${row.employee_name || row.employee || row.name} on ${row.attendance_date}?`)) return; try { if (Number(row.docstatus) === 1) await frappe.cancelDoc("Attendance", row.name); await frappe.deleteDoc("Attendance", row.name); load(); } catch (error) { window.alert(error?.response?.data?.exception || "ERPNext could not delete this attendance record."); } }
   async function confirmRows(list) {
     if (!list.length || !window.confirm(`Save ${list.length} punched-in day(s) as Present in ERPNext?`)) return;
     setConfirming(true);
@@ -126,7 +126,7 @@ export default function Attendance() {
 
   return <div className="space-y-4">
     <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4"><div className="flex flex-wrap items-center justify-between gap-4"><div><div className="mb-1 flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--color-red-hover)]"><CalendarCheck size={14} /> Workforce tracking</div><h2 className="text-base font-semibold text-[var(--color-text)]">Attendance</h2></div><div className="flex gap-2">{unconfirmed.length > 0 && <Button variant="secondary" onClick={() => confirmRows(unconfirmed)} disabled={confirming}><Check size={14} /> {confirming ? "Saving…" : `Confirm ${unconfirmed.length} punched-in`}</Button>}<Button variant="secondary" onClick={load} disabled={state === "loading"}><RefreshCw size={14} /> Refresh</Button><Button onClick={() => { setEditing(null); setFormOpen(true); }}><Plus size={14} /> Mark attendance</Button></div></div></section>
-    {formOpen && <HrRecordForm doctype="Attendance" fields={FIELDS} recordName={editing} onCancel={closeForm} onSaved={() => { closeForm(); load(); }} />}
+    {formOpen && <HrRecordForm doctype="Attendance" submittable fields={FIELDS} recordName={editing} onCancel={closeForm} onSaved={() => { closeForm(); load(); }} />}
 
     {state === "loading" && <Card><div className="flex h-32 items-center justify-center text-[13px] text-[var(--color-text-muted)]">Loading attendance...</div></Card>}
     {state === "error" && <Card><div className="p-6 text-[13px] text-[var(--color-text-muted)]">Could not load Attendance records. Check ERPNext permissions and connectivity.</div></Card>}

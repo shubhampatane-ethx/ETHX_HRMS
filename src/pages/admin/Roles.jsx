@@ -11,7 +11,7 @@ import { Button, Card } from "../../components/ui/primitives";
  * Custom DocPerm first - so granting one permission never wipes the others.
  */
 const PM = "frappe.core.page.permission_manager.permission_manager";
-const ROLES = ["HR Manager", "HR User", "Projects Manager", "Employee", "Interviewer"];
+const ROLES = ["HR Manager", "HR User", "Projects Manager", "Employee", "Interviewer", "Leave Approver", "Expense Approver"];
 const FLAGS = ["read", "write", "create", "delete", "submit", "cancel", "amend", "report", "export", "share", "print", "email"];
 
 // Everything HR needs to add an employee AND give them a login in one go. Each line below was a
@@ -51,6 +51,9 @@ const HR_PRESET = [
   { doctype: "Project", perms: ["read"], why: "Project on a requisition" },
   // Leave, lifecycle, performance, training
   { doctype: "Leave Application", perms: ["read", "write", "create", "submit"], why: "Approve / reject and apply for employees" },
+  { doctype: "Expense Claim", perms: ["read", "write", "create", "submit"], why: "Approve / reject claims and raise them for employees" },
+  { doctype: "Expense Claim", permlevel: 1, perms: ["read", "write"], why: "Set the claim's approval status" },
+  { doctype: "Expense Claim Type", perms: ["read"], why: "Expense types on claims" },
   { doctype: "Leave Allocation", perms: ["read", "write", "create", "submit"], why: "Allocate leave and show balances" },
   { doctype: "Leave Type", perms: ["read"], why: "Leave types" },
   { doctype: "Employee Promotion", perms: ["read", "write", "create", "submit"], why: "Promotions" },
@@ -91,7 +94,21 @@ const INTERVIEWER_PRESET = [
   { doctype: "Interview Round", perms: ["read"], why: "Round details" },
   { doctype: "Skill", perms: ["read"], why: "Scorecard skills" },
 ];
+// HRMS's approver roles, given automatically to anyone set as a leave / expense approver (Admin › Organization).
+const LEAVE_APPROVER_PRESET = [
+  { doctype: "Leave Application", perms: ["read", "write", "submit"], why: "Approve / reject leave they're the approver of" },
+  { doctype: "Comment", perms: ["read", "create"], why: "Reason for a rejection" },
+];
+const EXPENSE_APPROVER_PRESET = [
+  { doctype: "Expense Claim", perms: ["read", "write", "submit"], why: "Approve / reject claims they're the approver of" },
+  { doctype: "Expense Claim", permlevel: 1, perms: ["read", "write"], why: "Set the claim's approval status" },
+  { doctype: "Expense Claim Type", perms: ["read"], why: "Expense types on claims" },
+  { doctype: "File", perms: ["read"], why: "Open the attached bills" },
+  { doctype: "Comment", perms: ["read", "create"], why: "Reason for a rejection" },
+];
 const PRESETS = {
+  "Leave Approver": LEAVE_APPROVER_PRESET,
+  "Expense Approver": EXPENSE_APPROVER_PRESET,
   Interviewer: INTERVIEWER_PRESET,
   "Projects Manager": PM_PRESET,
   "HR Manager": HR_PRESET,
@@ -196,7 +213,7 @@ function ApplyEverything() {
   }
   return (
     <div className="mt-4 flex flex-wrap items-center gap-3">
-      <Button onClick={run} disabled={busy}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />} Apply everything for HR Manager, HR User, Projects Manager, Employee and Interviewer</Button>
+      <Button onClick={run} disabled={busy}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />} Apply everything for HR, Projects Manager, Employee, Interviewer and approver roles</Button>
       {msg && <span className={`text-[12px] ${msg.ok ? "text-[var(--color-green)]" : "text-[var(--color-red-hover)]"}`}>{msg.text}</span>}
     </div>
   );

@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { PageLoading } from "../PageLoading";
 import { Outlet, useLocation } from "react-router-dom";
-import { ArrowLeft, Briefcase, CheckCheck, Gauge, Users, ClipboardCheck, ClipboardList, LayoutDashboard, Timer, UserPlus, UserRound } from "lucide-react";
+import { ArrowLeft, Briefcase, CalendarCheck, CheckCheck, Gauge, Users, ClipboardCheck, ClipboardList, LayoutDashboard, Timer, UserPlus, UserRound } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { useAuth } from "../../context/AuthContext";
@@ -14,6 +14,7 @@ const TITLES = {
   "/pm/assignments": "Assignments",
   "/pm/timesheets": "Team Timesheets",
   "/pm/approvals": "Timesheet Approvals",
+  "/pm/leave-approvals": "Leave & Expense Approvals",
   "/pm/resources": "Resources",
   "/pm/team": "My Team",
   "/pm/requisitions": "Hiring Requests",
@@ -31,7 +32,8 @@ export function PMLayout() {
     { to: "/pm", label: "Dashboard", icon: LayoutDashboard },
     { to: "/pm/projects", label: "Projects", icon: Briefcase },
     { to: "/pm/assignments", label: "Assignments", icon: ClipboardList },
-    { to: "/pm/approvals", label: "Approvals", icon: CheckCheck },
+    { to: "/pm/approvals", label: "Timesheet Approvals", icon: CheckCheck },
+    { to: "/pm/leave-approvals", label: "Leave Approvals", icon: CalendarCheck },
     { to: "/pm/resources", label: "Resources", icon: Gauge },
     { to: "/pm/team", label: "My Team", icon: Users },
     { to: "/pm/timesheets", label: "Team Timesheets", icon: Timer },

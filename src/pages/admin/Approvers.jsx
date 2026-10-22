@@ -63,7 +63,7 @@ export function LeaveApproversByBU() {
 
   return (
     <div>
-      <Hint>Each department is a business unit. The first approver is the default; when they are on leave for the requested dates the next one is used. Employees without an approver here fall back to the approver on their own Employee record.</Hint>
+      <Hint>Each department is a business unit (sub-departments also use their parent unit's approvers). The first approver is the default; whoever is on approved leave is skipped and the next one is used - new requests at once, pending ones by a daily job (Admin › ERPNext Setup installs it). Employees without an approver here fall back to the approver on their own Employee record.</Hint>
       <div className="mb-3"><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search business unit or company…" className={`${inputCls} max-w-xs`} /></div>
       <Card className="overflow-hidden">
         {rows === null ? <p className="flex h-28 items-center justify-center gap-2 text-[13px] text-[var(--color-text-muted)]"><Loader2 size={14} className="animate-spin" /> Loading…</p> : (
@@ -173,7 +173,7 @@ export function ExpenseApproversByType() {
 
   return (
     <div>
-      <Hint>Each expense type has its own approver. When an employee picks a type, that person is set as the claim's approver. If a type has none, the employee's own expense approver or their business unit's approver is used.</Hint>
+      <Hint>Each expense type has its own approver. When an employee picks a type, that person becomes the claim's approver. If the type has none, or its approver is on leave, the business unit's expense approver (then the employee's own) is used. Claims need a bill to be approved and a reason to be rejected.</Hint>
       {missing && missing.length > 0 && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-4 py-3 text-[13px] text-[var(--color-text-muted)]">
           <span>ERPNext's Expense Claim Type has no approver field yet. This adds a standard custom field (no code or server change).</span>

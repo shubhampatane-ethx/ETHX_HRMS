@@ -11,7 +11,7 @@ async function loadTeam() {
   try {
     return { ...(await frappe.callMethod("ethx_my_team")), ready: true };
   } catch (e) {
-    if (e?.response?.status === 404 || /not found|not whitelisted|has no attribute/i.test(String(e?.response?.data?.exception || ""))) return { ready: false, team: [], leave: [], away: [], today: {} };
+    if (e?.response?.status === 404 || /not found|not whitelisted|has no attribute|Failed to get method|No module named/i.test(String(e?.response?.data?.exception || ""))) return { ready: false, team: [], leave: [], away: [], today: {} };
     throw e;
   }
 }

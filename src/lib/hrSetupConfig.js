@@ -198,7 +198,7 @@ export const HR_SETUP_SECTIONS = [
     title: "Other Reports",
     icon: Newspaper,
     items: [
-      { label: "Employee Information", doctype: "Employee Information", kind: "report" },
+      { label: "Employee Information", doctype: "Employee Information", kind: "report", disabled: true }, // Report Builder view - no server-side run
       { label: "Employee Birthday", doctype: "Employee Birthday", kind: "report" },
       { label: "Employees Working on a Holiday", doctype: "Employees Working on a Holiday", kind: "report" },
       { label: "Daily Work Summary Replies", doctype: "Daily Work Summary Replies", kind: "report", disabled: true },

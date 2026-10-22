@@ -81,15 +81,19 @@ export function BrandingProvider({ children }) {
         if (cancelled) return;
         setState({ company, loading: false });
         document.title = `${company?.company_name || getCachedBrandName() || "ETHX Softcon"} | HRMS`;
-        if (company?.name) {
-          cacheBranding(company);
-          const sharedTheme = THEME_OPTIONS.some((theme) => theme.id === company.custom_hrms_theme) ? company.custom_hrms_theme : null;
-          if (hasSavedTheme(user?.email)) applySavedTheme(user.email);
-          else if (sharedTheme) saveTheme(sharedTheme, company.name);
-          else applySavedTheme(company.name);
-        }
+        if (company?.name) cacheBranding(company);
+        // A personal theme always wins - even when no company could be resolved for this account (e.g. HR users
+        // without a Company user permission, who used to be stuck on the default theme).
+        const sharedTheme = THEME_OPTIONS.some((theme) => theme.id === company?.custom_hrms_theme) ? company.custom_hrms_theme : null;
+        if (hasSavedTheme(user?.email)) applySavedTheme(user.email);
+        else if (sharedTheme) saveTheme(sharedTheme, company.name);
+        else applySavedTheme(company?.name);
       })
-      .catch(() => { if (!cancelled) setState({ company: null, loading: false }); });
+      .catch(() => {
+        if (cancelled) return;
+        setState({ company: null, loading: false });
+        applySavedTheme(hasSavedTheme(user?.email) ? user.email : undefined);
+      });
     return () => { cancelled = true; };
   }, [user, selectedCompany, revision]);
 

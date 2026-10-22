@@ -38,9 +38,10 @@ export default function DoctypeView() {
     );
   }
 
-  if (item.kind === "single") return <SingleSettings item={item} />;
-  if (item.kind === "report") return <ReportRunner item={item} />;
-  return <DoctypeCrud item={item} />;
+  // key: each doctype gets fresh state (filters, form) when moving between setup pages
+  if (item.kind === "single") return <SingleSettings key={item.doctype} item={item} />;
+  if (item.kind === "report") return <ReportRunner key={item.doctype} item={item} />;
+  return <DoctypeCrud key={item.doctype} item={item} />;
 }
 
 function BackLink() {
@@ -261,18 +262,26 @@ function SingleSettings({ item }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
+  const [meta, setMeta] = useState(null);
   useEffect(() => {
     setState("loading");
-    frappe
-      .getDoc(item.doctype, item.doctype)
-      .then((res) => {
+    Promise.all([
+      frappe.getDoc(item.doctype, item.doctype),
+      // field types / labels, so numbers aren't shown as checkboxes just because their value is 0 or 1
+      frappe.client.get("/method/frappe.desk.form.load.getdoctype", { params: { doctype: item.doctype } }).then((r) => r.data?.docs?.[0]?.fields || null).catch(() => null),
+    ])
+      .then(([res, fields]) => {
         setDoc(res);
+        setMeta(fields);
         setState("ok");
       })
       .catch(() => setState("error"));
   }, [item.doctype]);
 
-  const entries = doc ? Object.entries(doc).filter(([key]) => !SINGLE_SYSTEM_FIELDS.includes(key)) : [];
+  const LAYOUT = ["Section Break", "Column Break", "Tab Break", "HTML", "Button", "Heading", "Fold", "Table", "Table MultiSelect"];
+  const entries = !doc ? [] : meta
+    ? meta.filter((f) => f.fieldname && !LAYOUT.includes(f.fieldtype) && !Number(f.hidden)).map((f) => [f.fieldname, doc[f.fieldname], f])
+    : Object.entries(doc).filter(([key, v]) => !SINGLE_SYSTEM_FIELDS.includes(key) && !Array.isArray(v));
 
   async function handleSave() {
     setSaving(true);
@@ -305,10 +314,11 @@ function SingleSettings({ item }) {
               {entries.length === 0 && (
                 <p className="text-[13px] text-[var(--color-text-muted)]">No configurable fields returned.</p>
               )}
-              {entries.map(([key, value]) => (
+              {entries.map(([key, value, df]) => (
                 <SingleField
                   key={key}
                   fieldKey={key}
+                  df={df}
                   value={key in edits ? edits[key] : value}
                   onChange={(v) => setEdits((e) => ({ ...e, [key]: v }))}
                 />
@@ -326,8 +336,24 @@ function SingleSettings({ item }) {
   );
 }
 
-function SingleField({ fieldKey, value, onChange }) {
-  const isBooleanish = value === 0 || value === 1 || value === true || value === false;
+function SingleField({ fieldKey, value, onChange, df }) {
+  const label = df?.label || fieldLabel(fieldKey);
+  if (df && Number(df.read_only)) return <Input label={label} value={value ?? ""} disabled onChange={() => {}} />;
+  if (df?.fieldtype === "Select") {
+    const opts = String(df.options || "").split("\n");
+    return (
+      <label className="block">
+        <span className="mb-1.5 block text-[12px] text-[var(--color-text-muted)]">{label}</span>
+        <select value={value ?? ""} onChange={(e) => onChange(e.target.value)} className="w-full rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-3 py-2 text-[13px] text-[var(--color-text)] outline-none focus:border-[var(--color-red)]">
+          {opts.map((o) => <option key={o} value={o}>{o || "—"}</option>)}
+        </select>
+      </label>
+    );
+  }
+  if (df?.fieldtype === "Link") return <LinkField label={label} linkDoctype={df.options} frappe={frappe} value={value ?? ""} onChange={onChange} />;
+  if (df && ["Int", "Float", "Currency", "Percent", "Duration"].includes(df.fieldtype)) return <Input label={label} type="number" step="any" value={value ?? ""} onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))} />;
+  if (df && ["Date", "Time", "Datetime"].includes(df.fieldtype)) return <Input label={label} type={df.fieldtype === "Date" ? "date" : df.fieldtype === "Time" ? "time" : "datetime-local"} value={value ?? ""} onChange={(e) => onChange(e.target.value)} />;
+  const isBooleanish = df ? df.fieldtype === "Check" : value === 0 || value === 1 || value === true || value === false;
   if (isBooleanish) {
     const checked = value === 1 || value === true;
     return (
@@ -338,13 +364,13 @@ function SingleField({ fieldKey, value, onChange }) {
           onChange={(e) => onChange(e.target.checked ? 1 : 0)}
           className="h-3.5 w-3.5 accent-[var(--color-red)]"
         />
-        {fieldLabel(fieldKey)}
+        {label}
       </label>
     );
   }
   return (
     <Input
-      label={fieldLabel(fieldKey)}
+      label={label}
       value={value ?? ""}
       onChange={(e) => onChange(e.target.value)}
     />
@@ -355,21 +381,56 @@ function SingleField({ fieldKey, value, onChange }) {
 /* Reports: run a Query/Script report live via frappe.desk.query_report   */
 /* ---------------------------------------------------------------------- */
 
+const y = new Date().getFullYear();
+const thisMonth = new Date().getMonth() + 1;
+const today = () => new Date().toISOString().slice(0, 10);
+const MONTHS3 = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const F = {
+  company: { fieldname: "company", label: "Company", type: "link", doctype: "Company" },
+  employee: { fieldname: "employee", label: "Employee", type: "link", doctype: "Employee" },
+  department: { fieldname: "department", label: "Department", type: "link", doctype: "Department" },
+  from: { fieldname: "from_date", label: "From date", type: "date" },
+  to: { fieldname: "to_date", label: "To date", type: "date" },
+};
+const req = (f, extra = {}) => ({ ...f, reqd: true, ...extra });
+// Filters each HRMS report needs (from the report's own .js definition). Others get the generic four.
+const REPORT_FILTERS = {
+  "Monthly Attendance Sheet": [
+    { fieldname: "filter_based_on", type: "hidden", default: "Month" },
+    { fieldname: "month", label: "Month", type: "select", options: MONTHS3.map((m, i) => [i + 1, m]), default: thisMonth, reqd: true },
+    { fieldname: "year", label: "Year", type: "select", options: [y - 2, y - 1, y, y + 1].map((v) => [v, String(v)]), default: y, reqd: true },
+    req(F.company), F.employee, F.department,
+  ],
+  "Employee Birthday": [{ fieldname: "month", label: "Month", type: "select", options: MONTHS3.map((m) => [m, m]), default: MONTHS3[thisMonth - 1], reqd: true }, req(F.company)],
+  "Employee Analytics": [req(F.company), { fieldname: "parameter", label: "Group by", type: "select", options: ["Branch", "Grade", "Department", "Designation", "Employment Type"].map((v) => [v, v]), default: "Department", reqd: true }],
+  "Recruitment Analytics": [req(F.company), { fieldname: "on_date", label: "As on", type: "date", default: today(), reqd: true }],
+  "Employee Leave Balance": [req(F.from, { default: `${y}-01-01` }), req(F.to, { default: `${y}-12-31` }), req(F.company), F.department, F.employee],
+  "Employee Leave Balance Summary": [{ fieldname: "date", label: "As on", type: "date", default: today(), reqd: true }, req(F.company), F.department, F.employee],
+  "Employees Working on a Holiday": [req(F.from, { default: `${y}-01-01` }), req(F.to, { default: `${y}-12-31` }), req(F.company), F.department],
+  "Employee Exits": [F.from, F.to, F.company, F.department, F.employee],
+};
+const GENERIC = [F.company, F.employee, F.from, F.to];
+
 function ReportRunner({ item }) {
-  const [filters, setFilters] = useState({ company: "", employee: "", from_date: "", to_date: "" });
+  const defs = REPORT_FILTERS[item.doctype] || GENERIC;
+  const [filters, setFilters] = useState(() => Object.fromEntries(defs.map((d) => [d.fieldname, d.default ?? ""])));
   const [result, setResult] = useState(null);
   const [state, setState] = useState("idle"); // idle | loading | ok | error
   const [error, setError] = useState(null);
+  const set = (k, v) => setFilters((f) => ({ ...f, [k]: v }));
+  const missing = defs.filter((d) => d.reqd && (filters[d.fieldname] === "" || filters[d.fieldname] == null)).map((d) => d.label);
 
   async function run() {
+    if (missing.length) { setError(`Fill in: ${missing.join(", ")}`); setState("error"); return; }
     setState("loading");
     setError(null);
-    const activeFilters = Object.fromEntries(Object.entries(filters).filter(([, v]) => v));
+    const activeFilters = Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== "" && v != null));
     try {
       const res = await frappe.callMethod("frappe.desk.query_report.run", {
         report_name: item.doctype,
         filters: activeFilters,
       });
+      if (!res) throw new Error("This report can't be run from here (it is a Report Builder view). Open it in ERPNext.");
       setResult(res);
       setState("ok");
     } catch (err) {
@@ -386,15 +447,21 @@ function ReportRunner({ item }) {
 
       <Card className="p-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-          <LinkField label="Company" linkDoctype="Company" frappe={frappe} value={filters.company} onChange={(v) => setFilters((f) => ({ ...f, company: v }))} />
-          <LinkField label="Employee" linkDoctype="Employee" frappe={frappe} value={filters.employee} onChange={(v) => setFilters((f) => ({ ...f, employee: v }))} />
-          <Input label="From Date" type="date" value={filters.from_date} onChange={(e) => setFilters((f) => ({ ...f, from_date: e.target.value }))} />
-          <Input label="To Date" type="date" value={filters.to_date} onChange={(e) => setFilters((f) => ({ ...f, to_date: e.target.value }))} />
+          {defs.filter((d) => d.type !== "hidden").map((d) => {
+            const label = `${d.label}${d.reqd ? " *" : ""}`;
+            if (d.type === "link") return <LinkField key={d.fieldname} label={label} linkDoctype={d.doctype} frappe={frappe} value={filters[d.fieldname]} onChange={(v) => set(d.fieldname, v)} />;
+            if (d.type === "date") return <Input key={d.fieldname} label={label} type="date" value={filters[d.fieldname]} onChange={(e) => set(d.fieldname, e.target.value)} />;
+            return (
+              <label key={d.fieldname} className="block">
+                <span className="mb-1.5 block text-[12px] text-[var(--color-text-muted)]">{label}</span>
+                <select value={filters[d.fieldname]} onChange={(e) => set(d.fieldname, e.target.value)} className="w-full rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-3 py-2 text-[13px] text-[var(--color-text)] outline-none focus:border-[var(--color-red)]">
+                  {d.options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
+              </label>
+            );
+          })}
         </div>
-        <p className="mt-2 text-[11px] text-[var(--color-text-faint)]">
-          Leave any filter blank to omit it. Not every report uses all four - ERPNext ignores filters it doesn't
-          recognize for a given report.
-        </p>
+        <p className="mt-2 text-[11px] text-[var(--color-text-faint)]">Fields marked * are required by this report; leave the others blank to include everything.</p>
         <Button className="mt-3" onClick={run} disabled={state === "loading"}>
           {state === "loading" && <Loader2 size={14} className="animate-spin" />}
           Run report

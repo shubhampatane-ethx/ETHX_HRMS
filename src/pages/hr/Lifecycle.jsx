@@ -49,7 +49,8 @@ function Moves({ kind }) {
   const [msg, setMsg] = useState(null);
 
   async function submit(r) {
-    if (!window.confirm(`Submit this ${kind}? The employee record is updated on ${dmy(r[date])}${r[date] > isoDate() ? " (by ERPNext's daily job)" : ""}.`)) return;
+    if (r[date] > isoDate()) return setMsg({ ok: false, text: `ERPNext only accepts a ${kind} on or after its effective date (${dmy(r[date])}). Submit it then.` });
+    if (!window.confirm(`Submit this ${kind}? The employee record is updated now.`)) return;
     try {
       await frappe.submitDoc(await frappe.getDoc(dt, r.name));
       setMsg({ ok: true, text: `${r.employee_name}: ${kind} submitted.` });
@@ -68,7 +69,7 @@ function Moves({ kind }) {
           { key: date, label: "Effective", render: (r) => dmy(r[date]) },
           { key: "changes", label: "Changes", render: (r) => <span className="text-[12px]">{(details.data?.[r.name] || []).map((p) => `${p.property}: ${p.current || "—"} → ${p.new}`).join(" · ") || "—"}{kind === "transfer" && r.new_company && r.new_company !== r.company ? ` · Company → ${r.new_company}` : ""}{kind === "promotion" && Number(r.revised_ctc) ? ` · CTC → ${money(r.revised_ctc)}` : ""}</span> },
           { key: "status", label: "Status", render: (r) => <StatusPill status={statusOf(r)} /> },
-          { key: "_a", label: "", render: (r) => (r.docstatus === 0 ? <Button variant="secondary" className="!px-2 !py-1 text-[11px]" onClick={() => submit(r)}>Submit</Button> : null) },
+          { key: "_a", label: "", render: (r) => (r.docstatus === 0 ? (r[date] > isoDate() ? <span className="text-[11px] text-[var(--color-text-faint)]">Submit on {dmy(r[date])}</span> : <Button variant="secondary" className="!px-2 !py-1 text-[11px]" onClick={() => submit(r)}>Submit</Button>) : null) },
         ]} />}
       </Async>
       {open && <MoveModal kind={kind} onClose={() => setOpen(false)} onSaved={() => { setOpen(false); list.reload(); }} />}
@@ -89,6 +90,9 @@ function MoveModal({ kind, onClose, onSaved }) {
   async function submit(ev) {
     ev.preventDefault();
     if (!changes.length && !(kind === "promotion" && f.revised_ctc) && !(kind === "transfer" && f.new_company && f.new_company !== e.company)) return setErr("Change at least one detail.");
+    // ERPNext requires at least one property row on a transfer (e.g. the department in the new company)
+    if (kind === "transfer" && !changes.length) return setErr("Also choose what changes with the transfer (for example the department or designation in the new company).");
+    if (f.submitNow && f.date > isoDate()) return setErr(`ERPNext only accepts a ${kind} on or after its effective date - save it now and submit it on ${dmy(f.date)}.`);
     setBusy(true);
     setErr("");
     try {

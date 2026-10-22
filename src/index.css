@@ -85,8 +85,35 @@
   --color-on-accent: #ffffff;
 }
 
+/* Ember (default) is a dark theme: native controls (date pickers, select menus, scrollbars) must render dark too,
+   otherwise dropdown menus come up white with near-white text. */
+:root,
+:root[data-theme="ember"] {
+  color-scheme: dark;
+}
+
 html, body, #root {
   height: 100%;
+}
+
+/* Native <select> menus and date inputs follow the active theme on every browser */
+select option,
+select optgroup {
+  background-color: var(--color-surface);
+  color: var(--color-text);
+}
+select option:disabled {
+  color: var(--color-text-faint);
+}
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.75;
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--color-text-faint);
 }
 
 body {

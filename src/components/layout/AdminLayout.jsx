@@ -1,5 +1,7 @@
+import { Suspense } from "react";
+import { PageLoading } from "../PageLoading";
 import { Outlet, useLocation } from "react-router-dom";
-import { LayoutDashboard, Users, Building2, ShieldCheck, ScrollText, Briefcase, ClipboardList } from "lucide-react";
+import { LayoutDashboard, Users, Building2, ShieldCheck, ScrollText, Briefcase, ClipboardList, SlidersHorizontal, Wrench } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { TOP_NAV, hrSetupGroups } from "./HRLayout";
@@ -9,7 +11,7 @@ const HR_WORKSPACE = {
   label: "HR Workspace",
   icon: Briefcase,
   children: [
-    ...TOP_NAV.map(({ to, label }) => ({ to, label: label === "Dashboard" ? "HR Dashboard" : label })),
+    ...TOP_NAV.map(({ to, label, children }) => (children ? { label, children } : { to, label: label === "Dashboard" ? "HR Dashboard" : label })),
     ...hrSetupGroups(true),
   ],
 };
@@ -21,7 +23,11 @@ const PM_WORKSPACE = {
     { to: "/pm", label: "PM Dashboard" },
     { to: "/pm/projects", label: "Projects" },
     { to: "/pm/assignments", label: "Assignments" },
+    { to: "/pm/approvals", label: "Timesheet Approvals" },
+    { to: "/pm/leave-approvals", label: "Leave Approvals" },
+    { to: "/pm/resources", label: "Resources" },
     { to: "/pm/timesheets", label: "Team Timesheets" },
+    { to: "/pm/requisitions", label: "Hiring Requests" },
   ],
 };
 
@@ -30,7 +36,9 @@ const NAV = [
   { to: "/admin/users", label: "Users", icon: Users },
   { to: "/admin/organization", label: "Organization", icon: Building2 },
   { to: "/admin/roles", label: "Roles & Permissions", icon: ShieldCheck },
+  { to: "/admin/settings", label: "Settings", icon: SlidersHorizontal },
   { to: "/admin/audit-logs", label: "Audit Logs", icon: ScrollText },
+  { to: "/admin/setup", label: "ERPNext Setup", icon: Wrench },
   HR_WORKSPACE,
   PM_WORKSPACE,
 ];
@@ -42,6 +50,9 @@ const TITLES = {
   "/admin/roles": "Roles & Permissions",
   "/admin/settings": "Settings",
   "/admin/audit-logs": "Audit Logs",
+  "/admin/setup": "ERPNext Setup",
+  "/admin/employees": "All Employees",
+  "/admin/project-managers": "Project Managers",
 };
 
 export function AdminLayout() {
@@ -52,7 +63,7 @@ export function AdminLayout() {
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar roleLabel="Admin" pageTitle={TITLES[pathname] ?? "Admin"} />
         <main className="flex-1 overflow-y-auto p-6">
-          <Outlet />
+          <Suspense fallback={<PageLoading />}><Outlet /></Suspense>
         </main>
       </div>
     </div>

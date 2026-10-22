@@ -2,6 +2,7 @@ import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { PageLoading } from "./components/PageLoading";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { BrandingProvider } from "./context/BrandingContext";
 import { RequireAuth, RequirePermission } from "./permissions/guards";
 import { primaryAppRole } from "./permissions/roles";
 
@@ -15,11 +16,12 @@ const PMDashboard = lazy(() => import("./pages/pm/PMPages").then((m) => ({ defau
 const PMProjects = lazy(() => import("./pages/pm/PMPages").then((m) => ({ default: m.PMProjects })));
 const ProjectManagers = lazy(() => import("./pages/admin/ProjectManagers"));
 const PMApprovals = lazy(() => import("./pages/pm/PMApprovals"));
+const PMLeaveApprovals = lazy(() => import("./pages/pm/PMLeaveApprovals"));
 const MyTeam = lazy(() => import("./pages/shared/MyTeam"));
 const Resources = lazy(() => import("./pages/shared/Resources"));
 const Lifecycle = lazy(() => import("./pages/hr/Lifecycle"));
 const AdminDashboard = lazy(() => import("./pages/admin/Dashboard"));
-const AdminUsers = lazy(() => import("./pages/admin/Users"));
+const AdminUsers = lazy(() => import("./pages/admin/UsersHub"));
 const Organization = lazy(() => import("./pages/admin/Organization"));
 const Roles = lazy(() => import("./pages/admin/Roles"));
 const Settings = lazy(() => import("./pages/admin/Settings"));
@@ -51,6 +53,7 @@ const HRDashboard = lazy(() => import("./pages/hr/Dashboard"));
 const Employees = lazy(() => import("./pages/hr/Employees"));
 const Attendance = lazy(() => import("./pages/hr/Attendance"));
 const Leave = lazy(() => import("./pages/hr/Leave"));
+const ExpenseClaims = lazy(() => import("./pages/hr/ExpenseClaims"));
 const Payroll = lazy(() => import("./pages/hr/Payroll"));
 const Timesheets = lazy(() => import("./pages/hr/Timesheets"));
 const RecruitmentOverview = lazy(() => import("./pages/hr/recruitment/Overview"));
@@ -72,6 +75,7 @@ const DoctypeView = lazy(() => import("./pages/hr/DoctypeView"));
 export default function App() {
   return (
     <AuthProvider>
+      <BrandingProvider>
       <Suspense fallback={<PageLoading full />}>
       <Routes>
         <Route path="/login" element={<Login />} />
@@ -101,6 +105,7 @@ export default function App() {
               <Route path="assignments" element={<PMAssignments />} />
               <Route path="timesheets" element={<Timesheets readOnly />} />
               <Route path="approvals" element={<PMApprovals />} />
+              <Route path="leave-approvals" element={<PMLeaveApprovals />} />
               <Route path="team" element={<MyTeam />} />
               <Route path="resources" element={<Resources />} />
               <Route path="requisitions" element={<Requisitions mine />} />
@@ -141,6 +146,8 @@ export default function App() {
               <Route path="attendance" element={<Attendance />} />
               <Route path="timesheets" element={<Timesheets />} />
               <Route path="leave" element={<Leave />} />
+              <Route path="expenses" element={<ExpenseClaims />} />
+              <Route path="setup/expense-claim" element={<ExpenseClaims />} />
               <Route path="payroll" element={<Payroll />} />
               <Route path="recruitment" element={<RecruitmentOverview />} />
               <Route path="recruitment/requisitions" element={<Requisitions />} />
@@ -164,6 +171,7 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       </Suspense>
+      </BrandingProvider>
     </AuthProvider>
   );
 }

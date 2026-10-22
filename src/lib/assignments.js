@@ -26,8 +26,10 @@ export function workingDays(start, end) {
   return count;
 }
 
-export function composeAssignment({ role, hoursPerDay, notes }) {
-  return [ASSIGNMENT_MARK, `Role: ${role}`, `Hours per day: ${hoursPerDay}`, notes && `Notes: ${notes}`].filter(Boolean).join("\n");
+// The assignee is also written into the description: ERPNext clears Task._assign when a task is completed or
+// cancelled, which used to make finished assignments lose their employee.
+export function composeAssignment({ role, hoursPerDay, notes, email }) {
+  return [ASSIGNMENT_MARK, `Role: ${role}`, `Hours per day: ${hoursPerDay}`, email && `Assignee: ${email}`, notes && `Notes: ${notes}`].filter(Boolean).join("\n");
 }
 
 const plain = (t = "") => String(t).replace(/<br\s*\/?>|<\/p>|<\/div>|<\/li>/gi, "\n").replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&");
@@ -40,6 +42,7 @@ export function parseAssignment(task) {
   const hoursPerDay = Number(pick(text, "Hours per day")) || (task.expected_time && days ? Math.round((task.expected_time / days) * 100) / 100 : 8);
   let assignees = [];
   try { assignees = JSON.parse(task._assign || "[]"); } catch { /* ignore */ }
+  if (!assignees.length && pick(text, "Assignee")) assignees = [pick(text, "Assignee")];
   const finishedEarly = task.status === "Completed" && task.completed_on && task.completed_on < task.exp_end_date;
   return {
     name: task.name,
@@ -65,13 +68,16 @@ export function listAssignments() {
 }
 
 /** The signed-in employee's own assignments that overlap [from, to]. */
-export function getMyAssignments(email, from, to) {
-  if (!email) return Promise.resolve([]);
-  return listTry("Task", {
-    filters: [["_assign", "like", `%"${email}"%`], ["description", "like", `%${ASSIGNMENT_MARK}%`], ["status", "!=", "Cancelled"], ["exp_start_date", "<=", to], ["exp_end_date", ">=", from]],
-    fields: FIELDS,
-    orderBy: "exp_start_date asc",
-  }, BASIC);
+export async function getMyAssignments(email, from, to) {
+  if (!email) return [];
+  const common = [["description", "like", `%${ASSIGNMENT_MARK}%`], ["status", "!=", "Cancelled"], ["exp_start_date", "<=", to], ["exp_end_date", ">=", from]];
+  const [open, done] = await Promise.all([
+    listTry("Task", { filters: [["_assign", "like", `%"${email}"%`], ...common], fields: FIELDS, orderBy: "exp_start_date asc" }, BASIC),
+    // completed tasks no longer carry _assign; find them by the assignee line in the description
+    listTry("Task", { filters: [["description", "like", `%Assignee: ${email}%`], ["status", "=", "Completed"], ...common], fields: FIELDS, orderBy: "exp_start_date asc" }, BASIC).catch(() => []),
+  ]);
+  const seen = new Set(open.map((t) => t.name));
+  return [...open, ...done.filter((t) => !seen.has(t.name))];
 }
 
 const expected = (hoursPerDay, start, end) => Math.round(Number(hoursPerDay) * workingDays(start, end) * 100) / 100;
@@ -85,7 +91,7 @@ export async function createAssignment({ project, projectLabel, email, role, sta
     exp_start_date: start,
     exp_end_date: eta,
     expected_time: expected(hoursPerDay, start, eta),
-    description: composeAssignment({ role, hoursPerDay, notes }),
+    description: composeAssignment({ role, hoursPerDay, notes, email }),
   });
   try {
     await frappe.callMethod("frappe.desk.form.assign_to.add", {
@@ -102,15 +108,19 @@ export async function createAssignment({ project, projectLabel, email, role, sta
   return task;
 }
 
-export function updateAssignment(name, { projectLabel, role, start, eta, hoursPerDay, notes, status }) {
+export function updateAssignment(name, { projectLabel, role, start, eta, hoursPerDay, notes, status, email }) {
   return frappe.updateDoc("Task", name, {
     subject: `${role} - ${projectLabel}`,
     exp_start_date: start,
     exp_end_date: eta,
     expected_time: expected(hoursPerDay, start, eta),
-    description: composeAssignment({ role, hoursPerDay, notes }),
+    description: composeAssignment({ role, hoursPerDay, notes, email }),
     ...(status ? { status } : {}),
   });
 }
 
-export const setAssignmentStatus = (name, status) => frappe.updateDoc("Task", name, { status });
+/** Complete / cancel. Pass the parsed assignment so its assignee is written down before ERPNext clears _assign. */
+export function setAssignmentStatus(name, status, a) {
+  const keep = a && a.assignees?.[0] ? { description: composeAssignment({ role: a.role, hoursPerDay: a.hoursPerDay, notes: a.notes, email: a.assignees[0] }) } : {};
+  return frappe.updateDoc("Task", name, { ...keep, status });
+}
