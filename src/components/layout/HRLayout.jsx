@@ -8,7 +8,6 @@ import {
   Timer,
   Wallet,
   UserSearch,
-  Settings as SettingsIcon,
   ArrowLeft,
   ArrowRightLeft,
   Gauge,
@@ -51,11 +50,13 @@ export const TOP_NAV = [
   },
 ];
 
-/** Every master/setting/report is still its own real link, but they all live under one "Settings" menu. */
+// Section titles that would clash with the main menu items of the same name
+const SETUP_LABELS = { Settings: "HR & Payroll Settings", Leaves: "Leave Setup", Attendance: "Attendance Setup", "Expense Claim": "Expense Setup" };
+
+/** Every master/setting/report is its own link, grouped by area, and sits directly in the sidebar. */
 export function hrSetupGroups(isAdmin = false) {
   return HR_SETUP_SECTIONS.map((section) => ({
-    // the config already has a group called "Settings"; rename it so it doesn't read "Settings > Settings"
-    label: section.title === "Settings" ? "HR & Payroll Settings" : section.title,
+    label: SETUP_LABELS[section.title] || section.title,
     icon: section.icon,
     children: section.items
       .filter((item) => !item.disabled && (isAdmin || !item.adminOnly))
@@ -83,7 +84,7 @@ export function HRLayout() {
   const nav = useMemo(() => [
     ...(isAdmin ? [{ to: "/admin", label: "Back to Admin", icon: ArrowLeft }] : []),
     ...TOP_NAV,
-    { label: "Settings", icon: SettingsIcon, children: hrSetupGroups(isAdmin) },
+    ...hrSetupGroups(isAdmin),
   ], [isAdmin]);
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--color-bg)]">

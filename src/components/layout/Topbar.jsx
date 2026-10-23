@@ -33,37 +33,38 @@ function ThemeTile({ option, selected, onChoose }) {
   );
 }
 
-/** Personal theme picker. Overrides the company's shared theme for this account on this browser. */
-function ThemeMenu() {
+/** Personal theme choice. Overrides the company's shared theme for this account on this browser. */
+function useThemeChoice() {
   const { user } = useAuth();
   const { company } = useBranding();
   const [override, setOverride] = useState(null);
-  const [open, setOpen] = useState(false);
-  const box = useRef(null);
   const personal = hasSavedTheme(user?.email);
   const companyTheme = THEME_OPTIONS.find((o) => o.id === company?.custom_hrms_theme)?.id;
   const stored = personal ? getSavedTheme(user?.email) : companyTheme || getSavedTheme(company?.name);
   const theme = override?.email === user?.email ? override.value : stored;
-  useOutside(open, box, () => setOpen(false));
+  const choose = (value) => setOverride({ email: user?.email, value: saveTheme(value, user?.email) });
+  return { theme, choose };
+}
 
-  function choose(value) {
-    setOverride({ email: user?.email, value: saveTheme(value, user?.email) });
-    setOpen(false);
-  }
-
+/** "Theme" row inside the account menu; opens the theme tiles right there. */
+function ThemeSection() {
+  const { theme, choose } = useThemeChoice();
+  const [open, setOpen] = useState(false);
+  const current = THEME_OPTIONS.find((o) => o.id === theme);
   return (
-    <div ref={box} className="relative">
-      <button type="button" title="Change theme" aria-label="Change theme" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)}
-        className="flex h-9 items-center gap-2 rounded-full border border-[var(--color-border-strong)] bg-[var(--color-surface)] px-2.5 text-[var(--color-text)] transition-colors hover:border-[var(--color-red)]">
-        <span className="relative flex h-6 w-6 items-center justify-center rounded-full bg-[var(--color-red-wash)] text-[var(--color-red-hover)]"><Palette size={14} strokeWidth={1.9} /><span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border border-[var(--color-surface)]" style={{ backgroundColor: THEME_OPTIONS.find((o) => o.id === theme)?.swatches[1] }} /></span>
-        <span className="hidden text-[11px] font-medium sm:inline">Theme</span>
+    <div>
+      <button type="button" role="menuitem" aria-expanded={open} onClick={() => setOpen((o) => !o)} className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]">
+        <Palette size={15} strokeWidth={1.75} />
+        Theme
+        <span className="ml-auto flex items-center gap-1.5 text-[11px] text-[var(--color-text-faint)]">
+          {current && <span className="h-2.5 w-2.5 rounded-full border border-[var(--color-border-strong)]" style={{ backgroundColor: current.swatches[1] }} />}
+          {current?.name}
+          <ChevronDown size={13} className={`transition-transform ${open ? "rotate-180" : ""}`} />
+        </span>
       </button>
       {open && (
-        <div role="menu" aria-label="Choose theme" className="absolute right-0 top-full z-50 mt-2 w-72 rounded-xl border border-[var(--color-border-strong)] bg-[var(--color-surface)] p-2.5 shadow-xl">
-          <div className="mb-2 flex items-center justify-between px-0.5">
-            <p className="text-[11px] font-semibold text-[var(--color-text)]">Your theme</p>
-            <span className="text-[10px] text-[var(--color-text-faint)]">Saved for your account</span>
-          </div>
+        <div role="menu" aria-label="Choose theme" className="px-3 pb-3 pt-1">
+          <p className="mb-2 px-0.5 text-[10px] text-[var(--color-text-faint)]">Saved for your account on this browser</p>
           <div className="grid grid-cols-2 gap-2">
             {THEME_OPTIONS.map((o) => <ThemeTile key={o.id} option={o} selected={theme === o.id} onChoose={() => choose(o.id)} />)}
           </div>
@@ -122,7 +123,6 @@ export function Topbar({ roleLabel, pageTitle }) {
       <h1 className="text-[15px] font-semibold text-[var(--color-text)]">{pageTitle}</h1>
 
       <div className="flex items-center gap-3">
-        <ThemeMenu />
         <div ref={box} className="relative">
           <button
             type="button"
@@ -138,7 +138,7 @@ export function Topbar({ roleLabel, pageTitle }) {
           </button>
 
           {open && (
-            <div role="menu" className="absolute right-0 top-full z-50 mt-2 w-64 overflow-hidden rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-surface)] shadow-xl">
+            <div role="menu" className="absolute right-0 top-full z-50 mt-2 max-h-[80vh] w-72 overflow-y-auto rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-surface)] shadow-xl">
               <div className="border-b border-[var(--color-border)] px-4 py-3">
                 <p className="truncate text-[13px] font-medium text-[var(--color-text)]">{name}</p>
                 <p className="mt-0.5 text-[11px] text-[var(--color-red-hover)]">{roleLabel}</p>
@@ -150,6 +150,7 @@ export function Topbar({ roleLabel, pageTitle }) {
                     {label}
                   </button>
                 ))}
+                <ThemeSection />
                 <button type="button" role="menuitem" onClick={logout} className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-2)] hover:text-[var(--color-red-hover)]">
                   <LogOut size={15} strokeWidth={1.75} />
                   Sign out
