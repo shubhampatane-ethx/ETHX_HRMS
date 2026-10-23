@@ -70,7 +70,7 @@ function Row({ r, showEmployee, onOpen }) {
   );
 }
 
-function TimesheetList({ readOnly = false }) {
+function TimesheetList({ readOnly = false, hrView = false }) {
   const thisYear = new Date().getFullYear();
   const [year, setYear] = useState(thisYear);
   const [monthSel, setMonthSel] = useState(null); // null = latest month with data, "all" = whole year
@@ -149,7 +149,7 @@ function TimesheetList({ readOnly = false }) {
           <div>
             <div className="mb-1 flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--color-red-hover)]"><Timer size={14} /> Workforce tracking</div>
             <h2 className="text-base font-semibold text-[var(--color-text)]">Timesheets</h2>
-            <p className="mt-1 text-[12px] text-[var(--color-text-muted)]">{readOnly ? "Hours your team logged, by month and employee. Approve hours on your projects under Approvals." : "Hours logged by employees, by month and employee. Open a submitted timesheet to approve it (per project), return it for correction, or finalize it."}</p>
+            <p className="mt-1 text-[12px] text-[var(--color-text-muted)]">{hrView ? "Hours logged by employees, by month and employee. Project managers approve them; open a timesheet to see who approved what, or download the CSV." : readOnly ? "Hours your team logged, by month and employee. Approve hours on your projects under Approvals." : "Hours logged by employees, by month and employee. Open a submitted timesheet to approve it (per project), return it for correction, or finalize it."}</p>
           </div>
           <Button variant="secondary" disabled={!visible.length} onClick={exportCsv}><Download size={14} /> Download {periodLabel} CSV</Button>
         </div>
@@ -228,12 +228,10 @@ export default function Timesheets({ readOnly = false }) {
           <button key={v} type="button" onClick={() => setTab(v)} className={`-mb-px border-b-2 px-3.5 py-2 text-[13px] font-medium ${tab === v ? "border-[var(--color-red)] text-[var(--color-text)]" : "border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text)]"}`}>{l}</button>
         ))}
       </div>
-      {tab === "sheets" ? <TimesheetList /> : <TimesheetCompliance />}
+      {tab === "sheets" ? <TimesheetList readOnly hrView /> : <TimesheetCompliance />}
     </div>
   );
 }
-
-const isHrUser = (user) => user?.email === "Administrator" || (user?.erpRoles || []).some((r) => ["HR Manager", "HR User", "System Manager"].includes(r));
 
 /** Project → { label, manager } for the projects on a timesheet. */
 async function projectInfo(ids) {
@@ -268,7 +266,8 @@ export function Detail({ sheet, onClose, onChanged, readOnly = false, onlyProjec
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const hr = isHrUser(user);
+  // Approvals belong to project managers. HR (and admins) only view and download timesheets.
+  const hr = false;
 
   const logs = (d?.time_logs || []).map((l) => ({ ...l, w: parseWorkNote(l.description, { project: l.project, task: l.task }) }));
   const hasNotes = logs.some((l) => l.w.notes);
@@ -284,7 +283,8 @@ export function Detail({ sheet, onClose, onChanged, readOnly = false, onlyProjec
   });
   groups.forEach((g) => {
     g.pending = fieldsMode ? g.lines.some((l) => l.custom_line_status !== "Approved") : review.key !== "approved";
-    g.mine = hr || (g.key && g.manager === user?.email);
+    // hours without a project are the line manager's to approve - the PM queue only offers them to that manager
+    g.mine = Boolean(g.key ? g.manager === user?.email : (onlyProjects || []).includes(""));
   });
   const visibleGroups = onlyProjects ? groups.filter((g) => onlyProjects.includes(g.key)) : groups;
   const myPending = visibleGroups.filter((g) => g.mine && g.pending);

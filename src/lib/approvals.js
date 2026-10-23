@@ -198,7 +198,8 @@ export async function companyExpenseDefaults(company) {
 
 /**
  * Approving books the claim in the accounts, so ERPNext needs a payable account, a cost center and an expense
- * account on every line. ERPNext's desk form fills these from the Company / Expense Claim Type; do the same here.
+ * account on every line. ERPNext's desk form fills these from the Company / Expense Claim Type; do the same here,
+ * and explain clearly what Accounts has to set up when something is missing.
  */
 async function fillBookingAccounts(doc) {
   const c = await companyExpenseDefaults(doc.company);
@@ -211,16 +212,15 @@ async function fillBookingAccounts(doc) {
         const r = await frappe.callMethod("hrms.hr.doctype.expense_claim.expense_claim.get_expense_claim_account_and_cost_center", { expense_claim_type: row.expense_type, company: doc.company });
         row.default_account = r?.account || "";
         if (!row.cost_center) row.cost_center = r?.cost_center || "";
-      } catch { /* ERPNext reports a missing expense account itself */ }
+      } catch { /* reported below */ }
     }
   }
-  if (!c.name) return; // Company not readable by this user - ERPNext reports what's missing
+  if (!c.name) return; // Company not readable by this approver - the server rule / ERPNext reports what's missing
   const missing = [];
   if (!doc.payable_account && !Number(doc.is_paid)) missing.push(`the Default Expense Claim Payable Account of company ${doc.company}`);
   if ((doc.expenses || []).some((r) => !r.cost_center)) missing.push(`the Default Cost Center of company ${doc.company}`);
-  if (missing.length) throw new Error(`Accounts setup needed before claims can be approved: set ${missing.join(" and ")} (ERPNext › Company › HR & Payroll / Accounts).`);
+  if (missing.length) throw new Error(`Accounts setup needed before claims can be approved: set ${missing.join(" and ")}. Admin can do this in Admin › Organization › Expense approvers › Accounting setup.`);
 }
-
 
 /** Rejection reasons for a list of claims (from the comment, for claims rejected before the remark was kept). */
 export async function getRejectionReasons(names) {

@@ -119,6 +119,15 @@ if doc.docstatus == 0:
     if not doc.company and doc.employee:
         doc.company = frappe.db.get_value("Employee", doc.employee, "company")
     meta = frappe.get_meta("Expense Claim")
+    if doc.company:
+        # what ERPNext's desk form fills from the Company: payable account and cost centers (needed to approve)
+        if meta.has_field("payable_account") and not doc.payable_account and not doc.is_paid and frappe.get_meta("Company").has_field("default_expense_claim_payable_account"):
+            doc.payable_account = frappe.db.get_value("Company", doc.company, "default_expense_claim_payable_account")
+        if not doc.cost_center:
+            doc.cost_center = frappe.db.get_value("Company", doc.company, "cost_center")
+        for erow in doc.get("expenses") or []:
+            if not erow.cost_center:
+                erow.cost_center = doc.cost_center
     if meta.has_field("exchange_rate") and doc.company:
         base = frappe.db.get_value("Company", doc.company, "default_currency")
         multi = frappe.db.get_single_value("HR Settings", "enable_multi_currency_expense_claim")

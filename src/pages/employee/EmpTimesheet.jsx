@@ -1,4 +1,4 @@
-// Employee portal: Timesheet page and the monthly timesheet editor.
+// Employee portal: Timesheet page and the weekly timesheet editor (one timesheet per week, Monday to Sunday).
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, Pencil, Plus, Send, Trash2, Upload, X } from "lucide-react";
 import { Async, Grid, inputCls, Modal, Notice, PageHeader, Panel, StatusPill, useEmployee } from "../../components/employee/EmployeeShell";
@@ -49,7 +49,7 @@ export function EmpTimesheet() {
 
   return (
     <>
-      <PageHeader icon={CalendarDays} title="Timesheet" subtitle="Fill in your hours for the month - projects and the work you did - and submit it to HR for review" actions={<Button onClick={() => setEditor({})}><CalendarDays size={14} /> Monthly timesheet</Button>} />
+      <PageHeader icon={CalendarDays} title="Timesheet" subtitle="Fill in your hours for the week - projects and the work you did - and submit it for review" actions={<Button onClick={() => setEditor({})}><CalendarDays size={14} /> Weekly timesheet</Button>} />
       {err && <Notice>{err}</Notice>}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         <Panel title="Assigned tasks" hint="Open tasks assigned to you" className="lg:col-span-1">
@@ -85,7 +85,7 @@ export function EmpTimesheet() {
         </Panel>
       </div>
       {editor && (
-        <MonthlyModal
+        <WeeklyModal
           employee={employee}
           tasks={tasks.data || []}
           editName={editor.name}
@@ -104,8 +104,16 @@ const saveList = (key, list) => { try { localStorage.setItem(key, JSON.stringify
 const blank = () => ({ project: "", hours: "", task: "", notes: "" });
 const KEEP_FIELDS = ["activity_type", "is_billable"];
 
-/** Loads the draft being edited (if any), then opens the editor on its month. */
-function MonthlyModal(props) {
+/* ---- week helpers (local dates, ISO yyyy-mm-dd; weeks run Monday to Sunday) ---- */
+const toIso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const fromIso = (iso) => { const [y, m, d] = iso.split("-").map(Number); return new Date(y, m - 1, d); };
+const addDays = (iso, n) => { const d = fromIso(iso); d.setDate(d.getDate() + n); return toIso(d); };
+const mondayOf = (iso) => { const d = fromIso(iso); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return toIso(d); };
+const short = (iso) => { const d = fromIso(iso); return `${d.getDate()} ${MONTHS_LONG[d.getMonth()].slice(0, 3)}`; };
+const weekLabel = (ws) => { const we = addDays(ws, 6); return `${short(ws)} – ${short(we)} ${fromIso(we).getFullYear()}`; };
+
+/** Loads the draft being edited (if any), then opens the editor on its week. */
+function WeeklyModal(props) {
   const { editName, onClose } = props;
   const doc = useAsync(() => (editName ? frappe.getDoc("Timesheet", editName) : Promise.resolve(null)), [editName]);
   if (editName && !doc.data) {
@@ -115,35 +123,34 @@ function MonthlyModal(props) {
       </Modal>
     );
   }
-  return <MonthlyEditor {...props} doc={doc.data} />;
+  return <WeeklyEditor {...props} doc={doc.data} />;
 }
 
-/** Initial editor state: today's month for a new timesheet, or the draft's month with its entries filled in. */
+/** Initial editor state: this week for a new timesheet, or the draft's week with its entries filled in. */
 function initialState(doc) {
-  const now = new Date();
-  if (!doc) return { ym: { y: now.getFullYear(), m: now.getMonth() }, days: {}, outside: [] };
+  if (!doc) return { ws: mondayOf(isoDate()), days: {}, outside: [] };
   const start = String(doc.start_date || (doc.time_logs || [])[0]?.from_time || isoDate()).slice(0, 10);
-  const ym = { y: Number(start.slice(0, 4)), m: Number(start.slice(5, 7)) - 1 };
-  const prefix = `${ym.y}-${pad(ym.m + 1)}`;
+  const ws = mondayOf(start);
+  const we = addDays(ws, 6);
   const days = {};
   const outside = [];
   (doc.time_logs || []).forEach((l) => {
     const date = String(l.from_time).slice(0, 10);
-    if (!date.startsWith(prefix)) { outside.push(l); return; }
+    if (date < ws || date > we) { outside.push(l); return; } // e.g. older monthly drafts: kept as they are
     const w = parseWorkNote(l.description, { project: l.project, task: l.task });
     const keep = Object.fromEntries(KEEP_FIELDS.filter((k) => l[k] != null).map((k) => [k, l[k]]));
     (days[date] = days[date] || []).push({ project: w.project, hours: String(roundHours(l.hours)), task: w.task, notes: w.notes, keep });
   });
-  return { ym, days, outside };
+  return { ws, days, outside };
 }
 
-/** A whole month in one timesheet: choose your projects, then per day enter hours and the work you did. */
-function MonthlyEditor({ employee, tasks, editName, doc, recentNames, onClose, onChanged, onSaved }) {
+/** One week in one timesheet: choose your projects, then per day enter hours and the work you did. */
+function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, onChanged, onSaved }) {
   const emp = employee.name;
   const storeKey = `ts-projects:${emp}`;
   const today = isoDate();
   const [init] = useState(() => initialState(doc));
-  const [ym, setYm] = useState(init.ym);
+  const [ws, setWs] = useState(init.ws); // Monday of the week being edited
   const [days, setDays] = useState(init.days); // iso -> [{ project, hours, task, notes, keep? }]
   const [dirty, setDirty] = useState(false);
   const [savedName, setSavedName] = useState(editName || null); // set after the first save so retries update, never duplicate
@@ -159,9 +166,8 @@ function MonthlyEditor({ employee, tasks, editName, doc, recentNames, onClose, o
   const [info, setInfo] = useState("");
   const fileInput = useRef(null);
 
-  const last = new Date(ym.y, ym.m + 1, 0).getDate();
-  const from = `${ym.y}-${pad(ym.m + 1)}-01`;
-  const to = `${ym.y}-${pad(ym.m + 1)}-${pad(last)}`;
+  const from = ws;
+  const to = addDays(ws, 6);
 
   const holidays = useAsync(() => getHolidays(employee), [emp]);
   const projects = useAsync(() => getProjects(), []);
@@ -172,7 +178,7 @@ function MonthlyEditor({ employee, tasks, editName, doc, recentNames, onClose, o
     return [...new Set(rows.map((r) => parseWorkNote(r.description, { project: r.project }).project).filter(Boolean))];
   }, [recentNames.join(",")]);
 
-  // Hours already logged in this employee's OTHER timesheets this month, and when they end each day,
+  // Hours already logged in this employee's OTHER timesheets this week, and when they end each day,
   // so new entries are placed after them instead of overlapping (ERPNext rejects overlaps).
   const existing = useAsync(async () => {
     const sheets = await frappe.getList("Timesheet", { filters: [["employee", "=", emp], ["docstatus", "<", 2], ["end_date", ">=", from], ["start_date", "<=", to]], fields: ["name"], limit: 0 });
@@ -197,9 +203,9 @@ function MonthlyEditor({ employee, tasks, editName, doc, recentNames, onClose, o
   const listHasWeeklyOffs = (holidays.data?.holidays || []).some((h) => h.weeklyOff);
   const defaultProject = myProjects[0] || "";
 
-  const list = Array.from({ length: last }, (_, i) => {
-    const date = `${ym.y}-${pad(ym.m + 1)}-${pad(i + 1)}`;
-    const wd = new Date(ym.y, ym.m, i + 1).getDay();
+  const list = Array.from({ length: 7 }, (_, i) => {
+    const date = addDays(ws, i);
+    const wd = fromIso(date).getDay();
     const h = holidayMap[date];
     // trust the holiday list for weekly offs when it has them, otherwise assume Saturday/Sunday
     const off = Boolean(h) || (!listHasWeeklyOffs && (wd === 0 || wd === 6));
@@ -219,9 +225,8 @@ function MonthlyEditor({ employee, tasks, editName, doc, recentNames, onClose, o
   const filled = list.filter((d) => !d.future && hoursOf(d.date) > 0).length;
 
   function move(delta) {
-    if (dirty && !window.confirm("You have unsaved entries for this month. Switch month and discard them?")) return;
-    const n = new Date(ym.y, ym.m + delta, 1);
-    setYm({ y: n.getFullYear(), m: n.getMonth() });
+    if (dirty && !window.confirm("You have unsaved entries for this week. Switch week and discard them?")) return;
+    setWs(addDays(ws, delta * 7));
     setDays({});
     setDirty(false);
     setSavedName(null);
@@ -266,7 +271,7 @@ function MonthlyEditor({ employee, tasks, editName, doc, recentNames, onClose, o
    * Skips weekly offs, holidays and leave; days already filled or logged elsewhere are left alone.
    */
   function fillFromAssignments(auto = false) {
-    if (!assignments.length) return setInfo("You have no project assignments for this month.");
+    if (!assignments.length) return setInfo("You have no project assignments for this week.");
     const label = (id) => { const p = (projects.data || []).find((x) => x.name === id); return p ? projectLabel(p) : id; };
     const n = { ...days };
     const used = new Set();
@@ -292,7 +297,7 @@ function MonthlyEditor({ employee, tasks, editName, doc, recentNames, onClose, o
     setInfo(`${auto ? "Filled automatically" : "Filled"} from your project assignments: ${daysFilled} day(s). Review and adjust before saving.`);
   }
 
-  // Pre-fill a new timesheet once everything it depends on has loaded (once per month)
+  // Pre-fill a new timesheet once everything it depends on has loaded (once per week)
   const autoFor = useRef(null);
   const ready = !holidays.loading && !leave.loading && !existing.loading && !assigned.loading && !projects.loading;
   useEffect(() => {
@@ -325,8 +330,8 @@ function MonthlyEditor({ employee, tasks, editName, doc, recentNames, onClose, o
       found.forEach((p) => { if (!merged.some((m) => m.toLowerCase() === p.toLowerCase())) merged.push(p); });
       if (merged.length !== myProjects.length) { setMyProjects(merged); saveList(storeKey, merged); }
       const notes = [
-        `Imported ${used} entr${used === 1 ? "y" : "ies"} for ${MONTHS_LONG[ym.m]}`,
-        other && `${other} from other months skipped`,
+        `Imported ${used} entr${used === 1 ? "y" : "ies"} for the week of ${weekLabel(ws)}`,
+        other && `${other} from other weeks skipped`,
         future && `${future} future-dated skipped`,
         invalid && `${invalid} row(s) without a valid date/hours skipped`,
         order === "mdy" ? "dates read as month/day (US format)" : ambiguous ? "dates read as day/month" : null,
@@ -337,7 +342,7 @@ function MonthlyEditor({ employee, tasks, editName, doc, recentNames, onClose, o
     reader.readAsText(file);
   }
 
-  /** Build ERPNext time_logs for the month, or return an error message. */
+  /** Build ERPNext time_logs for the week, or return an error message. */
   function buildLogs() {
     const logs = [];
     const onLeave = [];
@@ -372,10 +377,10 @@ function MonthlyEditor({ employee, tasks, editName, doc, recentNames, onClose, o
     setInfo("");
     const built = buildLogs();
     if (built.error) return setErr(built.error);
-    const allLogs = [...init.outside, ...built.logs]; // entries of an edited draft outside this month stay as they were
-    if (!built.logs.length) return setErr(savedName ? "This timesheet has no hours left for this month - use Delete on the list instead." : "Enter hours for at least one day.");
+    const allLogs = [...init.outside, ...built.logs]; // entries of an edited draft outside this week stay as they were
+    if (!built.logs.length) return setErr(savedName ? "This timesheet has no hours left for this week - use Delete on the list instead." : "Enter hours for at least one day.");
     if (built.onLeave.length && !window.confirm(`You entered hours on leave day(s): ${built.onLeave.join(", ")}. Save anyway?`)) return;
-    if (submit && !window.confirm(`Submit ${MONTHS_LONG[ym.m]} ${ym.y} (${total.toFixed(2)} h) to HR? You won't be able to edit it unless HR returns it.`)) return;
+    if (submit && !window.confirm(`Submit the week of ${weekLabel(ws)} (${total.toFixed(2)} h)? You won't be able to edit it unless it's returned to you.`)) return;
 
     setBusy(submit ? "submit" : "draft");
     let name = savedName;
@@ -409,18 +414,19 @@ function MonthlyEditor({ employee, tasks, editName, doc, recentNames, onClose, o
 
   const projectLabel = (p) => (p.project_name && p.project_name !== p.name ? p.project_name : p.name);
   const suggestions = (recent.data || []).filter((p) => !myProjects.some((x) => x.toLowerCase() === p.toLowerCase()));
-  const monthLabel = `${MONTHS_LONG[ym.m]} ${ym.y}`;
+  const monthLabel = weekLabel(ws);
   const cell = `${inputCls} !py-1`;
   const waiting = existing.loading && !existing.data;
 
   return (
-    <Modal title={editName ? `Edit timesheet ${editName}` : savedName ? `Monthly timesheet · ${savedName} (draft)` : "Monthly timesheet"} onClose={onClose} wide="xl">
+    <Modal title={editName ? `Edit timesheet ${editName}` : savedName ? `Weekly timesheet · ${savedName} (draft)` : "Weekly timesheet"} onClose={onClose} wide="xl">
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             {!editName && <button type="button" onClick={() => move(-1)} className="rounded p-1.5 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]"><ChevronLeft size={16} /></button>}
-            <span className="min-w-[8.5rem] text-center text-[14px] font-semibold text-[var(--color-text)]">{monthLabel}</span>
+            <span className="min-w-[11rem] text-center text-[14px] font-semibold text-[var(--color-text)]">{monthLabel}</span>
             {!editName && <button type="button" onClick={() => move(1)} className="rounded p-1.5 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]"><ChevronRight size={16} /></button>}
+            {!editName && ws !== mondayOf(today) && <button type="button" onClick={() => move(Math.round((fromIso(mondayOf(today)) - fromIso(ws)) / (7 * 86400000)))} className="text-[11px] text-[var(--color-red-hover)] hover:underline">This week</button>}
           </div>
           <p className="text-[12px] text-[var(--color-text-muted)]"><b className="text-[var(--color-text)]">{total.toFixed(2)} h</b> over {filled} day(s)</p>
         </div>
@@ -428,7 +434,7 @@ function MonthlyEditor({ employee, tasks, editName, doc, recentNames, onClose, o
         {editName && init.outside.length > 0 && <Notice tone="info">This timesheet also has {init.outside.length} entr{init.outside.length === 1 ? "y" : "ies"} outside {monthLabel}; they are kept unchanged.</Notice>}
 
         <div>
-          <p className="mb-1.5 text-[12px] text-[var(--color-text-muted)]">My projects <span className="text-[var(--color-text-faint)]">- add the projects you work on; they're remembered for next month</span></p>
+          <p className="mb-1.5 text-[12px] text-[var(--color-text-muted)]">My projects <span className="text-[var(--color-text-faint)]">- add the projects you work on; they're remembered for next week</span></p>
           <div className="flex flex-wrap items-center gap-2">
             {myProjects.map((p) => (
               <span key={p} className="flex items-center gap-1.5 rounded-full border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-2.5 py-1 text-[12px] text-[var(--color-text)]" title={resolveProject(p) ? `Linked to ERPNext project ${resolveProject(p)}` : "Not an ERPNext project - saved as text only"}>
@@ -453,7 +459,7 @@ function MonthlyEditor({ employee, tasks, editName, doc, recentNames, onClose, o
           <input type="number" min="0.25" max="24" step="0.25" value={fill} onChange={(e) => setFill(e.target.value)} className={`${cell} !w-20`} /> h
           <Button type="button" variant="secondary" onClick={fillWorking} disabled={waiting}>Fill</Button>
           <Button type="button" variant="secondary" onClick={() => fillFromAssignments(false)} disabled={waiting || assigned.loading || !assignments.length} title="Fill from the projects your Project Manager assigned to you">From my assignments ({assignments.length})</Button>
-          <Button type="button" variant="ghost" onClick={() => { if (!dirty || window.confirm("Clear everything you've entered for this month?")) change(() => ({})); }}>Clear</Button>
+          <Button type="button" variant="ghost" onClick={() => { if (!dirty || window.confirm("Clear everything you've entered for this week?")) change(() => ({})); }}>Clear</Button>
           <input ref={fileInput} type="file" accept=".csv,text/csv" className="hidden" onChange={importCsv} />
           <Button type="button" variant="secondary" onClick={() => fileInput.current?.click()}><Upload size={14} /> Import CSV</Button>
           <span className="text-[11px] text-[var(--color-text-faint)]">CSV: date, hours, project, task - or any file with Date / Hours / Project / Task headers</span>
@@ -461,15 +467,15 @@ function MonthlyEditor({ employee, tasks, editName, doc, recentNames, onClose, o
 
         {assignments.length > 0 && (
           <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)] px-4 py-3 text-[12px]">
-            <p className="mb-1.5 font-medium text-[var(--color-text)]">Your project assignments this month</p>
+            <p className="mb-1.5 font-medium text-[var(--color-text)]">Your project assignments this week</p>
             <ul className="space-y-1 text-[var(--color-text-muted)]">
               {assignments.map((a) => <li key={a.name}><b className="text-[var(--color-text)]">{(projects.data || []).find((p) => p.name === a.project) ? projectLabel((projects.data || []).find((p) => p.name === a.project)) : a.project}</b> as {a.role} · {dmy(a.start)} to ETA {dmy(a.eta)} · {a.hoursPerDay} h/day</li>)}
             </ul>
           </div>
         )}
 
-        {existing.error && <Notice>Couldn't check the hours you've already logged this month ({friendlyError(existing.error)}). Saving may fail if days overlap with another timesheet.</Notice>}
-        {leave.error && <Notice tone="info">Couldn't load your leave for this month, so leave days aren't marked.</Notice>}
+        {existing.error && <Notice>Couldn't check the hours you've already logged this week ({friendlyError(existing.error)}). Saving may fail if days overlap with another timesheet.</Notice>}
+        {leave.error && <Notice tone="info">Couldn't load your leave for this week, so leave days aren't marked.</Notice>}
 
         <datalist id="ts-tasks">{tasks.map((t) => <option key={t.name} value={t.subject}>{t.project || ""}</option>)}</datalist>
         <div className="max-h-[42vh] overflow-auto rounded-lg border border-[var(--color-border)]">

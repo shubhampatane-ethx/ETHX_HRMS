@@ -28,7 +28,7 @@ export default function PMApprovals() {
     (q.data?.rows || []).forEach((r) => {
       const s = r.sheet;
       const g = map.get(s.name) || { ...s, name: s.name, review: reviewOf(s, null), projects: new Set(), hours: 0, mine: 0, mineApproved: 0 };
-      g.projects.add(r.project);
+      g.projects.add(r.project || ""); // "" = hours without a project (yours as their line manager)
       g.hours += Number(r.hours) || 0;
       g.mine += 1;
       if (r.custom_line_status === "Approved") g.mineApproved += 1;
@@ -43,14 +43,14 @@ export default function PMApprovals() {
   return (
     <>
       <PageHeader icon={CheckCheck} title="Timesheet approvals" subtitle="Hours logged on your projects. Approve your part; HR sees the whole timesheet." />
-      {q.data && !q.data.ready && <Notice>Per-project approval isn't set up on this ERPNext site yet. Ask the Administrator to run Admin › ERPNext Setup.</Notice>}
+      {q.data && !q.data.ready && <Notice>Per-project timesheet approval isn't switched on for this ERPNext site yet. An Administrator (a user with the System Manager role) must run Admin › ERPNext Setup › Run setup - server scripts need to be enabled on the ERPNext server first (<code>bench set-config -g server_script_enabled 1</code>, then restart).</Notice>}
       <Panel>
         <div className="mb-4 flex gap-2">{[["pending", `Awaiting you${pendingCount ? ` (${pendingCount})` : ""}`], ["approved", "Approved by you"], ["all", "All"]].map(([v, l]) => <button key={v} type="button" onClick={() => setFilter(v)} className={chipCls(filter === v)}>{l}</button>)}</div>
         <Async state={q}>
           {() => shown.length === 0 ? <Empty text={filter === "pending" ? "Nothing waiting for your approval." : "Nothing here."} /> : <Grid rows={shown} columns={[
             { key: "employee_name", label: "Employee", render: (s) => <button type="button" onClick={() => setOpen(s)} className="text-left hover:underline">{s.employee_name || s.employee}<span className="block text-[11px] text-[var(--color-text-faint)]">{s.name}</span></button> },
             { key: "period", label: "Period", render: (s) => `${dmy(s.start_date)} – ${dmy(s.end_date)}` },
-            { key: "projects", label: "Your projects", render: (s) => <span className="text-[11.5px]">{s.projects.join(", ")}</span> },
+            { key: "projects", label: "Your projects", render: (s) => <span className="text-[11.5px]">{s.projects.map((p) => p || "No project (your report)").join(", ")}</span> },
             { key: "hours", label: "Hours on them", render: (s) => s.hours.toFixed(2) },
             { key: "mine", label: "Your approval", render: (s) => <StatusPill status={s.myState} /> },
             { key: "sheet", label: "Whole timesheet", render: (s) => <StatusPill status={s.review.label} /> },

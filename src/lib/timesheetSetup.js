@@ -4,6 +4,7 @@
 //   Timesheet.custom_review_status   Draft → Pending Review → Partly Approved → Approved → Finalized (locked)
 //                                     or Returned (the cancelled sheet and its editable amended copy)
 //   Timesheet Detail.custom_line_*    per-line status, so each project manager approves only their project's hours
+//                                     (HR views and downloads timesheets; it doesn't approve them)
 //   Project.custom_project_manager    who approves hours on that project (falls back to the project's creator)
 // All review actions go through one server method (ethx_review_timesheet) that checks who may act on which lines,
 // blocks self-review, requires a reason for HR overrides and returns, and refuses stale updates (version check).
@@ -75,16 +76,26 @@ if doc.employee:
 if owner_user and owner_user == user and user != "Administrator":
     frappe.throw("You can't review your own timesheet.")
 
+# Approvals belong to project managers only (HR views and downloads timesheets but doesn't approve them).
+# Hours on a project -> that project's manager (or its creator); hours with no project -> the employee's line manager.
 managers = {}
+line_manager = None
+if doc.employee:
+    rt = frappe.db.get_value("Employee", doc.employee, "reports_to")
+    if rt:
+        line_manager = frappe.db.get_value("Employee", rt, "user_id")
 for row in doc.time_logs:
     p = row.project or ""
-    if p and p not in managers:
-        managers[p] = frappe.db.get_value("Project", p, "custom_project_manager") or frappe.db.get_value("Project", p, "owner")
+    if p not in managers:
+        if p:
+            managers[p] = frappe.db.get_value("Project", p, "custom_project_manager") or frappe.db.get_value("Project", p, "owner")
+        else:
+            managers[p] = line_manager
 
 mine = []
 for row in doc.time_logs:
     p = row.project or ""
-    if is_hr or (p and managers.get(p) == user):
+    if managers.get(p) and managers.get(p) == user:
         if only is None or p in only:
             mine.append(row)
 
@@ -102,12 +113,6 @@ if action == "approve":
         frappe.throw("None of the hours on this timesheet are on projects you manage.")
     override = []
     for row in mine:
-        p = row.project or ""
-        if row.custom_line_status != "Approved" and p and managers.get(p) and managers.get(p) != user and not (user == "Administrator"):
-            override.append(p)
-    if override and not note:
-        frappe.throw("HR override: hours on " + ", ".join(sorted(set(override))) + " belong to another project manager. Give a reason to approve them.")
-    for row in mine:
         if row.custom_line_status != "Approved":
             frappe.db.set_value("Timesheet Detail", row.name, {"custom_line_status": "Approved", "custom_line_approver": user, "custom_line_approved_on": now})
             row.custom_line_status = "Approved"
@@ -123,7 +128,7 @@ if action == "approve":
     for row in mine:
         if (row.project or "-") not in projects:
             projects.append(row.project or "-")
-    log(name, "Timesheet approved" + (" (HR override)" if override else "") + ": " + ", ".join(projects) + (" - " + note if note else ""))
+    log(name, "Timesheet approved by project manager: " + ", ".join(projects) + (" - " + note if note else ""))
     frappe.response["message"] = {"status": new}
 elif action == "return":
     if doc.docstatus != 1:
@@ -178,10 +183,22 @@ user = frappe.session.user
 projects = frappe.get_all("Project", filters={"custom_project_manager": user}, pluck="name")
 for p in frappe.get_all("Project", filters={"owner": user, "custom_project_manager": ["is", "not set"]}, pluck="name"):
     projects.append(p)
-if not projects:
+fields = ["name", "parent", "project", "task", "from_time", "hours", "description", "custom_line_status", "custom_line_approver"]
+rows = []
+if projects:
+    rows = frappe.get_all("Timesheet Detail", filters={"project": ["in", projects], "parenttype": "Timesheet"}, fields=fields, order_by="from_time asc")
+# hours without a project go to the employee's line manager
+me = frappe.db.get_value("Employee", {"user_id": user}, "name")
+if me:
+    team = frappe.get_all("Employee", filters={"reports_to": me}, pluck="name")
+    if team:
+        team_sheets = frappe.get_all("Timesheet", filters={"employee": ["in", team], "docstatus": ["<", 2]}, pluck="name")
+        if team_sheets:
+            for r in frappe.get_all("Timesheet Detail", filters={"parent": ["in", team_sheets], "parenttype": "Timesheet", "project": ["is", "not set"]}, fields=fields, order_by="from_time asc"):
+                rows.append(r)
+if not rows:
     frappe.response["message"] = []
 else:
-    rows = frappe.get_all("Timesheet Detail", filters={"project": ["in", projects], "parenttype": "Timesheet"}, fields=["name", "parent", "project", "task", "from_time", "hours", "description", "custom_line_status", "custom_line_approver"], order_by="from_time asc")
     parents = []
     for r in rows:
         if r.parent not in parents:
@@ -203,7 +220,7 @@ export const TIMESHEET_SCRIPTS = [
   { name: "ETHX - Timesheet submit", reference_doctype: "Timesheet", doctype_event: "Before Submit", script: ON_SUBMIT, what: "Submitting a timesheet puts every line in Pending review" },
   { name: "ETHX - Timesheet draft", reference_doctype: "Timesheet", doctype_event: "Before Save", script: ON_SAVE, what: "New timesheets start as Draft" },
   { name: "ETHX - Timesheet lock", reference_doctype: "Timesheet", doctype_event: "Before Cancel", script: BEFORE_CANCEL, what: "Finalized timesheets are locked; approved ones can only be returned through the app" },
-  { name: "ETHX - Review timesheet", script_type: "API", api_method: "ethx_review_timesheet", script: REVIEW_API, what: "Per-project approval, HR override with reason, return, finalize / reopen, no self-review, no stale updates" },
+  { name: "ETHX - Review timesheet", script_type: "API", api_method: "ethx_review_timesheet", script: REVIEW_API, what: "Only project managers approve / return hours on their projects (line manager for hours without a project); no self-review, no stale updates" },
   { name: "ETHX - PM timesheet queue", script_type: "API", api_method: "ethx_pm_timesheet_queue", script: PM_QUEUE_API, what: "Project managers see only hours on their own projects" },
 ];
 
@@ -261,6 +278,11 @@ for row in doc.time_logs:
     if p and not ok:
         if (frappe.db.get_value("Project", p, "custom_project_manager") or frappe.db.get_value("Project", p, "owner")) == user:
             ok = True
+if not ok and doc.employee:
+    # line manager of the employee (approves hours that have no project)
+    rt = frappe.db.get_value("Employee", doc.employee, "reports_to")
+    if rt and frappe.db.get_value("Employee", rt, "user_id") == user:
+        ok = True
 if not ok:
     frappe.throw("You don't manage any project on this timesheet.")
 frappe.response["message"] = doc.as_dict()

@@ -136,6 +136,11 @@ export function ExpenseApproversByType() {
   const [rows, setRows] = useState(null);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
+  const [msg, setMsg] = useState("");
+  const [bulk, setBulk] = useState("");
+  const [onlyEmpty, setOnlyEmpty] = useState(true);
+  const [newType, setNewType] = useState("");
+  const [newApprover, setNewApprover] = useState("");
 
   const load = useCallback(async () => {
     setError("");
@@ -158,11 +163,16 @@ export function ExpenseApproversByType() {
     setBusy("");
   }
 
+  async function saveApprover(type, email) {
+    await frappe.updateDoc("Expense Claim Type", type, { expense_approver: email || null });
+  }
+
   async function change(type, email) {
     setBusy(type);
     setError("");
+    setMsg("");
     try {
-      await frappe.updateDoc("Expense Claim Type", type, { expense_approver: email || null });
+      await saveApprover(type, email);
       if (email) await ensureRole(email, EXPENSE_ROLE);
       setRows((r) => r.map((x) => (x.name === type ? { ...x, expense_approver: email } : x)));
     } catch (e) {
@@ -171,15 +181,71 @@ export function ExpenseApproversByType() {
     setBusy("");
   }
 
+  // one approver for every expense type (or only the ones that have none yet)
+  async function applyAll() {
+    if (!bulk) return;
+    const targets = rows.filter((t) => (onlyEmpty ? !t.expense_approver : t.expense_approver !== bulk));
+    if (!targets.length) return setMsg("Nothing to change.");
+    if (!window.confirm(`Set ${names[bulk] || bulk} as the approver for ${targets.length} expense type(s)?`)) return;
+    setBusy("bulk");
+    setError("");
+    setMsg("");
+    let done = 0;
+    try {
+      await ensureRole(bulk, EXPENSE_ROLE);
+      for (const t of targets) { await saveApprover(t.name, bulk); done += 1; }
+      setMsg(`${names[bulk] || bulk} now approves ${done} expense type(s).`);
+    } catch (e) {
+      setError(`${done} updated, then ERPNext refused: ${errMsg(e, "change rejected.")}`);
+    }
+    setBusy("");
+    load();
+  }
+
+  async function addType(e) {
+    e.preventDefault();
+    const name = newType.trim();
+    if (!name) return;
+    setBusy("add");
+    setError("");
+    setMsg("");
+    try {
+      await frappe.createDoc("Expense Claim Type", { expense_type: name, ...(newApprover ? { expense_approver: newApprover } : {}) });
+      if (newApprover) await ensureRole(newApprover, EXPENSE_ROLE);
+      setNewType("");
+      setNewApprover("");
+      setMsg(`Expense type "${name}" added. Set its expense account in Accounting setup below.`);
+      await load();
+    } catch (x) {
+      setError(errMsg(x, "Couldn't add the expense type."));
+    }
+    setBusy("");
+  }
+
+  const fieldMissing = (missing || []).length > 0;
+  const unset = (rows || []).filter((t) => !t.expense_approver).length;
+
   return (
     <div>
       <Hint>Each expense type has its own approver. When an employee picks a type, that person becomes the claim's approver. If the type has none, or its approver is on leave, the business unit's expense approver (then the employee's own) is used. Claims need a bill to be approved and a reason to be rejected.</Hint>
-      {missing && missing.length > 0 && (
+      {fieldMissing && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-4 py-3 text-[13px] text-[var(--color-text-muted)]">
           <span>ERPNext's Expense Claim Type has no approver field yet. This adds a standard custom field (no code or server change).</span>
           <Button onClick={setup} disabled={busy === "setup"}>{busy === "setup" ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />} Add the approver field</Button>
         </div>
       )}
+      {!fieldMissing && rows && rows.length > 0 && (
+        <Card className="mb-4 p-4">
+          <p className="mb-2 text-[13px] font-medium text-[var(--color-text)]">Set one approver for all expense types</p>
+          <div className="flex flex-wrap items-center gap-3">
+            <select value={bulk} onChange={(e) => setBulk(e.target.value)} className={`${inputCls} max-w-xs`}><option value="">Choose an approver…</option>{users.map((u) => <option key={u.name} value={u.name}>{names[u.name]} ({u.name})</option>)}</select>
+            <label className="flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><input type="checkbox" checked={onlyEmpty} onChange={(e) => setOnlyEmpty(e.target.checked)} /> Only types without an approver{unset ? ` (${unset})` : ""}</label>
+            <Button onClick={applyAll} disabled={!bulk || !!busy}>{busy === "bulk" ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />} Apply to {onlyEmpty ? `${unset} type(s)` : `all ${rows.length} types`}</Button>
+          </div>
+          <p className="mt-2 text-[11px] text-[var(--color-text-faint)]">You can still change individual types in the table below afterwards.</p>
+        </Card>
+      )}
+      {unset > 0 && !fieldMissing && <p className="mb-3 text-[12px] text-[var(--color-amber)]">{unset} expense type(s) have no approver - their claims go to the business-unit approver.</p>}
       <Card className="overflow-hidden">
         {rows === null ? <p className="flex h-28 items-center justify-center gap-2 text-[13px] text-[var(--color-text-muted)]"><Loader2 size={14} className="animate-spin" /> Loading…</p> : (
           <table className="w-full text-left text-[13px]">
@@ -188,7 +254,7 @@ export function ExpenseApproversByType() {
               {rows.map((t) => (
                 <tr key={t.name} className="border-b border-[var(--color-border)] last:border-0">
                   <td className="px-4 py-2.5 text-[var(--color-text)]">{t.name}</td>
-                  <td className="px-4 py-2"><div className="flex items-center gap-2"><select disabled={busy === t.name || (missing || []).length > 0} value={t.expense_approver || ""} onChange={(e) => change(t.name, e.target.value)} className={`${inputCls} max-w-xs`}><option value="">Not set</option>{users.map((u) => <option key={u.name} value={u.name}>{names[u.name]} ({u.name})</option>)}</select>{busy === t.name && <Loader2 size={14} className="animate-spin text-[var(--color-text-muted)]" />}</div></td>
+                  <td className="px-4 py-2"><div className="flex items-center gap-2"><select disabled={!!busy || fieldMissing} value={t.expense_approver || ""} onChange={(e) => change(t.name, e.target.value)} className={`${inputCls} max-w-xs ${t.expense_approver ? "" : "!border-[var(--color-amber)]"}`}><option value="">Not set (business unit decides)</option>{users.map((u) => <option key={u.name} value={u.name}>{names[u.name]} ({u.name})</option>)}</select>{busy === t.name && <Loader2 size={14} className="animate-spin text-[var(--color-text-muted)]" />}</div></td>
                 </tr>
               ))}
               {rows.length === 0 && <tr><td colSpan={2} className="px-4 py-6 text-center text-[var(--color-text-muted)]">No expense types found.</td></tr>}
@@ -196,6 +262,103 @@ export function ExpenseApproversByType() {
           </table>
         )}
       </Card>
+      <form onSubmit={addType} className="mt-3 flex flex-wrap items-center gap-2">
+        <input value={newType} onChange={(e) => setNewType(e.target.value)} placeholder="New expense type, e.g. Internet" className={`${inputCls} max-w-[14rem]`} />
+        <select value={newApprover} onChange={(e) => setNewApprover(e.target.value)} disabled={fieldMissing} className={`${inputCls} max-w-xs`}><option value="">Approver (optional)</option>{users.map((u) => <option key={u.name} value={u.name}>{names[u.name]} ({u.name})</option>)}</select>
+        <Button type="submit" variant="secondary" disabled={!newType.trim() || !!busy}>{busy === "add" ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Add expense type</Button>
+      </form>
+      {msg && <p className="mt-3 text-[12px] text-[var(--color-green)]">{msg}</p>}
+      {error && <p className="mt-3 text-[12px] text-[var(--color-red-hover)]">{error}</p>}
+    </div>
+  );
+}
+/* ----------------------- accounting setup for expense claims ----------------------- */
+
+/**
+ * Approving an expense claim books it in the accounts. ERPNext needs, per company, the payable account the
+ * employee is owed from and a default cost center, and per expense type the expense account to charge.
+ * Pick them here (standard ERPNext fields on Company and Expense Claim Type).
+ */
+export function ExpenseAccounting() {
+  const [data, setData] = useState(null);
+  const [busy, setBusy] = useState("");
+  const [error, setError] = useState("");
+  const [msg, setMsg] = useState("");
+
+  const load = useCallback(async () => {
+    setError("");
+    try {
+      const [companies, accounts, centers, types] = await Promise.all([
+        frappe.getList("Company", { fields: ["name", "default_expense_claim_payable_account", "default_payable_account", "cost_center"], limit: 0, orderBy: "name asc" }),
+        frappe.getList("Account", { filters: [["is_group", "=", 0], ["disabled", "=", 0]], fields: ["name", "company", "account_type", "root_type"], limit: 0, orderBy: "name asc" }),
+        frappe.getList("Cost Center", { filters: [["is_group", "=", 0], ["disabled", "=", 0]], fields: ["name", "company"], limit: 0, orderBy: "name asc" }),
+        frappe.getList("Expense Claim Type", { fields: ["name"], limit: 0, orderBy: "name asc" }),
+      ]);
+      const typeDocs = await Promise.all(types.map((t) => frappe.getDoc("Expense Claim Type", t.name).catch(() => ({ name: t.name, accounts: [] }))));
+      setData({ companies, accounts, centers, types: typeDocs });
+    } catch (e) {
+      setData({ companies: [], accounts: [], centers: [], types: [] });
+      setError(errMsg(e, "Couldn't load the accounts. You must be signed in as Administrator (or have Accounts access)."));
+    }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  async function run(key, fn, done) {
+    setBusy(key);
+    setError("");
+    setMsg("");
+    try { await fn(); setMsg(done); await load(); } catch (e) { setError(errMsg(e, "ERPNext refused this change.")); }
+    setBusy("");
+  }
+  const setCompany = (c, field, value) => run(`${c.name}-${field}`, () => frappe.updateDoc("Company", c.name, { [field]: value || null }), `${c.name} updated.`);
+  const setTypeAccount = (type, company, account) => run(`${type.name}-${company}`, () => {
+    const rows = (type.accounts || []).filter((r) => r.company !== company).map(({ company: co, default_account }) => ({ company: co, default_account }));
+    if (account) rows.push({ company, default_account: account });
+    return frappe.updateDoc("Expense Claim Type", type.name, { accounts: rows });
+  }, `${type.name} updated.`);
+
+  if (!data) return <p className="flex h-20 items-center gap-2 text-[13px] text-[var(--color-text-muted)]"><Loader2 size={14} className="animate-spin" /> Loading accounts…</p>;
+  const payables = (co) => data.accounts.filter((a) => a.company === co && a.account_type === "Payable");
+  const expenses = (co) => data.accounts.filter((a) => a.company === co && a.root_type === "Expense");
+  const centers = (co) => data.centers.filter((c) => c.company === co);
+
+  return (
+    <div className="mt-8">
+      <h3 className="text-[14px] font-semibold text-[var(--color-text)]">Accounting setup</h3>
+      <Hint>Approving a claim books it in the accounts. Each company needs a payable account (what the company owes the employee) and a default cost center, and each expense type needs an expense account per company. Check with your accountant which accounts to use.</Hint>
+      <Card className="mb-4 overflow-x-auto">
+        <table className="w-full text-left text-[13px]">
+          <thead><tr className="border-b border-[var(--color-border)] text-[12px] text-[var(--color-text-muted)]"><th className="px-4 py-2.5 font-medium">Company</th><th className="px-4 py-2.5 font-medium">Expense claim payable account</th><th className="px-4 py-2.5 font-medium">Default cost center</th></tr></thead>
+          <tbody>
+            {data.companies.map((c) => (
+              <tr key={c.name} className="border-b border-[var(--color-border)] last:border-0">
+                <td className="px-4 py-2.5 text-[var(--color-text)]">{c.name}</td>
+                <td className="px-4 py-2"><select disabled={!!busy} value={c.default_expense_claim_payable_account || ""} onChange={(e) => setCompany(c, "default_expense_claim_payable_account", e.target.value)} className={`${inputCls} max-w-xs ${c.default_expense_claim_payable_account ? "" : "!border-[var(--color-amber)]"}`}><option value="">Not set - approvals will fail</option>{payables(c.name).map((a) => <option key={a.name} value={a.name}>{a.name}</option>)}</select></td>
+                <td className="px-4 py-2"><select disabled={!!busy} value={c.cost_center || ""} onChange={(e) => setCompany(c, "cost_center", e.target.value)} className={`${inputCls} max-w-xs ${c.cost_center ? "" : "!border-[var(--color-amber)]"}`}><option value="">Not set</option>{centers(c.name).map((x) => <option key={x.name} value={x.name}>{x.name}</option>)}</select></td>
+              </tr>
+            ))}
+            {data.companies.length === 0 && <tr><td colSpan={3} className="px-4 py-6 text-center text-[var(--color-text-muted)]">No companies found.</td></tr>}
+          </tbody>
+        </table>
+      </Card>
+      <Card className="overflow-x-auto">
+        <table className="w-full text-left text-[13px]">
+          <thead><tr className="border-b border-[var(--color-border)] text-[12px] text-[var(--color-text-muted)]"><th className="px-4 py-2.5 font-medium">Expense type</th>{data.companies.map((c) => <th key={c.name} className="px-4 py-2.5 font-medium">Expense account · {c.name}</th>)}</tr></thead>
+          <tbody>
+            {data.types.map((t) => (
+              <tr key={t.name} className="border-b border-[var(--color-border)] last:border-0">
+                <td className="px-4 py-2.5 text-[var(--color-text)]">{t.name}</td>
+                {data.companies.map((c) => {
+                  const cur = (t.accounts || []).find((r) => r.company === c.name)?.default_account || "";
+                  return <td key={c.name} className="px-4 py-2"><select disabled={!!busy} value={cur} onChange={(e) => setTypeAccount(t, c.name, e.target.value)} className={`${inputCls} max-w-xs ${cur ? "" : "!border-[var(--color-amber)]"}`}><option value="">Not set</option>{expenses(c.name).map((a) => <option key={a.name} value={a.name}>{a.name}</option>)}</select></td>;
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+      {busy && <p className="mt-3 flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><Loader2 size={13} className="animate-spin" /> Saving…</p>}
+      {msg && <p className="mt-3 text-[12px] text-[var(--color-green)]">{msg}</p>}
       {error && <p className="mt-3 text-[12px] text-[var(--color-red-hover)]">{error}</p>}
     </div>
   );

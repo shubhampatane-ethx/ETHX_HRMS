@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { DoctypeCrud } from "../hr/DoctypeView";
 import { findSetupItem } from "../../lib/hrSetupConfig";
 import { Tabs } from "../../components/employee/EmployeeShell";
-import { ExpenseApproversByType, LeaveApproversByBU } from "./Approvers";
+import { ExpenseAccounting, ExpenseApproversByType, LeaveApproversByBU } from "./Approvers";
 
 /**
  * Company setup lives here (Administrator only), together with who approves what:
@@ -15,14 +15,16 @@ const TABS = [
 ];
 
 export default function Organization() {
-  const [tab, setTab] = useState("companies");
+  const [params, setParams] = useSearchParams();
+  const tab = TABS.some((t) => t.id === params.get("tab")) ? params.get("tab") : "companies";
+  const setTab = (id) => setParams(id === "companies" ? {} : { tab: id });
   const company = findSetupItem("company");
   return (
     <div className="space-y-5">
       <Tabs tabs={TABS} value={tab} onChange={setTab} />
       {tab === "companies" && <DoctypeCrud item={{ ...company, section: "Organization" }} />}
       {tab === "leave" && <LeaveApproversByBU />}
-      {tab === "expense" && <ExpenseApproversByType />}
+      {tab === "expense" && <><ExpenseApproversByType /><ExpenseAccounting /></>}
     </div>
   );
 }

@@ -5,7 +5,7 @@ import { ADMIN_USERNAME, effectiveRolesForUser, rolesToPermissions } from "../pe
 const AuthContext = createContext(null);
 
 /**
- * Administrator -> Admin workspace. A user holding an HR role -> HR workspace.
+ * Administrator, or any user with ERPNext's System Manager role -> Admin workspace. A user holding an HR role -> HR workspace.
  * A user with the Projects Manager role -> Project Manager workspace. A user whose only relevant role is "Employee" -> Employee portal; if they have never
  * set their own password (HR gave them a temporary one) they must change it first.
  * Anything we can't read or recognise gets no workspace ("Not authorized").
@@ -26,6 +26,9 @@ async function resolveAccount(email) {
       }
     }
     // erpRoles keeps the real ERPNext roles (HR Manager vs HR User, Interviewer...) for finer checks such as approvals.
+    // A System Manager is a platform admin (Admin workspace, which also opens the HR and PM workspaces) - not HR.
+    // HR users created from Admin › Users only get HR Manager / HR User, so they stay in the HR workspace.
+    if (erpRoles.includes("System Manager")) return { roles: ["System Manager"], mustChangePassword: false, erpRoles };
     if (erpRoles.some((r) => r === "HR Manager" || r === "HR User")) return { roles: ["HR User"], mustChangePassword: false, erpRoles };
     const isPm = erpRoles.includes("Projects Manager");
     if (isPm || erpRoles.includes("Employee")) {
