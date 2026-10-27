@@ -1,7 +1,7 @@
 // Employee portal: Timesheet page and the weekly timesheet editor (one timesheet per week, Monday to Sunday).
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight, Pencil, Plus, Send, Trash2, Upload, X } from "lucide-react";
-import { Async, Grid, inputCls, Modal, Notice, PageHeader, Panel, StatusPill, useEmployee } from "../../components/employee/EmployeeShell";
+import { CalendarDays, ChevronLeft, ChevronRight, Copy, Pencil, Plus, Send, Trash2, Upload, Wand2, X } from "lucide-react";
+import { Async, Grid, Modal, Notice, PageHeader, Panel, StatusPill, useEmployee } from "../../components/employee/EmployeeShell";
 import { Button } from "../../components/ui/primitives";
 import { useAuth } from "../../context/AuthContext";
 import { frappe } from "../../lib/api/frappeClient";
@@ -101,8 +101,12 @@ export function EmpTimesheet() {
 
 const readList = (key) => { try { return JSON.parse(localStorage.getItem(key) || "[]"); } catch { return []; } };
 const saveList = (key, list) => { try { localStorage.setItem(key, JSON.stringify(list)); } catch { /* ignore */ } };
-const blank = () => ({ project: "", hours: "", task: "", notes: "" });
 const KEEP_FIELDS = ["activity_type", "is_billable"];
+const DAY_HOURS = 8;
+let rowSeq = 0;
+const newRow = (r = {}) => ({ id: `r${++rowSeq}`, project: "", task: "", notes: "", hours: {}, keep: {}, ...r });
+const rowKey = (project, task) => `${String(project || "").trim().toLowerCase()}|${String(task || "").trim().toLowerCase()}`;
+const fmt = (n) => (Math.round((Number(n) || 0) * 100) / 100).toFixed(1);
 
 /* ---- week helpers (local dates, ISO yyyy-mm-dd; weeks run Monday to Sunday) ---- */
 const toIso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -111,6 +115,25 @@ const addDays = (iso, n) => { const d = fromIso(iso); d.setDate(d.getDate() + n)
 const mondayOf = (iso) => { const d = fromIso(iso); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return toIso(d); };
 const short = (iso) => { const d = fromIso(iso); return `${d.getDate()} ${MONTHS_LONG[d.getMonth()].slice(0, 3)}`; };
 const weekLabel = (ws) => { const we = addDays(ws, 6); return `${short(ws)} – ${short(we)} ${fromIso(we).getFullYear()}`; };
+
+/** Time logs -> grid rows: one row per project + task, hours per day (several logs on one day add up). */
+function logsToRows(logs, ws) {
+  const we = addDays(ws, 6);
+  const rows = [];
+  const outside = [];
+  (logs || []).forEach((l) => {
+    const date = String(l.from_time).slice(0, 10);
+    if (date < ws || date > we) { outside.push(l); return; } // e.g. older monthly drafts: kept as they are
+    const w = parseWorkNote(l.description, { project: l.project, task: l.task });
+    const key = rowKey(w.project, w.task);
+    let r = rows.find((x) => rowKey(x.project, x.task) === key);
+    if (!r) { r = newRow({ project: w.project, task: w.task, notes: w.notes }); rows.push(r); }
+    else if (w.notes && !r.notes.includes(w.notes)) r.notes = [r.notes, w.notes].filter(Boolean).join("; ");
+    r.hours[date] = String(roundHours((Number(r.hours[date]) || 0) + Number(l.hours || 0)));
+    r.keep[date] = Object.fromEntries(KEEP_FIELDS.filter((k) => l[k] != null).map((k) => [k, l[k]]));
+  });
+  return { rows, outside };
+}
 
 /** Loads the draft being edited (if any), then opens the editor on its week. */
 function WeeklyModal(props) {
@@ -126,41 +149,27 @@ function WeeklyModal(props) {
   return <WeeklyEditor {...props} doc={doc.data} />;
 }
 
-/** Initial editor state: this week for a new timesheet, or the draft's week with its entries filled in. */
 function initialState(doc) {
-  if (!doc) return { ws: mondayOf(isoDate()), days: {}, outside: [] };
+  if (!doc) return { ws: mondayOf(isoDate()), rows: [], outside: [] };
   const start = String(doc.start_date || (doc.time_logs || [])[0]?.from_time || isoDate()).slice(0, 10);
   const ws = mondayOf(start);
-  const we = addDays(ws, 6);
-  const days = {};
-  const outside = [];
-  (doc.time_logs || []).forEach((l) => {
-    const date = String(l.from_time).slice(0, 10);
-    if (date < ws || date > we) { outside.push(l); return; } // e.g. older monthly drafts: kept as they are
-    const w = parseWorkNote(l.description, { project: l.project, task: l.task });
-    const keep = Object.fromEntries(KEEP_FIELDS.filter((k) => l[k] != null).map((k) => [k, l[k]]));
-    (days[date] = days[date] || []).push({ project: w.project, hours: String(roundHours(l.hours)), task: w.task, notes: w.notes, keep });
-  });
-  return { ws, days, outside };
+  return { ws, ...logsToRows(doc.time_logs, ws) };
 }
 
-/** One week in one timesheet: choose your projects, then per day enter hours and the work you did. */
+/**
+ * Weekly timesheet grid (Capgemini / Oracle style): one line per project + task, a column per day,
+ * daily and weekly totals against the expected hours. Leave, holidays and weekly offs are greyed out;
+ * hours already in another timesheet are counted and new entries are placed after them.
+ */
 function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, onChanged, onSaved }) {
   const emp = employee.name;
   const storeKey = `ts-projects:${emp}`;
   const today = isoDate();
   const [init] = useState(() => initialState(doc));
-  const [ws, setWs] = useState(init.ws); // Monday of the week being edited
-  const [days, setDays] = useState(init.days); // iso -> [{ project, hours, task, notes, keep? }]
+  const [ws, setWs] = useState(init.ws);
+  const [rows, setRows] = useState(() => (init.rows.length ? init.rows : [newRow()]));
   const [dirty, setDirty] = useState(false);
-  const [savedName, setSavedName] = useState(editName || null); // set after the first save so retries update, never duplicate
-  const [myProjects, setMyProjects] = useState(() => {
-    const stored = readList(storeKey);
-    const fromDoc = Object.values(init.days).flat().map((e) => e.project).filter(Boolean);
-    return [...stored, ...fromDoc.filter((p, i) => fromDoc.indexOf(p) === i && !stored.some((x) => x.toLowerCase() === p.toLowerCase()))];
-  });
-  const [newProject, setNewProject] = useState("");
-  const [fill, setFill] = useState("8");
+  const [savedName, setSavedName] = useState(editName || null);
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
   const [info, setInfo] = useState("");
@@ -172,14 +181,6 @@ function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, on
   const holidays = useAsync(() => getHolidays(employee), [emp]);
   const projects = useAsync(() => getProjects(), []);
   const leave = useAsync(() => getLeaveDays(emp, from, to), [emp, from]);
-  const recent = useAsync(async () => {
-    if (!recentNames.length) return [];
-    const rows = await frappe.getList("Timesheet Detail", { parent: "Timesheet", filters: [["parent", "in", recentNames]], fields: ["project", "description"], limit: 0 }).catch(() => []);
-    return [...new Set(rows.map((r) => parseWorkNote(r.description, { project: r.project }).project).filter(Boolean))];
-  }, [recentNames.join(",")]);
-
-  // Hours already logged in this employee's OTHER timesheets this week, and when they end each day,
-  // so new entries are placed after them instead of overlapping (ERPNext rejects overlaps).
   const existing = useAsync(async () => {
     const sheets = await frappe.getList("Timesheet", { filters: [["employee", "=", emp], ["docstatus", "<", 2], ["end_date", ">=", from], ["start_date", "<=", to]], fields: ["name"], limit: 0 });
     const names = sheets.map((s) => s.name).filter((n) => n !== savedName);
@@ -195,115 +196,123 @@ function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, on
     }));
     return map;
   }, [emp, from, savedName]);
-
+  const recent = useAsync(async () => {
+    if (!recentNames.length) return [];
+    const rows = await frappe.getList("Timesheet Detail", { parent: "Timesheet", filters: [["parent", "in", recentNames]], fields: ["project", "description"], limit: 0 }).catch(() => []);
+    return [...new Set(rows.map((r) => parseWorkNote(r.description, { project: r.project }).project).filter(Boolean))];
+  }, [recentNames.join(",")]);
   const assigned = useAsync(() => getMyAssignments(employee.user_id, from, to), [emp, from]);
   const assignments = useMemo(() => (assigned.data || []).map(parseAssignment), [assigned.data]);
   const resolveProject = useMemo(() => projectResolver(projects.data || []), [projects.data]);
   const holidayMap = useMemo(() => Object.fromEntries((holidays.data?.holidays || []).map((h) => [h.date, h])), [holidays.data]);
   const listHasWeeklyOffs = (holidays.data?.holidays || []).some((h) => h.weeklyOff);
-  const defaultProject = myProjects[0] || "";
+  const projectLabel = (p) => (p.project_name && p.project_name !== p.name ? p.project_name : p.name);
+  const labelOf = (id) => { const p = (projects.data || []).find((x) => x.name === id); return p ? projectLabel(p) : id; };
 
-  const list = Array.from({ length: 7 }, (_, i) => {
+  const days = Array.from({ length: 7 }, (_, i) => {
     const date = addDays(ws, i);
     const wd = fromIso(date).getDay();
     const h = holidayMap[date];
-    // trust the holiday list for weekly offs when it has them, otherwise assume Saturday/Sunday
     const off = Boolean(h) || (!listHasWeeklyOffs && (wd === 0 || wd === 6));
     const lv = leave.data?.[date] || null;
-    const label = h ? (h.weeklyOff ? "Weekly off" : h.description) : off ? "Weekend" : "";
+    const label = h ? (h.weeklyOff ? "Weekly off" : h.description) : off ? "Weekend" : lv ? (lv.half ? "Half-day leave" : "On leave") : "";
     return { date, wd, off, label, leave: lv, logged: existing.data?.[date] || null, future: date > today };
   });
+  const expected = days.reduce((s, d) => s + (d.off ? 0 : d.leave ? (d.leave.half ? DAY_HOURS / 2 : 0) : DAY_HOURS), 0);
+  const cell = (r, date) => Number(r.hours[date]) || 0;
+  const dayTotal = (date) => rows.reduce((s, r) => s + cell(r, date), 0);
+  const rowTotal = (r) => days.reduce((s, d) => s + cell(r, d.date), 0);
+  const weekTotal = rows.reduce((s, r) => s + rowTotal(r), 0);
+  const elsewhere = days.reduce((s, d) => s + (d.logged?.hours || 0), 0);
 
-  const entriesOf = (date) => days[date] || [blank()];
-  const change = (fn) => { setDays(fn); setDirty(true); };
-  const patchEntry = (date, i, patch) => change((v) => { const arr = [...(v[date] || [blank()])]; arr[i] = { ...arr[i], ...patch }; return { ...v, [date]: arr }; });
-  const addEntry = (date) => change((v) => ({ ...v, [date]: [...(v[date] || [blank()]), blank()] }));
-  const removeEntry = (date, i) => change((v) => { const arr = (v[date] || []).filter((_, k) => k !== i); return { ...v, [date]: arr.length ? arr : [blank()] }; });
-
-  const hoursOf = (date) => entriesOf(date).reduce((s, e) => s + (Number(e.hours) || 0), 0);
-  const total = list.reduce((s, d) => s + (d.future ? 0 : hoursOf(d.date)), 0);
-  const filled = list.filter((d) => !d.future && hoursOf(d.date) > 0).length;
+  const change = (fn) => { setRows(fn); setDirty(true); };
+  const patchRow = (id, patch) => change((v) => v.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  const setHours = (id, date, value) => change((v) => v.map((r) => (r.id === id ? { ...r, hours: { ...r.hours, [date]: value } } : r)));
+  const removeRow = (id) => change((v) => { const n = v.filter((r) => r.id !== id); return n.length ? n : [newRow()]; });
+  const remember = (list) => {
+    const stored = readList(storeKey);
+    const merged = [...stored];
+    list.filter(Boolean).forEach((p) => { if (!merged.some((x) => x.toLowerCase() === p.toLowerCase())) merged.push(p); });
+    if (merged.length !== stored.length) saveList(storeKey, merged);
+  };
+  /** Add rows unless the same project + task line is already there (then merge hours into it). */
+  const mergeRows = (incoming, replaceHours = false) => change((v) => {
+    const out = v.filter((r) => r.project || r.task || Object.values(r.hours).some((h) => Number(h) > 0));
+    incoming.forEach((x) => {
+      const hit = out.find((r) => rowKey(r.project, r.task) === rowKey(x.project, x.task));
+      if (hit) Object.entries(x.hours || {}).forEach(([d, h]) => { if (replaceHours || !(Number(hit.hours[d]) > 0)) hit.hours[d] = h; });
+      else out.push(newRow(x));
+    });
+    return out.length ? out.map((r) => ({ ...r, hours: { ...r.hours } })) : [newRow()];
+  });
 
   function move(delta) {
     if (dirty && !window.confirm("You have unsaved entries for this week. Switch week and discard them?")) return;
     setWs(addDays(ws, delta * 7));
-    setDays({});
+    setRows([newRow()]);
     setDirty(false);
     setSavedName(null);
     setErr("");
     setInfo("");
   }
 
-  function addProject(name = newProject) {
-    const p = name.trim();
-    setNewProject("");
-    if (!p || myProjects.some((x) => x.toLowerCase() === p.toLowerCase())) return;
-    const next = [...myProjects, p];
-    setMyProjects(next);
-    saveList(storeKey, next);
-  }
-  function removeProject(p) {
-    const next = myProjects.filter((x) => x !== p);
-    setMyProjects(next);
-    saveList(storeKey, next);
-  }
-
-  /** Fill empty working days only; skips leave, tops up days partly logged elsewhere, halves half-day leave. */
-  function fillWorking() {
-    const hrs = roundHours(fill);
-    if (!(hrs > 0 && hrs <= 24)) return setErr("Enter hours between 0 and 24.");
-    setErr("");
-    let skippedLeave = 0;
-    const n = { ...days };
-    list.filter((d) => !d.off && !d.future).forEach((d) => {
-      if (d.leave && !d.leave.half) { skippedLeave += 1; return; }
-      if ((n[d.date] || []).some((e) => Number(e.hours) > 0)) return;
-      const want = roundHours((d.leave?.half ? hrs / 2 : hrs) - (d.logged?.hours || 0));
-      if (want > 0) n[d.date] = [{ ...((n[d.date] || [])[0] || blank()), hours: String(want) }];
+  /** Fill one line's empty working days (not leave, not future) with the standard day minus hours logged elsewhere. */
+  function fillRow(r) {
+    const hours = { ...r.hours };
+    let n = 0;
+    days.filter((d) => !d.off && !d.future && !(d.leave && !d.leave.half)).forEach((d) => {
+      if (Number(hours[d.date]) > 0) return;
+      const want = roundHours((d.leave?.half ? DAY_HOURS / 2 : DAY_HOURS) - (d.logged?.hours || 0) - (dayTotal(d.date) - cell(r, d.date)));
+      if (want > 0) { hours[d.date] = String(want); n += 1; }
     });
-    change(() => n);
-    setInfo(`Filled empty working days with ${hrs} h${skippedLeave ? `; skipped ${skippedLeave} leave day(s)` : ""}. Days you already filled were left as they are.`);
+    patchRow(r.id, { hours });
+    setInfo(n ? `Filled ${n} working day(s) on this line.` : "Nothing to fill - those days are full, on leave or in the future.");
   }
 
-  /**
-   * Fill empty working days from the projects a Project Manager assigned to this employee:
-   * every day between the start date and the ETA gets the assigned hours per day, with the role as the task.
-   * Skips weekly offs, holidays and leave; days already filled or logged elsewhere are left alone.
-   */
+  /** Lines from the Project Manager's assignments for this week, with the assigned hours per day. */
   function fillFromAssignments(auto = false) {
     if (!assignments.length) return setInfo("You have no project assignments for this week.");
-    const label = (id) => { const p = (projects.data || []).find((x) => x.name === id); return p ? projectLabel(p) : id; };
-    const n = { ...days };
-    const used = new Set();
-    let daysFilled = 0;
-    list.filter((d) => !d.off && !d.future).forEach((d) => {
-      if (d.leave && !d.leave.half) return;
-      if ((n[d.date] || []).some((e) => Number(e.hours) > 0)) return;
-      const active = assignments.filter((a) => a.start <= d.date && d.date <= a.end && a.status !== "Cancelled");
-      if (!active.length) return;
-      const total = active.reduce((s, a) => s + a.hoursPerDay, 0);
-      const want = roundHours((d.leave?.half ? total / 2 : total) - (d.logged?.hours || 0));
-      if (want <= 0) return;
-      n[d.date] = active.map((a) => { used.add(label(a.project)); return { ...blank(), project: label(a.project), hours: String(roundHours((a.hoursPerDay / total) * want)), task: a.role, notes: `ETA ${dmy(a.eta)}` }; });
-      daysFilled += 1;
+    const incoming = assignments.filter((a) => a.status !== "Cancelled").map((a) => {
+      const hours = {};
+      days.filter((d) => !d.off && !d.future && !(d.leave && !d.leave.half) && a.start <= d.date && d.date <= a.end).forEach((d) => {
+        hours[d.date] = String(roundHours(d.leave?.half ? a.hoursPerDay / 2 : a.hoursPerDay));
+      });
+      return { project: labelOf(a.project), task: a.role, notes: `ETA ${dmy(a.eta)}`, hours };
     });
-    if (used.size) {
-      const merged = [...myProjects];
-      used.forEach((p) => { if (!merged.some((x) => x.toLowerCase() === p.toLowerCase())) merged.push(p); });
-      if (merged.length !== myProjects.length) { setMyProjects(merged); saveList(storeKey, merged); }
-    }
-    if (!daysFilled) return setInfo("Nothing to fill - your assigned days are already filled, on leave or logged in another timesheet.");
-    change(() => n);
-    setInfo(`${auto ? "Filled automatically" : "Filled"} from your project assignments: ${daysFilled} day(s). Review and adjust before saving.`);
+    remember(incoming.map((x) => x.project));
+    mergeRows(incoming);
+    setInfo(`${auto ? "Filled automatically" : "Filled"} from your project assignments (${incoming.length} line${incoming.length === 1 ? "" : "s"}). Review before submitting.`);
   }
 
-  // Pre-fill a new timesheet once everything it depends on has loaded (once per week)
+  /** Same project + task lines as the previous week's timesheet, without the hours. */
+  async function copyLastWeek() {
+    setBusy("copy");
+    setErr("");
+    try {
+      const pf = addDays(ws, -7);
+      const pt = addDays(ws, -1);
+      const sheets = await frappe.getList("Timesheet", { filters: [["employee", "=", emp], ["docstatus", "<", 2], ["end_date", ">=", pf], ["start_date", "<=", pt]], fields: ["name"], limit: 0 });
+      const byParent = sheets.length ? await getEntriesBetween(pf, pt, sheets.map((s) => s.name)) : new Map();
+      const prev = [];
+      byParent.forEach((logs) => logs.forEach((l) => {
+        const w = parseWorkNote(l.description, { project: l.project, task: l.task });
+        if (!prev.some((x) => rowKey(x.project, x.task) === rowKey(w.project, w.task))) prev.push({ project: w.project, task: w.task, notes: "", hours: {} });
+      }));
+      if (!prev.length) setInfo("Last week has no timesheet lines to copy.");
+      else { mergeRows(prev); setInfo(`Copied ${prev.length} line(s) from last week - enter this week's hours.`); }
+    } catch (e) {
+      setErr(errMsg(e, "Couldn't read last week's timesheet."));
+    }
+    setBusy("");
+  }
+
   const autoFor = useRef(null);
   const ready = !holidays.loading && !leave.loading && !existing.loading && !assigned.loading && !projects.loading;
   useEffect(() => {
     if (editName || !ready || autoFor.current === from) return;
     autoFor.current = from;
-    if (assignments.length && !Object.values(days).some((arr) => arr.some((e) => Number(e.hours) > 0))) fillFromAssignments(true);
+    const empty = !rows.some((r) => Object.values(r.hours).some((h) => Number(h) > 0));
+    if (assignments.length && empty) fillFromAssignments(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, from]);
 
@@ -314,58 +323,58 @@ function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, on
     const reader = new FileReader();
     reader.onload = () => {
       const { entries, invalid, order, ambiguous } = csvToEntries(parseCsv(reader.result));
-      const next = {};
-      const found = [];
+      const incoming = [];
       let other = 0;
       let future = 0;
       entries.forEach((x) => {
         if (x.date < from || x.date > to) { other += 1; return; }
         if (x.date > today) { future += 1; return; }
-        (next[x.date] = next[x.date] || []).push({ project: x.project, hours: String(x.hours), task: x.task, notes: x.notes });
-        if (x.project) found.push(x.project);
+        let r = incoming.find((y) => rowKey(y.project, y.task) === rowKey(x.project, x.task));
+        if (!r) { r = { project: x.project, task: x.task, notes: x.notes || "", hours: {} }; incoming.push(r); }
+        r.hours[x.date] = String(roundHours((Number(r.hours[x.date]) || 0) + Number(x.hours)));
       });
-      const used = Object.values(next).flat().length;
-      change((v) => ({ ...v, ...next }));
-      const merged = [...myProjects];
-      found.forEach((p) => { if (!merged.some((m) => m.toLowerCase() === p.toLowerCase())) merged.push(p); });
-      if (merged.length !== myProjects.length) { setMyProjects(merged); saveList(storeKey, merged); }
-      const notes = [
-        `Imported ${used} entr${used === 1 ? "y" : "ies"} for the week of ${weekLabel(ws)}`,
+      remember(incoming.map((x) => x.project));
+      mergeRows(incoming, true);
+      const used = incoming.reduce((s, r) => s + Object.keys(r.hours).length, 0);
+      setErr("");
+      setInfo([
+        `Imported ${used} entr${used === 1 ? "y" : "ies"} for ${weekLabel(ws)}`,
         other && `${other} from other weeks skipped`,
         future && `${future} future-dated skipped`,
         invalid && `${invalid} row(s) without a valid date/hours skipped`,
         order === "mdy" ? "dates read as month/day (US format)" : ambiguous ? "dates read as day/month" : null,
-      ].filter(Boolean);
-      setErr("");
-      setInfo(`${notes.join("; ")}. Imported days replace what was typed for those days.`);
+      ].filter(Boolean).join("; ") + ".");
     };
     reader.readAsText(file);
   }
 
-  /** Build ERPNext time_logs for the week, or return an error message. */
+  /** Grid -> ERPNext time_logs (slotted one after another each day, after hours logged elsewhere). */
   function buildLogs() {
     const logs = [];
     const onLeave = [];
-    for (const d of list.filter((x) => !x.future)) {
-      const entries = entriesOf(d.date).filter((e) => roundHours(e.hours) > 0);
+    for (const r of rows) {
+      const any = Object.values(r.hours).some((h) => Number(h) > 0);
+      if (any && !String(r.project || "").trim()) return { error: "Choose a project on every line that has hours." };
+      if (Object.values(r.hours).some((h) => Number(h) < 0)) return { error: "Hours can't be negative." };
+    }
+    for (const d of days.filter((x) => !x.future)) {
+      const entries = rows.filter((r) => roundHours(r.hours[d.date]) > 0);
       if (!entries.length) continue;
-      if (entries.some((e) => Number(e.hours) < 0)) return { error: `${dmy(d.date)}: hours can't be negative.` };
-      const dayTotal = entries.reduce((s, e) => s + roundHours(e.hours), 0);
-      if (dayTotal + (d.logged?.hours || 0) > 24) return { error: `${dmy(d.date)} would have more than 24 hours${d.logged ? ` (${d.logged.hours.toFixed(2)} h already in ${d.logged.sheets.join(", ")})` : ""}.` };
-      const slots = slotDay(d.date, entries.map((e) => e.hours), d.logged?.end || 0);
+      const total = entries.reduce((s, r) => s + roundHours(r.hours[d.date]), 0);
+      if (total + (d.logged?.hours || 0) > 24) return { error: `${dmy(d.date)} would have more than 24 hours${d.logged ? ` (${d.logged.hours.toFixed(2)} h already in ${d.logged.sheets.join(", ")})` : ""}.` };
+      const slots = slotDay(d.date, entries.map((r) => r.hours[d.date]), d.logged?.end || 0);
       if (slots.error) return { error: `${dmy(d.date)}: ${slots.error}.` };
       if (d.leave && !d.leave.half) onLeave.push(dmy(d.date));
-      entries.forEach((e, i) => {
-        const project = (e.project || defaultProject).trim();
+      entries.forEach((r, i) => {
+        const project = r.project.trim();
         const projectId = resolveProject(project);
-        const taskId = matchTask(tasks, e.task, projectId);
         logs.push({
-          ...(e.keep || {}),
+          ...(r.keep[d.date] || {}),
           from_time: slots.times[i],
-          hours: roundHours(e.hours),
+          hours: roundHours(r.hours[d.date]),
           project: projectId || undefined,
-          task: taskId || undefined,
-          description: composeDescription({ project, task: e.task.trim(), notes: (e.notes || "").trim() }),
+          task: matchTask(tasks, r.task, projectId) || undefined,
+          description: composeDescription({ project, task: (r.task || "").trim(), notes: (r.notes || "").trim() }),
         });
       });
     }
@@ -377,16 +386,14 @@ function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, on
     setInfo("");
     const built = buildLogs();
     if (built.error) return setErr(built.error);
-    const allLogs = [...init.outside, ...built.logs]; // entries of an edited draft outside this week stay as they were
     if (!built.logs.length) return setErr(savedName ? "This timesheet has no hours left for this week - use Delete on the list instead." : "Enter hours for at least one day.");
     if (built.onLeave.length && !window.confirm(`You entered hours on leave day(s): ${built.onLeave.join(", ")}. Save anyway?`)) return;
-    if (submit && !window.confirm(`Submit the week of ${weekLabel(ws)} (${total.toFixed(2)} h)? You won't be able to edit it unless it's returned to you.`)) return;
-
+    if (submit && !window.confirm(`Submit the week of ${weekLabel(ws)} (${fmt(weekTotal)} h of ${fmt(expected)} h expected)? You won't be able to edit it unless it's returned to you.`)) return;
+    remember(rows.map((r) => r.project.trim()));
     setBusy(submit ? "submit" : "draft");
     let name = savedName;
     try {
-      // Activity Type is required by ERPNext on submit; stamp the default so employees never have to pick one.
-      const timeLogs = await withActivityType(allLogs);
+      const timeLogs = await withActivityType([...init.outside, ...built.logs]);
       if (name) await frappe.updateDoc("Timesheet", name, { time_logs: timeLogs });
       else {
         const created = await frappe.createDoc("Timesheet", { employee: emp, company: employee.company, time_logs: timeLogs });
@@ -403,7 +410,7 @@ function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, on
       try {
         await submitTimesheet(name);
       } catch (x) {
-        setErr(`Saved as draft ${name}, but it couldn't be submitted: ${errMsg(x, "unknown error")} Fix the problem and press "Save & submit" again - the same draft will be updated, not duplicated.`);
+        setErr(`Saved as draft ${name}, but it couldn't be submitted: ${errMsg(x, "unknown error")} Fix the problem and press "Submit week" again - the same draft will be updated, not duplicated.`);
         setBusy("");
         onChanged();
         return;
@@ -412,113 +419,124 @@ function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, on
     onSaved();
   }
 
-  const projectLabel = (p) => (p.project_name && p.project_name !== p.name ? p.project_name : p.name);
-  const suggestions = (recent.data || []).filter((p) => !myProjects.some((x) => x.toLowerCase() === p.toLowerCase()));
-  const monthLabel = weekLabel(ws);
-  const cell = `${inputCls} !py-1`;
+  const known = [...new Set([...readList(storeKey), ...(recent.data || []), ...(projects.data || []).map(projectLabel)])];
   const waiting = existing.loading && !existing.data;
+  const pct = expected ? Math.min((weekTotal + elsewhere) / expected, 1) : 0;
+  const inp = "w-full rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-2 py-1.5 text-[12.5px] text-[var(--color-text)] outline-none focus:border-[var(--color-red)]";
+  const status = savedName ? "Draft" : "New";
 
   return (
-    <Modal title={editName ? `Edit timesheet ${editName}` : savedName ? `Weekly timesheet · ${savedName} (draft)` : "Weekly timesheet"} onClose={onClose} wide="xl">
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
+    <Modal title={editName ? `Edit timesheet ${editName}` : "Weekly timesheet"} onClose={() => { if (!dirty || window.confirm("Close without saving your changes?")) onClose(); }} wide="xl">
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            {!editName && <button type="button" onClick={() => move(-1)} className="rounded p-1.5 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]"><ChevronLeft size={16} /></button>}
-            <span className="min-w-[11rem] text-center text-[14px] font-semibold text-[var(--color-text)]">{monthLabel}</span>
-            {!editName && <button type="button" onClick={() => move(1)} className="rounded p-1.5 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]"><ChevronRight size={16} /></button>}
+            {!editName && <button type="button" title="Previous week" onClick={() => move(-1)} className="rounded p-1.5 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]"><ChevronLeft size={16} /></button>}
+            <span className="min-w-[11rem] text-center text-[14px] font-semibold text-[var(--color-text)]">{weekLabel(ws)}</span>
+            {!editName && <button type="button" title="Next week" onClick={() => move(1)} className="rounded p-1.5 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]"><ChevronRight size={16} /></button>}
             {!editName && ws !== mondayOf(today) && <button type="button" onClick={() => move(Math.round((fromIso(mondayOf(today)) - fromIso(ws)) / (7 * 86400000)))} className="text-[11px] text-[var(--color-red-hover)] hover:underline">This week</button>}
+            <StatusPill status={status} />
           </div>
-          <p className="text-[12px] text-[var(--color-text-muted)]"><b className="text-[var(--color-text)]">{total.toFixed(2)} h</b> over {filled} day(s)</p>
+          <div className="min-w-[14rem]">
+            <p className="text-right text-[12px] text-[var(--color-text-muted)]">Week total <b className="text-[14px] text-[var(--color-text)]">{fmt(weekTotal + elsewhere)}</b> / {fmt(expected)} h{elsewhere ? <span className="text-[var(--color-text-faint)]"> (incl. {fmt(elsewhere)} h in other timesheets)</span> : null}</p>
+            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[var(--color-surface-2)]"><div className="h-full rounded-full" style={{ width: `${pct * 100}%`, background: weekTotal + elsewhere > expected ? "var(--color-amber)" : "var(--color-green)" }} /></div>
+          </div>
         </div>
 
-        {editName && init.outside.length > 0 && <Notice tone="info">This timesheet also has {init.outside.length} entr{init.outside.length === 1 ? "y" : "ies"} outside {monthLabel}; they are kept unchanged.</Notice>}
-
-        <div>
-          <p className="mb-1.5 text-[12px] text-[var(--color-text-muted)]">My projects <span className="text-[var(--color-text-faint)]">- add the projects you work on; they're remembered for next week</span></p>
-          <div className="flex flex-wrap items-center gap-2">
-            {myProjects.map((p) => (
-              <span key={p} className="flex items-center gap-1.5 rounded-full border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-2.5 py-1 text-[12px] text-[var(--color-text)]" title={resolveProject(p) ? `Linked to ERPNext project ${resolveProject(p)}` : "Not an ERPNext project - saved as text only"}>
-                {p}{projects.data && !resolveProject(p) && <span className="text-[10px] text-[var(--color-amber)]">text only</span>}
-                <button type="button" title="Remove" onClick={() => removeProject(p)} className="text-[var(--color-text-muted)] hover:text-[var(--color-red-hover)]"><X size={12} /></button>
-              </span>
-            ))}
-            <input list="ts-known-projects" value={newProject} onChange={(e) => setNewProject(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addProject(); } }} placeholder="Type a project name…" className={`${cell} !w-56`} />
-            <Button type="button" variant="secondary" onClick={() => addProject()} disabled={!newProject.trim()}><Plus size={14} /> Add</Button>
-            <datalist id="ts-known-projects">{(projects.data || []).map((p) => <option key={p.name} value={projectLabel(p)}>{p.name}</option>)}</datalist>
-          </div>
-          {suggestions.length > 0 && (
-            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-[var(--color-text-faint)]">
-              Recently used:
-              {suggestions.map((p) => <button key={p} type="button" onClick={() => addProject(p)} className="rounded-full border border-dashed border-[var(--color-border-strong)] px-2 py-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-text)]">+ {p}</button>)}
-            </div>
-          )}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 text-[12px] text-[var(--color-text-muted)]">
-          Fill empty working days with
-          <input type="number" min="0.25" max="24" step="0.25" value={fill} onChange={(e) => setFill(e.target.value)} className={`${cell} !w-20`} /> h
-          <Button type="button" variant="secondary" onClick={fillWorking} disabled={waiting}>Fill</Button>
-          <Button type="button" variant="secondary" onClick={() => fillFromAssignments(false)} disabled={waiting || assigned.loading || !assignments.length} title="Fill from the projects your Project Manager assigned to you">From my assignments ({assignments.length})</Button>
-          <Button type="button" variant="ghost" onClick={() => { if (!dirty || window.confirm("Clear everything you've entered for this week?")) change(() => ({})); }}>Clear</Button>
-          <input ref={fileInput} type="file" accept=".csv,text/csv" className="hidden" onChange={importCsv} />
-          <Button type="button" variant="secondary" onClick={() => fileInput.current?.click()}><Upload size={14} /> Import CSV</Button>
-          <span className="text-[11px] text-[var(--color-text-faint)]">CSV: date, hours, project, task - or any file with Date / Hours / Project / Task headers</span>
-        </div>
-
-        {assignments.length > 0 && (
-          <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)] px-4 py-3 text-[12px]">
-            <p className="mb-1.5 font-medium text-[var(--color-text)]">Your project assignments this week</p>
-            <ul className="space-y-1 text-[var(--color-text-muted)]">
-              {assignments.map((a) => <li key={a.name}><b className="text-[var(--color-text)]">{(projects.data || []).find((p) => p.name === a.project) ? projectLabel((projects.data || []).find((p) => p.name === a.project)) : a.project}</b> as {a.role} · {dmy(a.start)} to ETA {dmy(a.eta)} · {a.hoursPerDay} h/day</li>)}
-            </ul>
-          </div>
-        )}
-
+        {editName && init.outside.length > 0 && <Notice tone="info">This timesheet also has {init.outside.length} entr{init.outside.length === 1 ? "y" : "ies"} outside {weekLabel(ws)}; they are kept unchanged.</Notice>}
         {existing.error && <Notice>Couldn't check the hours you've already logged this week ({friendlyError(existing.error)}). Saving may fail if days overlap with another timesheet.</Notice>}
         {leave.error && <Notice tone="info">Couldn't load your leave for this week, so leave days aren't marked.</Notice>}
 
+        <datalist id="ts-known-projects">{known.map((p) => <option key={p} value={p} />)}</datalist>
         <datalist id="ts-tasks">{tasks.map((t) => <option key={t.name} value={t.subject}>{t.project || ""}</option>)}</datalist>
-        <div className="max-h-[42vh] overflow-auto rounded-lg border border-[var(--color-border)]">
+
+        <div className="overflow-x-auto rounded-lg border border-[var(--color-border)]">
           {waiting ? <p className="p-4 text-[13px] text-[var(--color-text-muted)]">Checking what you've already logged…</p> : (
-            <table className="w-full min-w-[760px] table-fixed text-left text-[12.5px]">
-              <colgroup><col className="w-[190px]" /><col className="w-[200px]" /><col className="w-[96px]" /><col /><col className="w-[40px]" /></colgroup>
-              <thead className="sticky top-0 z-10 bg-[var(--color-surface)]"><tr className="border-b border-[var(--color-border)] text-[var(--color-text-muted)]"><th className="px-3 py-2 font-medium">Date</th><th className="px-2 py-2 font-medium">Project</th><th className="px-2 py-2 font-medium">Hours</th><th className="px-2 py-2 font-medium">Task / work done</th><th /></tr></thead>
+            <table className="w-full min-w-[900px] table-fixed text-[12.5px]">
+              <colgroup><col className="w-[320px]" />{days.map((d) => <col key={d.date} />)}<col className="w-[64px]" /><col className="w-[64px]" /></colgroup>
+              <thead className="bg-[var(--color-surface)]">
+                <tr className="border-b border-[var(--color-border)] text-[var(--color-text-muted)]">
+                  <th className="px-3 py-2 text-left font-medium">Project · task · work done</th>
+                  {days.map((d) => (
+                    <th key={d.date} title={d.label || undefined} className={`px-1 py-2 text-center font-medium ${d.date === today ? "text-[var(--color-red-hover)]" : ""} ${d.off || (d.leave && !d.leave.half) ? "bg-[var(--color-surface-2)]" : ""}`}>
+                      <span className="block">{WEEKDAYS[d.wd]} {fromIso(d.date).getDate()}</span>
+                      <span className="block h-3.5 truncate text-[10px] font-normal text-[var(--color-text-faint)]">{d.label || (d.logged ? `+${fmt(d.logged.hours)} h logged` : "")}</span>
+                    </th>
+                  ))}
+                  <th className="px-2 py-2 text-right font-medium">Total</th>
+                  <th />
+                </tr>
+              </thead>
               <tbody>
-                {list.map((d) => d.future ? (
-                  <tr key={d.date} className={`border-b border-[var(--color-border)] ${d.off ? "bg-[var(--color-surface-2)]" : ""}`}>
-                    <td className="whitespace-nowrap px-3 py-1.5 align-top text-[var(--color-text)]">{dmy(d.date)} <span className="text-[var(--color-text-faint)]">{WEEKDAYS[d.wd]}</span></td>
-                    <td colSpan={4} className="px-2 py-1.5 text-[11px] text-[var(--color-text-faint)]">Upcoming day{d.leave ? ` · ${d.leave.half ? "half-day " : ""}leave (${d.leave.status})` : ""}</td>
-                  </tr>
-                ) : entriesOf(d.date).map((e, i) => {
-                  const options = e.project && !myProjects.includes(e.project) ? [...myProjects, e.project] : myProjects;
+                {rows.map((r) => {
+                  const resolved = r.project && projects.data ? resolveProject(r.project) : true;
                   return (
-                    <tr key={`${d.date}-${i}`} className={`border-b border-[var(--color-border)] ${d.off || (d.leave && !d.leave.half) ? "bg-[var(--color-surface-2)]" : ""}`}>
-                      <td className="px-3 py-1 align-top text-[var(--color-text)]">{i === 0 ? (
-                        <>
-                          <span className="whitespace-nowrap">{dmy(d.date)} <span className="text-[var(--color-text-faint)]">{WEEKDAYS[d.wd]}</span></span>
-                          {d.label && <span className="block truncate text-[10px] text-[var(--color-text-faint)]">{d.label}</span>}
-                          {d.leave && <span className="block truncate text-[10px] text-[var(--color-amber)]">{d.leave.half ? "Half-day leave" : "On leave"} ({d.leave.status}{d.leave.leave_type ? `, ${d.leave.leave_type}` : ""})</span>}
-                          {d.logged && <span className="block truncate text-[10px] text-[var(--color-amber)]" title={d.logged.sheets.join(", ")}>{d.logged.hours.toFixed(2)} h already in {d.logged.sheets.join(", ")}</span>}
-                        </>
-                      ) : null}</td>
-                      <td className="px-2 py-1 align-top"><select className={cell} value={e.project || defaultProject} onChange={(ev) => patchEntry(d.date, i, { project: ev.target.value })}>{options.length === 0 && <option value="">Add a project above</option>}{options.map((p) => <option key={p}>{p}</option>)}</select></td>
-                      <td className="px-2 py-1 align-top"><input type="number" min="0" max="24" step="0.25" value={e.hours} onChange={(ev) => patchEntry(d.date, i, { hours: ev.target.value })} className={cell} /></td>
-                      <td className="px-2 py-1 align-top"><input list="ts-tasks" value={e.task} onChange={(ev) => patchEntry(d.date, i, { task: ev.target.value })} placeholder="What did you do?" className={cell} />{e.notes && <span className="mt-0.5 block truncate text-[10px] text-[var(--color-text-faint)]" title={e.notes}>Notes: {e.notes}</span>}</td>
-                      <td className="px-1 py-1 align-top">{i === 0 ? <button type="button" title="Add another project / task for this day" onClick={() => addEntry(d.date)} className="rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]"><Plus size={14} /></button> : <button type="button" title="Remove this entry" onClick={() => removeEntry(d.date, i)} className="rounded p-1 text-[var(--color-text-muted)] hover:text-[var(--color-red-hover)]"><X size={14} /></button>}</td>
+                    <tr key={r.id} className="border-b border-[var(--color-border)] align-top">
+                      <td className="space-y-1 px-3 py-2">
+                        <div className="grid grid-cols-2 gap-1">
+                          <input list="ts-known-projects" value={r.project} onChange={(e) => patchRow(r.id, { project: e.target.value })} placeholder="Project" className={inp} />
+                          <input list="ts-tasks" value={r.task} onChange={(e) => patchRow(r.id, { task: e.target.value })} placeholder="Task" className={inp} />
+                        </div>
+                        {r.project && !resolved && <span className="block text-[10px] text-[var(--color-amber)]">Not an ERPNext project - saved as text only</span>}
+                        <input value={r.notes} onChange={(e) => patchRow(r.id, { notes: e.target.value })} placeholder="Work done this week (optional)" className={`${inp} !text-[11.5px]`} />
+                      </td>
+                      {days.map((d) => {
+                        const blocked = d.future;
+                        const grey = d.off || (d.leave && !d.leave.half);
+                        return (
+                          <td key={d.date} className={`px-1 py-2 text-center ${grey ? "bg-[var(--color-surface-2)]" : ""}`}>
+                            <input type="number" min="0" max="24" step="0.25" inputMode="decimal" disabled={blocked} value={r.hours[d.date] ?? ""} onChange={(e) => setHours(r.id, d.date, e.target.value)}
+                              aria-label={`${r.project || "Line"} ${dmy(d.date)}`} placeholder={blocked ? "" : "0"}
+                              className={`w-full rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-1 py-1.5 text-center text-[13px] text-[var(--color-text)] outline-none focus:border-[var(--color-red)] disabled:cursor-not-allowed disabled:opacity-40 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none`} />
+                          </td>
+                        );
+                      })}
+                      <td className="px-2 py-2 pt-3 text-right font-semibold text-[var(--color-text)]">{fmt(rowTotal(r))}</td>
+                      <td className="px-1 py-2 pt-2.5">
+                        <div className="flex flex-col items-center gap-1.5">
+                          <button type="button" title="Fill this line's empty working days" onClick={() => fillRow(r)} className="rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]"><Wand2 size={14} /></button>
+                          <button type="button" title="Remove line" onClick={() => removeRow(r.id)} className="rounded p-1 text-[var(--color-text-muted)] hover:text-[var(--color-red-hover)]"><X size={14} /></button>
+                        </div>
+                      </td>
                     </tr>
                   );
-                }))}
+                })}
+                <tr className="border-b border-[var(--color-border)]">
+                  <td colSpan={10} className="px-3 py-2"><button type="button" onClick={() => change((v) => [...v, newRow()])} className="flex items-center gap-1 text-[12px] text-[var(--color-red-hover)] hover:underline"><Plus size={13} /> Add line</button></td>
+                </tr>
+                <tr className="bg-[var(--color-surface)] text-[var(--color-text)]">
+                  <td className="px-3 py-2 text-[12px] text-[var(--color-text-muted)]">Daily total</td>
+                  {days.map((d) => {
+                    const t = dayTotal(d.date) + (d.logged?.hours || 0);
+                    const target = d.off ? 0 : d.leave ? (d.leave.half ? DAY_HOURS / 2 : 0) : DAY_HOURS;
+                    const tone = t > 24 ? "var(--color-red-hover)" : !d.future && target && t < target ? "var(--color-amber)" : "var(--color-text)";
+                    return <td key={d.date} className="px-1 py-2 text-center font-semibold" style={{ color: tone }} title={target ? `Expected ${target} h` : undefined}>{d.future && !t ? "–" : fmt(t)}</td>;
+                  })}
+                  <td className="px-2 py-2 text-right font-semibold">{fmt(weekTotal + elsewhere)}</td>
+                  <td />
+                </tr>
               </tbody>
             </table>
           )}
         </div>
 
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" variant="secondary" onClick={copyLastWeek} disabled={Boolean(busy) || waiting}><Copy size={14} /> {busy === "copy" ? "Copying…" : "Copy last week"}</Button>
+          <Button type="button" variant="secondary" onClick={() => fillFromAssignments(false)} disabled={waiting || assigned.loading || !assignments.length} title="Lines and hours from the projects your Project Manager assigned to you"><Wand2 size={14} /> From my assignments ({assignments.length})</Button>
+          <input ref={fileInput} type="file" accept=".csv,text/csv" className="hidden" onChange={importCsv} />
+          <Button type="button" variant="ghost" onClick={() => fileInput.current?.click()}><Upload size={14} /> Import CSV</Button>
+          <Button type="button" variant="ghost" onClick={() => { if (!dirty || window.confirm("Clear every line for this week?")) change(() => [newRow()]); }}>Clear</Button>
+          <span className="text-[11px] text-[var(--color-text-faint)]">Amber totals are under the expected {DAY_HOURS} h; greyed days are weekly offs, holidays or leave.</span>
+        </div>
+
+        {assignments.length > 0 && (
+          <p className="text-[11.5px] text-[var(--color-text-muted)]">Assigned this week: {assignments.map((a) => `${labelOf(a.project)} as ${a.role} (${a.hoursPerDay} h/day, ETA ${dmy(a.eta)})`).join(" · ")}</p>
+        )}
         {info && <Notice tone="info">{info}</Notice>}
         {err && <Notice>{err}</Notice>}
-        <div className="flex justify-end gap-2">
+        <div className="flex justify-end gap-2 border-t border-[var(--color-border)] pt-3">
           <Button type="button" variant="ghost" onClick={() => { if (!dirty || window.confirm("Close without saving your changes?")) onClose(); }}>Cancel</Button>
-          <Button type="button" variant="secondary" disabled={Boolean(busy) || waiting} onClick={() => save(false)}>{busy === "draft" ? "Saving…" : "Save as draft"}</Button>
-          <Button type="button" disabled={Boolean(busy) || waiting} onClick={() => save(true)}>{busy === "submit" ? "Submitting…" : "Save & submit"}</Button>
+          <Button type="button" variant="secondary" disabled={Boolean(busy) || waiting} onClick={() => save(false)}>{busy === "draft" ? "Saving…" : "Save draft"}</Button>
+          <Button type="button" disabled={Boolean(busy) || waiting} onClick={() => save(true)}><Send size={14} /> {busy === "submit" ? "Submitting…" : "Submit week"}</Button>
         </div>
       </div>
     </Modal>
