@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Check, ChevronDown, LogOut, Palette, Settings, SlidersHorizontal, UserRound, Briefcase } from "lucide-react";
+import { Check, ChevronDown, ImagePlus, Loader2, LogOut, Palette, Settings, SlidersHorizontal, UserRound, Briefcase } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useBranding } from "../../context/BrandingContext";
 import { hasPermission } from "../../permissions/roles";
 import { getSavedTheme, hasSavedTheme, saveTheme, THEME_OPTIONS } from "../../lib/theme";
+import { frappe } from "../../lib/api/frappeClient";
 
 function ThemeTile({ option, selected, onChoose }) {
   const [background, accent, foreground] = option.swatches;
@@ -97,8 +98,13 @@ function accountMenu(user, roleLabel) {
     if (hasPermission(user, "dashboard.hr")) items.push({ to: "/hr/setup/hr-settings", label: "HR Settings", icon: SlidersHorizontal });
   } else if (roleLabel === "HR") {
     items.push({ to: "/hr/setup/hr-settings", label: "HR Settings", icon: Settings });
+    if (hasPermission(user, "dashboard.employee")) {
+      items.push({ to: "/employee", label: "My Employee Portal", icon: Briefcase });
+    }
   } else if (roleLabel === "Employee") {
     items.push({ to: "/employee/profile", label: "Profile & password", icon: UserRound });
+    if (hasPermission(user, "dashboard.hr")) items.push({ to: "/hr", label: "HR Workspace", icon: Briefcase });
+    if (hasPermission(user, "dashboard.pm")) items.push({ to: "/pm", label: "Project Manager workspace", icon: Briefcase });
   } else if (roleLabel === "Project Manager" && hasPermission(user, "dashboard.employee")) {
     items.push({ to: "/employee/profile", label: "My profile & password", icon: UserRound });
     items.push({ to: "/employee", label: "My Employee Portal", icon: Briefcase });
@@ -107,16 +113,49 @@ function accountMenu(user, roleLabel) {
 }
 
 export function Topbar({ roleLabel, pageTitle }) {
-  const { user, logout } = useAuth();
+  const { user, logout, setProfileImage } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [imageError, setImageError] = useState("");
+  const [imageMessage, setImageMessage] = useState("");
   const box = useRef(null);
+  const fileRef = useRef(null);
   const items = accountMenu(user, roleLabel);
 
   useOutside(open, box, () => setOpen(false));
 
   const go = (to) => { setOpen(false); navigate(to); };
   const name = user?.email ?? "";
+
+  async function uploadProfileImage(file) {
+    if (!file) return;
+    setImageError("");
+    setImageMessage("");
+    if (!file.type.startsWith("image/")) {
+      setImageError("Choose an image file for your profile photo.");
+      return;
+    }
+    if (file.size > 3 * 1024 * 1024) {
+      setImageError("Profile photos must be 3 MB or smaller.");
+      return;
+    }
+
+    setUploadingImage(true);
+    try {
+      const uploaded = await frappe.uploadFile(file, { doctype: "User", docname: user.email, isPrivate: false });
+      if (!uploaded?.file_url) throw new Error("ERPNext did not return an image URL.");
+      const saved = await frappe.updateDoc("User", user.email, { user_image: uploaded.file_url });
+      setProfileImage(saved?.user_image || uploaded.file_url);
+      setImageMessage("Profile photo updated.");
+    } catch (error) {
+      const serverMessage = error?.response?.data?.message;
+      setImageError(typeof serverMessage === "string" ? serverMessage : error?.message || "Could not update your profile photo. Check your ERPNext User and File permissions.");
+    } finally {
+      setUploadingImage(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
 
   return (
     <header className="flex h-16 shrink-0 items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-bg)] px-6">
@@ -131,7 +170,10 @@ export function Topbar({ roleLabel, pageTitle }) {
             aria-expanded={open}
             className="flex items-center gap-2.5 rounded-full border border-[var(--color-red-deep)] bg-[var(--color-red-wash)] py-1 pl-1 pr-3 text-[13px] transition-colors hover:border-[var(--color-red)]"
           >
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--color-surface-2)] text-[11px] font-semibold text-[var(--color-text)]">{name[0]?.toUpperCase() ?? "?"}</span>
+            <span className="relative flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--color-surface-2)] text-[11px] font-semibold text-[var(--color-text)]">
+              {name[0]?.toUpperCase() ?? "?"}
+              {user?.userImage && <img src={user.userImage} alt="" className="absolute inset-0 h-full w-full object-cover" onError={(event) => { event.currentTarget.hidden = true; }} />}
+            </span>
             <span className="max-w-[16rem] truncate text-[var(--color-text)]">{name}</span>
             <span className="text-[11px] font-medium text-[var(--color-red-hover)]">{roleLabel}</span>
             <ChevronDown size={14} className={`text-[var(--color-text-muted)] transition-transform ${open ? "rotate-180" : ""}`} />
@@ -140,8 +182,23 @@ export function Topbar({ roleLabel, pageTitle }) {
           {open && (
             <div role="menu" className="absolute right-0 top-full z-50 mt-2 max-h-[80vh] w-72 overflow-y-auto rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-surface)] shadow-xl">
               <div className="border-b border-[var(--color-border)] px-4 py-3">
-                <p className="truncate text-[13px] font-medium text-[var(--color-text)]">{name}</p>
-                <p className="mt-0.5 text-[11px] text-[var(--color-red-hover)]">{roleLabel}</p>
+                <div className="flex items-center gap-3">
+                  <span className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--color-surface-2)] text-sm font-semibold text-[var(--color-text)]">
+                    {name[0]?.toUpperCase() ?? "?"}
+                    {user?.userImage && <img src={user.userImage} alt="" className="absolute inset-0 h-full w-full object-cover" onError={(event) => { event.currentTarget.hidden = true; }} />}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-[13px] font-medium text-[var(--color-text)]">{name}</p>
+                    <p className="mt-0.5 text-[11px] text-[var(--color-red-hover)]">{roleLabel}</p>
+                  </div>
+                </div>
+                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(event) => uploadProfileImage(event.target.files?.[0])} />
+                <button type="button" role="menuitem" disabled={uploadingImage} onClick={() => fileRef.current?.click()} className="mt-3 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px] text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)] disabled:cursor-wait disabled:opacity-60">
+                  {uploadingImage ? <Loader2 size={14} className="animate-spin" /> : <ImagePlus size={14} />}
+                  {uploadingImage ? "Uploading photo…" : "Change profile photo"}
+                </button>
+                {imageError && <p role="alert" className="mt-2 text-[11px] text-[var(--color-red-hover)]">{imageError}</p>}
+                {imageMessage && <p role="status" className="mt-2 text-[11px] text-[var(--color-green)]">{imageMessage}</p>}
               </div>
               <div className="py-1">
                 {items.map(({ to, label, icon: Icon }) => (

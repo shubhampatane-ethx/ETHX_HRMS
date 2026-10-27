@@ -29,7 +29,10 @@ async function resolveAccount(email) {
     // A System Manager is a platform admin (Admin workspace, which also opens the HR and PM workspaces) - not HR.
     // HR users created from Admin › Users only get HR Manager / HR User, so they stay in the HR workspace.
     if (erpRoles.includes("System Manager")) return { roles: ["System Manager"], mustChangePassword: false, erpRoles };
-    if (erpRoles.some((r) => r === "HR Manager" || r === "HR User")) return { roles: ["HR User"], mustChangePassword: false, erpRoles };
+    if (erpRoles.some((r) => r === "HR Manager" || r === "HR User")) {
+      // HR users also use the employee self-service portal for their own records.
+      return { roles: ["HR User", "Employee"], mustChangePassword: false, erpRoles };
+    }
     const isPm = erpRoles.includes("Projects Manager");
     if (isPm || erpRoles.includes("Employee")) {
       // Admin gave them a temporary password: they must set their own first
@@ -64,7 +67,13 @@ export function AuthProvider({ children }) {
       // (non-blocking) so the first save doesn't have to wait for it.
       frappe.refreshCsrfToken();
       const { roles, mustChangePassword, erpRoles = [] } = await resolveAccount(email);
-      const nextUser = { email, roles, erpRoles, permissions: rolesToPermissions(roles), mustChangePassword };
+      let userImage = "";
+      try {
+        userImage = (await frappe.getDoc("User", email)).user_image || "";
+      } catch {
+        // A missing profile image must not prevent an otherwise valid login.
+      }
+      const nextUser = { email, roles, erpRoles, permissions: rolesToPermissions(roles), mustChangePassword, userImage };
       setUser(nextUser);
       setStatus("authenticated");
       return nextUser;
@@ -105,9 +114,10 @@ export function AuthProvider({ children }) {
   }, []);
 
   const markPasswordChanged = useCallback(() => setUser((u) => (u ? { ...u, mustChangePassword: false } : u)), []);
+  const setProfileImage = useCallback((userImage) => setUser((u) => (u ? { ...u, userImage } : u)), []);
 
   return (
-    <AuthContext.Provider value={{ user, status, login, logout, refresh: loadSession, markPasswordChanged }}>
+    <AuthContext.Provider value={{ user, status, login, logout, refresh: loadSession, markPasswordChanged, setProfileImage }}>
       {children}
     </AuthContext.Provider>
   );

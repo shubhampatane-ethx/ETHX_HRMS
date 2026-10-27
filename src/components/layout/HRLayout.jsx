@@ -2,6 +2,7 @@ import { Outlet, useLocation } from "react-router-dom";
 import { PageLoading } from "../PageLoading";
 import {
   LayoutDashboard,
+  Briefcase,
   Users,
   CalendarCheck,
   CalendarDays,
@@ -83,9 +84,10 @@ export function HRLayout() {
   // Administrator can open every HR page too, with a way back to the admin workspace
   const nav = useMemo(() => [
     ...(isAdmin ? [{ to: "/admin", label: "Back to Admin", icon: ArrowLeft }] : []),
+    ...(hasPermission(user, "dashboard.employee") ? [{ to: "/employee", label: "My Employee Portal", icon: Briefcase }] : []),
     ...TOP_NAV,
     ...hrSetupGroups(isAdmin),
-  ], [isAdmin]);
+  ], [isAdmin, user]);
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--color-bg)]">
       <Sidebar title={isAdmin ? "HR Workspace (Admin)" : "HR Workspace"} items={nav} />

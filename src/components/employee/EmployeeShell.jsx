@@ -2,7 +2,7 @@
 import { PageLoading } from "../PageLoading";
 import { createContext, useContext, useEffect, useState, Suspense } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
-import { AlertCircle, ArrowRight, Bell, CalendarCheck, CalendarClock, CalendarDays, ClipboardCheck, FileText, Inbox, Laptop, LayoutDashboard, LifeBuoy, Loader2, Receipt, Search, Target, Timer, UserRound, Users, Wallet, X } from "lucide-react";
+import { AlertCircle, ArrowRight, Bell, Briefcase, CalendarCheck, CalendarClock, CalendarDays, ClipboardCheck, FileText, Inbox, Laptop, LayoutDashboard, LifeBuoy, Loader2, Receipt, Search, Target, Timer, UserRound, Users, Wallet, X } from "lucide-react";
 import { errMsg, friendlyError, getMyEmployee, isoDate, useAsync } from "../../lib/employeePortal";
 import { frappe } from "../../lib/api/frappeClient";
 import { Brand } from "../Brand";
@@ -10,6 +10,7 @@ import { Button } from "../ui/primitives";
 import { useAuth } from "../../context/AuthContext";
 import { Sidebar } from "../layout/Sidebar";
 import { Topbar } from "../layout/Topbar";
+import { hasPermission } from "../../permissions/roles";
 
 /* ===== ui.jsx ===== */
 export const inputCls =
@@ -349,10 +350,15 @@ export function EmployeeLayout() {
   const { pathname } = useLocation();
   const { user } = useAuth();
   if (user?.mustChangePassword) return <ForcedPasswordScreen />;
+  const nav = [
+    ...(hasPermission(user, "dashboard.hr") ? [{ to: "/hr", label: "HR Workspace", icon: Briefcase }] : []),
+    ...(hasPermission(user, "dashboard.pm") ? [{ to: "/pm", label: "Project Manager", icon: Briefcase }] : []),
+    ...((user?.erpRoles || []).includes("Interviewer") ? [...NAV.slice(0, -1), INTERVIEWS_NAV, NAV[NAV.length - 1]] : NAV),
+  ];
   return (
     <EmployeeProvider>
       <div className="flex h-screen overflow-hidden bg-[var(--color-bg)]">
-        <Sidebar title="Employee Portal" items={(user?.erpRoles || []).includes("Interviewer") ? [...NAV.slice(0, -1), INTERVIEWS_NAV, NAV[NAV.length - 1]] : NAV} />
+        <Sidebar title="Employee Portal" items={nav} />
         <div className="flex min-w-0 flex-1 flex-col">
           <Topbar roleLabel="Employee" pageTitle={titleFor(pathname)} />
           <main className="flex-1 overflow-y-auto p-6">
