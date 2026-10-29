@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { ExternalLink, FileText, Trash2, Upload } from "lucide-react";
 import { Button } from "../../components/ui/primitives";
 import { Async, Empty, Notice, PageHeader, Panel } from "../../components/employee/EmployeeShell";
-import { dmy, errMsg, getPolicies, POLICY_FOLDER, useAsync } from "../../lib/employeePortal";
+import { dmy, ensurePolicyFolder, errMsg, getPolicies, POLICY_FOLDER, useAsync } from "../../lib/employeePortal";
 import { frappe } from "../../lib/api/frappeClient";
 import { confirmDialog } from "../../components/ui/dialogs";
 
@@ -23,6 +23,7 @@ export default function Policies() {
     setError("");
     setMessage("");
     try {
+      await ensurePolicyFolder();
       const saved = await frappe.uploadFile(file, { isPrivate: false, folder: POLICY_FOLDER });
       if (!saved?.file_url) throw new Error("The upload did not return a file URL.");
       setMessage(`${file.name} published successfully.`);

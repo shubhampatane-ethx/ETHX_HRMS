@@ -97,14 +97,19 @@ export function friendlyError(e) {
 // Upload company policies / handbook to this folder in ERPNext (File Manager, public files).
 export const POLICY_FOLDER = "Home/Policies";
 export const ASSET_FOLDER = "Home/Assets";
-export async function ensureAssetFolder() {
-  const folders = await frappe.getList("File", {
-    filters: [["file_name", "=", "Assets"], ["folder", "=", "Home"], ["is_folder", "=", 1]],
-    fields: ["name"],
-    limit: 1,
-  });
-  if (!folders.length) await frappe.createDoc("File", { file_name: "Assets", folder: "Home", is_folder: 1 });
+/** Create a folder under Home in ERPNext's File Manager if it isn't there yet (uploads into a missing folder fail). */
+async function ensureHomeFolder(path) {
+  const name = path.slice(path.lastIndexOf("/") + 1);
+  const exists = () => frappe.getList("File", { filters: [["file_name", "=", name], ["folder", "=", "Home"], ["is_folder", "=", 1]], fields: ["name"], limit: 1 });
+  if ((await exists()).length) return;
+  try {
+    await frappe.createDoc("File", { file_name: name, folder: "Home", is_folder: 1 });
+  } catch (e) {
+    if (!(await exists()).length) throw e; // someone else may have just created it
+  }
 }
+export const ensureAssetFolder = () => ensureHomeFolder(ASSET_FOLDER);
+export const ensurePolicyFolder = () => ensureHomeFolder(POLICY_FOLDER);
 export const getAssetLists = () =>
   frappe.getList("File", { filters: [["is_private", "=", 1], ["folder", "=", ASSET_FOLDER], ["is_folder", "=", 0]], fields: ["name", "file_name", "file_url", "creation"], orderBy: "creation desc", limit: 0 });
 
