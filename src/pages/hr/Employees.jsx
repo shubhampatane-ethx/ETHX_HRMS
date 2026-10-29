@@ -16,6 +16,9 @@ const FIELDS = [
   { name: "date_of_joining", label: "Date of joining", type: "date", required: true },
   { name: "status", label: "Status", type: "select", options: ["Active", "Inactive", "Suspended", "Left"] },
   { name: "company", label: "Company", type: "link", linkDoctype: "Company", required: true },
+  // The office decides the employee's holiday list (set automatically by the Office Locations rule).
+  { name: "branch", label: "Office location", type: "link", linkDoctype: "Branch" },
+  { name: "employee_number", label: "Employee code", type: "text" },
   { name: "department", label: "Department", type: "link", linkDoctype: "Department" },
   { name: "designation", label: "Designation", type: "link", linkDoctype: "Designation" },
   { name: "employment_type", label: "Employment type", type: "link", linkDoctype: "Employment Type" },

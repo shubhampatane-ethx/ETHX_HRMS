@@ -115,7 +115,7 @@ export function hrSetupGroups(isAdmin = false) {
     icon: section.icon,
     children: section.items
       .filter((item) => !item.disabled && (isAdmin || !item.adminOnly))
-      .map((item) => ({ to: `/hr/setup/${slugify(item.doctype)}`, label: item.label })),
+      .map((item) => ({ to: item.to || `/hr/setup/${slugify(item.doctype)}`, label: item.label })),
   }));
 }
 

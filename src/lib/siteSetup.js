@@ -8,6 +8,7 @@ import { SECURITY_FIELDS, SECURITY_SCRIPTS, SECURITY_TRACK, SECURITY_PROPERTIES 
 import { TEAM_SCRIPTS } from "./teamSetup";
 import { APPROVAL_FIELDS, APPROVAL_SCRIPTS, APPROVAL_TRACK } from "./approvalSetup";
 import { ASSET_FIELDS, ASSET_SCRIPTS, ASSET_TRACK } from "./assetSetup";
+import { OFFICE_FIELDS, OFFICE_SCRIPTS, OFFICE_TRACK } from "./officeSetup";
 
 export const MODULES = [
   { id: "recruitment", label: "Recruitment", fields: RECRUITMENT_FIELDS, scripts: RECRUITMENT_SCRIPTS, track: RECRUITMENT_TRACK },
@@ -16,6 +17,7 @@ export const MODULES = [
   { id: "team", label: "Manager self-service", fields: [], scripts: TEAM_SCRIPTS, track: [] },
   { id: "approvals", label: "Leave & expense approvals", fields: APPROVAL_FIELDS, scripts: APPROVAL_SCRIPTS, track: APPROVAL_TRACK },
   { id: "assets", label: "Asset register", fields: ASSET_FIELDS, scripts: ASSET_SCRIPTS, track: ASSET_TRACK },
+  { id: "offices", label: "Office locations & holidays", fields: OFFICE_FIELDS, scripts: OFFICE_SCRIPTS, track: OFFICE_TRACK },
 ];
 
 const ALL_FIELDS = MODULES.flatMap((m) => m.fields);

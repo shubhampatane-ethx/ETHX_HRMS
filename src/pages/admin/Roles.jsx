@@ -79,7 +79,9 @@ const HR_PRESET = [
   { doctype: "Training Event", perms: ["read", "write", "create", "submit"], why: "Training events" },
   { doctype: "Training Feedback", perms: ["read"], why: "Training feedback" },
   { doctype: "Attendance", perms: ["read"], why: "Attendance report" },
-  { doctype: "Holiday List", perms: ["read"], why: "Expected hours (holidays)" },
+  { doctype: "Holiday List", perms: ["read", "write", "create"], why: "Each office's yearly holiday list (Office Locations); expected hours" },
+  { doctype: "Branch", perms: ["read", "write", "create"], why: "Office locations" },
+  { doctype: "Country", perms: ["read"], why: "Office country (for its public holidays)" },
 ];
 // Everything the employee portal reads or writes as a signed-in employee.
 // ERPNext's standard "Projects Manager" role is our Project Manager: projects, assigning tasks to people, team timesheets.

@@ -44,8 +44,10 @@ export const HR_SETUP_SECTIONS = [
         ],
       },
       {
-        label: "Branch",
+        // Offices (ERPNext Branch) have their own page: location, weekly offs and yearly holiday lists.
+        label: "Office Locations",
         doctype: "Branch",
+        to: "/hr/offices",
         kind: "list",
         formFields: [{ name: "branch", label: "Branch Name", type: "text", required: true }],
       },
