@@ -465,7 +465,6 @@ function SelfDashboard() {
           <div>
             <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-[var(--color-red-hover)]">{WEEKDAYS[now.getDay()]}, {String(now.getDate()).padStart(2, "0")} {MONTHS[now.getMonth()]} {now.getFullYear()}</p>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-[var(--color-text)]">{greeting(now.getHours())}, {(employee.first_name || employee.employee_name || "").split(" ")[0]}</h2>
-            <p className="mt-1.5 text-[13px] text-[var(--color-text-muted)]">{[employee.designation, employee.department?.replace(/\s-\s[A-Z0-9]+$/i, ""), employee.company].filter(Boolean).join(" · ")}</p>
           </div>
           <form data-no-preview onSubmit={(e) => { e.preventDefault(); const q = new FormData(e.currentTarget).get("q"); navigate(`/employee/search?q=${encodeURIComponent(q || "")}`); }} className="relative w-full max-w-xs">
             <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-faint)]" />
