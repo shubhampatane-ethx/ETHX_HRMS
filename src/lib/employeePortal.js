@@ -375,8 +375,10 @@ export async function getAcknowledged(user) {
 export const acknowledgePolicy = (fileName) =>
   frappe.createDoc("Comment", { comment_type: "Info", reference_doctype: "File", reference_name: fileName, content: "Acknowledged policy" });
 
+// Register fields (asset code, serial…) exist once Admin › ERPNext Setup has run; fall back to the basics until then.
 export const getMyAssets = (emp) =>
-  frappe.getList("Asset", { filters: [["custodian", "=", emp], ["docstatus", "=", 1]], fields: ["name", "asset_name", "asset_category", "status", "location", "purchase_date"], orderBy: "purchase_date desc", limit: 0 });
+  listTry("Asset", { filters: [["custodian", "=", emp], ["docstatus", "=", 1]], fields: ["name", "asset_name", "asset_category", "status", "location", "purchase_date", "custom_asset_code", "custom_serial_number", "custom_assigned_on", "custom_condition", "custom_other_assets"], orderBy: "purchase_date desc" },
+    ["name", "asset_name", "asset_category", "status", "location", "purchase_date"]);
 
 /** HR/IT/document/asset requests are raised as ERPNext Issues so they reach the support queue. */
 export const createRequest = ({ category, subject, description, user }) =>

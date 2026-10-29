@@ -76,11 +76,11 @@ export function EmpAssets() {
       <Panel title="Assigned to me">
         <Async state={assets}>
           {(rows) => <Grid rows={rows} empty="No equipment is assigned to you." columns={[
-            { key: "asset_name", label: "Asset", render: (r) => <span>{r.asset_name}<span className="ml-2 text-[11px] text-[var(--color-text-faint)]">{r.name}</span></span> },
-            { key: "asset_category", label: "Category" },
-            { key: "location", label: "Location" },
-            { key: "purchase_date", label: "Issued", render: (r) => dmy(r.purchase_date) },
-            { key: "status", label: "Status", render: (r) => <StatusPill status={r.status} /> },
+            { key: "custom_asset_code", label: "Asset code", render: (r) => <span className="font-medium">{r.custom_asset_code || r.name}</span> },
+            { key: "asset_name", label: "Asset", render: (r) => <span>{r.asset_name}<span className="block text-[11px] text-[var(--color-text-faint)]">{r.asset_category}{r.custom_serial_number ? ` · S/N ${r.custom_serial_number}` : ""}</span></span> },
+            { key: "custom_assigned_on", label: "Assigned on", render: (r) => dmy(r.custom_assigned_on || r.purchase_date) },
+            { key: "custom_other_assets", label: "Also given", render: (r) => r.custom_other_assets || "—" },
+            { key: "status", label: "Condition", render: (r) => <StatusPill status={r.custom_condition || r.status} /> },
           ]} />}
         </Async>
       </Panel>
