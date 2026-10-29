@@ -2,7 +2,7 @@
 import { PageLoading } from "../PageLoading";
 import { createContext, useContext, useEffect, useState, Suspense } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
-import { AlertCircle, ArrowRight, Bell, Briefcase, CalendarCheck, CalendarClock, CalendarDays, ClipboardCheck, FileText, Inbox, Laptop, LayoutDashboard, LifeBuoy, Loader2, Receipt, Search, Target, Timer, UserRound, Users, Wallet, X } from "lucide-react";
+import { AlertCircle, ArrowRight, CalendarCheck, ClipboardCheck, FileText, Inbox, LayoutDashboard, LifeBuoy, Loader2, Target, Wallet, X } from "lucide-react";
 import { errMsg, friendlyError, getMyEmployee, isoDate, useAsync } from "../../lib/employeePortal";
 import { frappe } from "../../lib/api/frappeClient";
 import { Brand } from "../Brand";
@@ -10,7 +10,6 @@ import { Button } from "../ui/primitives";
 import { useAuth } from "../../context/AuthContext";
 import { Sidebar } from "../layout/Sidebar";
 import { Topbar } from "../layout/Topbar";
-import { hasPermission } from "../../permissions/roles";
 
 /* ===== ui.jsx ===== */
 export const inputCls =
@@ -298,35 +297,72 @@ export function ForcedPasswordScreen() {
 /* ===== EmployeeLayout.jsx ===== */
 const NAV = [
   { to: "/employee", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/employee/profile", label: "My Profile", icon: UserRound },
-  { to: "/employee/attendance", label: "Attendance", icon: CalendarCheck },
-  { to: "/employee/leave", label: "Leave", icon: CalendarClock },
-  { to: "/employee/approvals", label: "My Approvals", icon: ClipboardCheck },
-  { to: "/employee/team", label: "My Team", icon: Users },
-  { to: "/employee/calendar", label: "Calendar & Holidays", icon: CalendarDays },
-  { to: "/employee/timesheet", label: "Timesheet", icon: Timer },
-  { to: "/employee/expenses", label: "Expense Claims", icon: Receipt },
-  { to: "/employee/payslips", label: "Payslips", icon: Wallet },
-  { to: "/employee/documents", label: "Policies & Documents", icon: FileText },
-  { to: "/employee/assets", label: "My Assets", icon: Laptop },
-  { to: "/employee/help", label: "Help & Requests", icon: LifeBuoy },
-  { to: "/employee/notifications", label: "Notifications", icon: Bell },
   {
-    label: "Growth & Benefits",
+    label: "Time & Attendance",
+    icon: CalendarCheck,
+    children: [
+      { to: "/employee/attendance", label: "Attendance" },
+      { to: "/employee/leave", label: "Leave" },
+      { to: "/employee/timesheet", label: "Timesheet" },
+      { to: "/employee/calendar", label: "Calendar & Holidays" },
+    ],
+  },
+  {
+    label: "Approvals & Team",
+    icon: ClipboardCheck,
+    children: [
+      { to: "/employee/approvals", label: "My Approvals" },
+      { to: "/employee/team", label: "My Team" },
+    ],
+  },
+  {
+    label: "Pay & Expenses",
+    icon: Wallet,
+    children: [
+      { to: "/employee/payslips", label: "Payslips" },
+      { to: "/employee/expenses", label: "Expense Claims" },
+      { to: "/employee/benefits", label: "Benefits & Insurance" },
+    ],
+  },
+  {
+    label: "Growth",
     icon: Target,
     children: [
       { to: "/employee/goals", label: "Goals & Feedback" },
       { to: "/employee/training", label: "Training & Learning" },
-      { to: "/employee/benefits", label: "Benefits & Insurance" },
     ],
   },
-  { to: "/employee/search", label: "Search", icon: Search },
+  {
+    label: "Documents & Assets",
+    icon: FileText,
+    children: [
+      { to: "/employee/documents", label: "Policies & Documents" },
+      { to: "/employee/assets", label: "My Assets" },
+    ],
+  },
+  {
+    label: "Help & Support",
+    icon: LifeBuoy,
+    children: [
+      { to: "/employee/help", label: "Help & Requests" },
+      { to: "/employee/notifications", label: "Notifications" },
+      { to: "/employee/search", label: "Search" },
+    ],
+  },
 ];
 
-// Shown only to people on interview panels (ERPNext "Interviewer" role).
-const INTERVIEWS_NAV = { to: "/employee/interviews", label: "My Interviews", icon: ClipboardCheck };
+// Shown only to people on interview panels (ERPNext "Interviewer" role), inside "Approvals & Team".
+const INTERVIEWS_NAV = { to: "/employee/interviews", label: "My Interviews" };
 
-const flat = [...NAV, INTERVIEWS_NAV].flatMap((n) => (n.children ? n.children : [n]));
+// Reached from the account menu ("Profile & password"), so it is not repeated in the sidebar; kept here for the page title.
+const PROFILE_NAV = { to: "/employee/profile", label: "My Profile" };
+
+function navFor(user) {
+  if (!(user?.erpRoles || []).includes("Interviewer")) return NAV;
+  return NAV.map((n) => (n.label === "Approvals & Team" ? { ...n, children: [...n.children, INTERVIEWS_NAV] } : n));
+}
+
+const flat = [...NAV, INTERVIEWS_NAV, PROFILE_NAV].flatMap((n) => (n.children ? n.children : [n]));
 function titleFor(pathname) {
   const match = [...flat].sort((a, b) => b.to.length - a.to.length).find((n) => pathname === n.to || pathname.startsWith(`${n.to}/`));
   return match?.label ?? "Employee Portal";
@@ -351,11 +387,8 @@ export function EmployeeLayout() {
   const { pathname } = useLocation();
   const { user } = useAuth();
   if (user?.mustChangePassword) return <ForcedPasswordScreen />;
-  const nav = [
-    ...(hasPermission(user, "dashboard.hr") ? [{ to: "/hr", label: "HR Workspace", icon: Briefcase }] : []),
-    ...(hasPermission(user, "dashboard.pm") ? [{ to: "/pm", label: "Project Manager", icon: Briefcase }] : []),
-    ...((user?.erpRoles || []).includes("Interviewer") ? [...NAV.slice(0, -1), INTERVIEWS_NAV, NAV[NAV.length - 1]] : NAV),
-  ];
+  // HR / PM workspace links live in the account menu only.
+  const nav = navFor(user);
   return (
     <EmployeeProvider>
       <div className="flex h-screen overflow-hidden bg-[var(--color-bg)]">
