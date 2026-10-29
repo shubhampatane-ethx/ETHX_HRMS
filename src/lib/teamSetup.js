@@ -59,7 +59,26 @@ frappe.get_doc({"doctype": "Comment", "comment_type": "Info", "reference_doctype
 frappe.response["message"] = {"status": doc.status}
 `;
 
+// Employees may change only their own contact details (they have no write access to Employee itself).
+const MY_CONTACT_API = `
+allowed = ["cell_number", "personal_email", "current_address", "person_to_be_contacted", "emergency_phone_number"]
+emp = frappe.db.get_value("Employee", {"user_id": frappe.session.user}, "name")
+if not emp:
+    frappe.throw("No employee record is linked to your login.")
+values = frappe.parse_json(frappe.form_dict.get("values") or "{}")
+clean = {}
+for k in allowed:
+    if k in values:
+        clean[k] = (values.get(k) or "").strip()
+if clean.get("personal_email") and not frappe.utils.validate_email_address(clean["personal_email"]):
+    frappe.throw("Enter a valid personal email address.")
+if clean:
+    frappe.db.set_value("Employee", emp, clean)
+frappe.response["message"] = {"employee": emp, "updated": list(clean.keys())}
+`;
+
 export const TEAM_SCRIPTS = [
+  { name: "ETHX - Update my contact details", script_type: "API", api_method: "ethx_update_my_contact", script: MY_CONTACT_API, what: "Employees update their own phone, email, address and emergency contact" },
   { name: "ETHX - My team", script_type: "API", api_method: "ethx_my_team", script: TEAM_API, what: "Managers see their direct reports, who's in today, upcoming leave and leave waiting for them" },
   { name: "ETHX - Team leave decision", script_type: "API", api_method: "ethx_team_leave_decision", script: LEAVE_DECISION_API, what: "Managers approve / reject leave only for their own reports (or where they're the leave approver), never their own" },
 ];

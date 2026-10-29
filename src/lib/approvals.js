@@ -63,8 +63,16 @@ export async function getApprovers(employee, doctype = "Leave Application", expe
     .map(([email, first, last]) => ({ email, name: [first, last].filter(Boolean).join(" ") || email, source: email === own ? "employee record" : "business unit" }))
     .filter((a) => a.email && a.email !== employee.user_id && !seen.has(a.email) && seen.add(a.email));
   if (own && !seen.has(own) && own !== employee.user_id) list.push({ email: own, name: own, source: "employee record" });
+  // Last resort: the reporting manager (Reports To) - the person most people expect to approve.
+  if (employee.reports_to) {
+    try {
+      const m = await frappe.getList("Employee", { filters: [["name", "=", employee.reports_to]], fields: ["user_id", "employee_name"], limit: 1 });
+      if (m[0]?.user_id && !seen.has(m[0].user_id) && m[0].user_id !== employee.user_id) { seen.add(m[0].user_id); list.push({ email: m[0].user_id, name: m[0].employee_name || m[0].user_id, source: "reporting manager" }); }
+    } catch { /* manager not readable */ }
+  }
   // HRMS puts the Employee record's approver first; the business unit comes first here
-  list = [...list.filter((a) => a.source !== "employee record"), ...list.filter((a) => a.source === "employee record")];
+  const rank = { "employee record": 1, "reporting manager": 2 };
+  list = [...list].sort((a, b) => (rank[a.source] || 0) - (rank[b.source] || 0));
   if (doctype === "Expense Claim" && expenseType) {
     try {
       const t = await frappe.getDoc("Expense Claim Type", expenseType);

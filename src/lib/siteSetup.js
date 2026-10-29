@@ -9,15 +9,17 @@ import { TEAM_SCRIPTS } from "./teamSetup";
 import { APPROVAL_FIELDS, APPROVAL_SCRIPTS, APPROVAL_TRACK } from "./approvalSetup";
 import { ASSET_FIELDS, ASSET_SCRIPTS, ASSET_TRACK } from "./assetSetup";
 import { OFFICE_FIELDS, OFFICE_SCRIPTS, OFFICE_TRACK } from "./officeSetup";
+import { ATTENDANCE_SCRIPTS } from "./attendanceSetup";
 
 export const MODULES = [
   { id: "recruitment", label: "Recruitment", fields: RECRUITMENT_FIELDS, scripts: RECRUITMENT_SCRIPTS, track: RECRUITMENT_TRACK },
   { id: "timesheets", label: "Timesheet review", fields: TIMESHEET_FIELDS, scripts: TIMESHEET_SCRIPTS, track: TIMESHEET_TRACK, migrate: "ethx_migrate_timesheet_reviews" },
   { id: "security", label: "Security & audit", fields: SECURITY_FIELDS, scripts: SECURITY_SCRIPTS, track: SECURITY_TRACK, properties: SECURITY_PROPERTIES },
-  { id: "team", label: "Manager self-service", fields: [], scripts: TEAM_SCRIPTS, track: [] },
+  { id: "team", label: "Employee & manager self-service", fields: [], scripts: TEAM_SCRIPTS, track: [] },
   { id: "approvals", label: "Leave & expense approvals", fields: APPROVAL_FIELDS, scripts: APPROVAL_SCRIPTS, track: APPROVAL_TRACK },
   { id: "assets", label: "Asset register", fields: ASSET_FIELDS, scripts: ASSET_SCRIPTS, track: ASSET_TRACK },
   { id: "offices", label: "Office locations & holidays", fields: OFFICE_FIELDS, scripts: OFFICE_SCRIPTS, track: OFFICE_TRACK },
+  { id: "attendance", label: "Attendance from punches", fields: [], scripts: ATTENDANCE_SCRIPTS, track: [] },
 ];
 
 const ALL_FIELDS = MODULES.flatMap((m) => m.fields);

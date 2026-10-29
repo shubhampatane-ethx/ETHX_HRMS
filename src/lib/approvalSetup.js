@@ -48,6 +48,11 @@ own = emp.leave_approver if kind == "Leave Application" else emp.expense_approve
 if own and own not in order:
     order.append(own)
     src[own] = "employee record"
+if emp.reports_to:
+    mgr = frappe.db.get_value("Employee", emp.reports_to, "user_id")
+    if mgr and mgr not in order:
+        order.append(mgr)
+        src[mgr] = "reporting manager"
 pick = None
 for u in order:
     if u == emp.user_id:
@@ -67,7 +72,7 @@ if not pick and cands:
     pick = cands[0]
 `;
 
-const EMP_FIELDS = `["name", "user_id", "department", "leave_approver", "expense_approver", "company"]`;
+const EMP_FIELDS = `["name", "user_id", "department", "leave_approver", "expense_approver", "company", "reports_to"]`;
 
 const HR_CHECK = `
 roles = frappe.get_all("Has Role", filters={"parent": frappe.session.user, "parenttype": "User"}, pluck="role")
@@ -108,7 +113,7 @@ ${indent(CANDIDATES, 4)}
     for c in cands:
         if c["email"] == doc.leave_approver:
             current = c
-    if pick and (not doc.leave_approver or (current and current["on_leave"] and not pick["on_leave"])):
+    if pick and (not doc.leave_approver or doc.leave_approver == emp.user_id or (current and current["on_leave"] and not pick["on_leave"])):
         doc.leave_approver = pick["email"]
         doc.leave_approver_name = pick["name"]
 `;
@@ -130,7 +135,7 @@ if doc.docstatus == 0:
                 erow.cost_center = doc.cost_center
     if meta.has_field("exchange_rate") and doc.company:
         base = frappe.db.get_value("Company", doc.company, "default_currency")
-        multi = frappe.db.get_single_value("HR Settings", "enable_multi_currency_expense_claim")
+        multi = frappe.db.get_single_value("HR Settings", "enable_multi_currency_expense_claim") if frappe.get_meta("HR Settings").has_field("enable_multi_currency_expense_claim") else 0
         if not doc.get("currency") or not multi:
             doc.currency = base
         if doc.currency == base:
@@ -158,6 +163,8 @@ ${indent(CANDIDATES, 8)}
 /** Before Submit on Expense Claim: only the approver (or HR) decides; approval needs a bill, rejection a reason. */
 const EXPENSE_DECIDE = `
 ${HR_CHECK.trim()}
+if frappe.session.user != "Administrator" and frappe.db.get_value("Employee", doc.employee, "user_id") == frappe.session.user:
+    frappe.throw("You can't approve or reject your own expense claim - it goes to " + (doc.expense_approver or "your approver") + ".")
 if doc.expense_approver and frappe.session.user != doc.expense_approver and not is_hr:
     frappe.throw("Only the claim's expense approver (" + doc.expense_approver + ") or HR can approve or reject it.")
 if doc.approval_status == "Approved":
@@ -166,6 +173,13 @@ if doc.approval_status == "Approved":
         frappe.throw("Attach the bill / receipt to this claim before it can be approved.")
 if doc.approval_status == "Rejected" and len((doc.remark or "").strip()) < 5:
     frappe.throw("State the reason for rejecting this claim (in Remark) - the employee sees it.")
+`;
+
+/** Before Submit on Leave Application: nobody - HR included - approves or rejects their own leave. */
+const LEAVE_NOT_OWN = `
+if doc.status in ("Approved", "Rejected") and frappe.session.user != "Administrator":
+    if frappe.db.get_value("Employee", doc.employee, "user_id") == frappe.session.user:
+        frappe.throw("You can't approve or reject your own leave - it goes to " + (doc.leave_approver_name or doc.leave_approver or "your approver") + ".")
 `;
 
 // Moves pending leave applications / expense claims from approvers on leave today to the next available approver.
@@ -215,6 +229,7 @@ frappe.response["message"] = {"moved": moved}
 export const APPROVAL_SCRIPTS = [
   { name: "ETHX - Approvers", script_type: "API", api_method: "ethx_approvers", script: APPROVERS_API, what: "Approver lookup: business-unit leave approvers, expense-type approvers, availability" },
   { name: "ETHX - Leave approver assign", script_type: "DocType Event", reference_doctype: "Leave Application", doctype_event: "Before Insert", script: LEAVE_ASSIGN, what: "New leave goes to an available business-unit approver" },
+  { name: "ETHX - Leave not own", script_type: "DocType Event", reference_doctype: "Leave Application", doctype_event: "Before Submit", script: LEAVE_NOT_OWN, what: "Nobody, HR included, approves their own leave" },
   { name: "ETHX - Expense claim prepare", script_type: "DocType Event", reference_doctype: "Expense Claim", doctype_event: "Before Validate", script: EXPENSE_PREPARE, what: "Expense claims get currency, exchange rate and the expense type's approver" },
   { name: "ETHX - Expense claim decision", script_type: "DocType Event", reference_doctype: "Expense Claim", doctype_event: "Before Submit", script: EXPENSE_DECIDE, what: "Only the approver decides; approval needs a bill, rejection needs a reason" },
   { name: "ETHX - Reroute approvals", script_type: "API", api_method: "ethx_reroute_approvals", script: REROUTE_API, what: "HR moves pending requests away from approvers on leave" },

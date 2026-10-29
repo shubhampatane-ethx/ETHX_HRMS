@@ -1156,11 +1156,17 @@ export function EmpProfile() {
     setBusy(true);
     setError("");
     try {
-      await frappe.updateDoc("Employee", e.name, form);
+      // Employees can't edit their Employee record directly; the server method changes only these contact fields.
+      try {
+        await frappe.callMethod("ethx_update_my_contact", { values: JSON.stringify(form) });
+      } catch (err) {
+        if (err?.response?.status !== 404 && !/not found|not whitelisted|Failed to get method/i.test(String(err?.response?.data?.exception || ""))) throw err;
+        await frappe.updateDoc("Employee", e.name, form); // server rules not installed yet
+      }
       setEditing(false);
       reload();
     } catch (err) {
-      setError(errMsg(err, "Couldn't save. Your account may not be allowed to edit its own profile."));
+      setError(errMsg(err, "Couldn't save. Ask the Administrator to run Admin › ERPNext Setup (Employee & manager self-service) so employees can update their contact details."));
     } finally {
       setBusy(false);
     }

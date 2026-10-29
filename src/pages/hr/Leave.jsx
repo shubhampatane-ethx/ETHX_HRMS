@@ -7,7 +7,8 @@ import { CalendarDays, Check, Download, Plus, UserCog, X } from "lucide-react";
 import { frappe } from "../../lib/api/frappeClient";
 import { Button, DateField, LinkField } from "../../components/ui/primitives";
 import { Async, chipCls, Field, Grid, inputCls, Modal, Notice, PageHeader, Panel, StatusPill, Tabs } from "../../components/employee/EmployeeShell";
-import { dmy, errMsg, isoDate, listTry, useAsync } from "../../lib/employeePortal";
+import { dmy, errMsg, getMyEmployee, isoDate, listTry, useAsync } from "../../lib/employeePortal";
+import { useAuth } from "../../context/AuthContext";
 import { downloadCsv } from "../../lib/recruitment";
 import { approversOnLeave, decideLeaveDirect, getApprovers, pickApprover, reassignLeave, rerouteUnavailable } from "../../lib/approvals";
 import { alertDialog, confirmDialog, previewDialog } from "../../components/ui/dialogs";
@@ -28,6 +29,9 @@ export default function Leave() {
 /* ------------------------------ applications ------------------------------ */
 
 function Applications() {
+  const { user } = useAuth();
+  // HR staff are employees too: their own requests are decided by their approver, never by themselves.
+  const me = useAsync(() => getMyEmployee(user.email).catch(() => null), [user.email]);
   const [filter, setFilter] = useState("Open");
   const [q, setQ] = useState("");
   const apps = useAsync(() => listTry("Leave Application", { filters: [["docstatus", "<", 2]], fields: APP_FIELDS, orderBy: "from_date desc", limit: 500 }, ["name", "employee", "employee_name", "leave_type", "from_date", "to_date", "total_leave_days", "status", "docstatus", "leave_approver"]), []);
@@ -78,13 +82,13 @@ function Applications() {
           { key: "description", label: "Reason", render: (a) => <span className="line-clamp-2 max-w-[16rem] text-[12px] text-[var(--color-text-muted)]">{a.description || "—"}</span> },
           { key: "leave_approver_name", label: "Approver", render: (a) => a.leave_approver ? <span>{a.leave_approver_name || a.leave_approver}{away.data?.has(a.leave_approver) && a.status === "Open" && <span className="ml-1.5 rounded bg-[var(--color-surface-2)] px-1.5 py-0.5 text-[10px] text-[var(--color-amber)]">on leave</span>}<span className="block text-[10.5px] text-[var(--color-text-faint)]">{a.leave_approver}</span></span> : <span className="text-[var(--color-amber)]">not set</span> },
           { key: "status", label: "Status", render: (a) => <StatusPill status={a.status} /> },
-          { key: "_a", label: "", render: (a) => a.docstatus === 0 && a.status === "Open" ? (
+          { key: "_a", label: "", render: (a) => a.docstatus === 0 && a.status === "Open" ? (a.employee === me.data?.name ? <span className="text-[11px] text-[var(--color-text-faint)]">Your request</span> : (
             <div className="flex justify-end gap-1">
               <button type="button" title="Change approver" onClick={() => setModal({ kind: "reassign", app: a })} className="rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]"><UserCog size={14} /></button>
               <button type="button" title="Approve" onClick={() => setModal({ kind: "decide", app: a, to: "Approved" })} className="rounded p-1 text-[var(--color-green)] hover:bg-[var(--color-surface-2)]"><Check size={14} /></button>
               <button type="button" title="Reject" onClick={() => setModal({ kind: "decide", app: a, to: "Rejected" })} className="rounded p-1 text-[var(--color-text-muted)] hover:text-[var(--color-red-hover)]"><X size={14} /></button>
             </div>
-          ) : null },
+          )) : null },
         ]} />}
       </Async>
       {modal?.kind === "decide" && <DecideModal app={modal.app} to={modal.to} onClose={() => setModal(null)} onSaved={() => { setModal(null); apps.reload(); }} />}
