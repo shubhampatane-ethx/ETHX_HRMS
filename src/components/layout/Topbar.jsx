@@ -5,6 +5,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useBranding } from "../../context/BrandingContext";
 import { hasPermission } from "../../permissions/roles";
 import { getSavedTheme, hasSavedTheme, saveTheme, THEME_OPTIONS } from "../../lib/theme";
+import { errMsg } from "../../lib/employeePortal";
 import { frappe } from "../../lib/api/frappeClient";
 
 function ThemeTile({ option, selected, onChoose }) {
@@ -144,13 +145,12 @@ export function Topbar({ roleLabel, pageTitle }) {
     setUploadingImage(true);
     try {
       const uploaded = await frappe.uploadFile(file, { doctype: "User", docname: user.email, isPrivate: false });
-      if (!uploaded?.file_url) throw new Error("ERPNext did not return an image URL.");
+      if (!uploaded?.file_url) throw new Error("The photo upload did not return a file URL.");
       const saved = await frappe.updateDoc("User", user.email, { user_image: uploaded.file_url });
       setProfileImage(saved?.user_image || uploaded.file_url);
       setImageMessage("Profile photo updated.");
     } catch (error) {
-      const serverMessage = error?.response?.data?.message;
-      setImageError(typeof serverMessage === "string" ? serverMessage : error?.message || "Could not update your profile photo. Check your ERPNext User and File permissions.");
+      setImageError(errMsg(error, "Could not update your profile photo. Check your account permissions."));
     } finally {
       setUploadingImage(false);
       if (fileRef.current) fileRef.current.value = "";

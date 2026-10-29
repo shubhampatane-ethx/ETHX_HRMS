@@ -97,7 +97,7 @@ function CycleModal({ cycle, onClose }) {
       setMsg({ ok: true, text });
       doc.reload();
     } catch (e) {
-      setMsg({ ok: false, text: errMsg(e, "ERPNext refused this step.") });
+      setMsg({ ok: false, text: errMsg(e, "This step was refused.") });
     }
     setBusy("");
   }
@@ -167,7 +167,7 @@ function Appraisals() {
           { key: "_a", label: "", render: (a) => (a.docstatus === 0 ? <Button variant="secondary" className="!px-2 !py-1 text-[11px]" onClick={() => submit(a)}>Submit</Button> : null) },
         ]} />}
       </Async>
-      <p className="mt-3 text-[11px] text-[var(--color-text-faint)]">Employees fill their self-appraisal and managers give feedback in ERPNext's HR app (Frappe HR) - scores update here automatically.</p>
+      <p className="mt-3 text-[11px] text-[var(--color-text-faint)]">Employees complete their self-appraisal and managers provide feedback in the HR workspace - scores update here automatically.</p>
     </Panel>
   );
 }

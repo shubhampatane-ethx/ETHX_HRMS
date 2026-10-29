@@ -38,7 +38,7 @@ const NAV = [
   { to: "/admin/roles", label: "Roles & Permissions", icon: ShieldCheck },
   { to: "/admin/settings", label: "Settings", icon: SlidersHorizontal },
   { to: "/admin/audit-logs", label: "Audit Logs", icon: ScrollText },
-  { to: "/admin/setup", label: "ERPNext Setup", icon: Wrench },
+  { to: "/admin/setup", label: "System Setup", icon: Wrench },
   HR_WORKSPACE,
   PM_WORKSPACE,
 ];
@@ -50,7 +50,7 @@ const TITLES = {
   "/admin/roles": "Roles & Permissions",
   "/admin/settings": "Settings",
   "/admin/audit-logs": "Audit Logs",
-  "/admin/setup": "ERPNext Setup",
+  "/admin/setup": "System Setup",
   "/admin/employees": "All Employees",
   "/admin/project-managers": "Project Managers",
 };

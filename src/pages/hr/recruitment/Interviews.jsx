@@ -78,7 +78,7 @@ function Rounds() {
       await frappe.deleteDoc("Interview Round", r.name);
       rounds.reload();
     } catch (e) {
-      window.alert(errMsg(e, "ERPNext couldn't delete this round - it's probably used by interviews."));
+      window.alert(errMsg(e, "Couldn't delete this round - it's probably used by interviews."));
     }
   }
   return (

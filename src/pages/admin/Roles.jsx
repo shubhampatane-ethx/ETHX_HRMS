@@ -6,8 +6,8 @@ import { serverLoginsReady } from "../../lib/securitySetup";
 import { Button, Card } from "../../components/ui/primitives";
 
 /**
- * Admin-only editor for the ERPNext role permissions that the HR and Employee workspaces rely on.
- * It uses ERPNext's own Role Permissions Manager methods, which copy the standard permissions into
+ * Admin-only editor for the role permissions that the HR and Employee workspaces rely on.
+ * It uses the platform's Role Permissions Manager methods, which copy the standard permissions into
  * Custom DocPerm first - so granting one permission never wipes the others.
  */
 const PM = "frappe.core.page.permission_manager.permission_manager";
@@ -21,7 +21,9 @@ const HR_PRESET = [
   { doctype: "User", permlevel: 1, perms: ["read", "write"], why: "Set the login's role and type (protected fields on User)", elevated: true },
   { doctype: "User Permission", perms: ["read", "write", "create"], why: "Linking a login to an employee restricts it to that employee and company", elevated: true },
   { doctype: "Employee", perms: ["read", "write", "create"], why: "Add and edit employees" },
-  { doctype: "Employee", permlevel: 1, perms: ["read", "write"], why: "Salary and bank details (restricted to HR by ERPNext Setup)" },
+  { doctype: "Asset", perms: ["read", "write", "create", "delete", "submit", "cancel", "amend"], why: "Manage assigned employee assets" },
+  { doctype: "File", perms: ["read", "write", "create", "delete"], why: "Publish and manage company policies and employee documents" },
+  { doctype: "Employee", permlevel: 1, perms: ["read", "write"], why: "Salary and bank details (restricted to HR by System Setup)" },
   { doctype: "Timesheet", perms: ["read", "write", "create", "submit", "cancel", "amend"], why: "Review timesheets: approve, or return for correction (cancels and creates an editable copy)" },
   { doctype: "Comment", perms: ["read", "create"], why: "Timesheet approvals and return notes are stored as comments" },
   { doctype: "Company", perms: ["read"], why: "Pick the company for an employee" },
@@ -129,7 +131,7 @@ const PRESETS = {
     { doctype: "Timesheet", perms: ["read", "write", "create", "delete", "submit"], why: "Log, correct, delete drafts and submit hours" },
     { doctype: "Project", perms: ["read"], why: "Timesheet projects" },
     { doctype: "Task", perms: ["read"], why: "Assigned tasks" },
-    { doctype: "Activity Type", perms: ["read"], why: "Timesheet activity (kept on entries created in ERPNext desk)" },
+    { doctype: "Activity Type", perms: ["read"], why: "Timesheet activity (also used on entries created in the staff workspace)" },
     { doctype: "Expense Claim", perms: ["read", "write", "create", "delete"], why: "Expense claims and bills" },
     { doctype: "Expense Claim Type", perms: ["read"], why: "Choose an expense type" },
     { doctype: "Salary Slip", perms: ["read"], why: "View payslips" },
@@ -207,7 +209,7 @@ function ApplyEverything() {
       }
       setMsg({ ok: true, text: applied ? `Done - ${applied} permission set(s) added. Users must sign out and back in.` : "Everything was already granted." });
     } catch (e) {
-      setMsg({ ok: false, text: errMsg(e, "ERPNext refused a change. You must be signed in as Administrator.") });
+      setMsg({ ok: false, text: errMsg(e, "The change was refused. Sign in as an administrator and try again.") });
     }
     setBusy(false);
   }
@@ -246,7 +248,7 @@ function TightenHr() {
       }
       setMsg({ ok: true, text: changed ? `Removed ${changed} right(s). HR keeps read access to Users. HR users must sign out and back in.` : "HR already has no elevated rights." });
     } catch (e) {
-      setMsg({ ok: false, text: errMsg(e, "ERPNext refused a change. You must be signed in as Administrator.") });
+      setMsg({ ok: false, text: errMsg(e, "The change was refused. Sign in as an administrator and try again.") });
     }
     setBusy(false);
   }
@@ -257,7 +259,7 @@ function TightenHr() {
           <Button variant="secondary" onClick={run} disabled={busy}>{busy ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />} Remove HR's elevated rights</Button>
           {msg && <span className={`text-[12px] ${msg.ok ? "text-[var(--color-green)]" : "text-[var(--color-red-hover)]"}`}>{msg.text}</span>}
         </div>
-      ) : <p className="text-[12px] text-[var(--color-amber)]">Run Admin › ERPNext Setup first - it installs the server-side login method.</p>}
+      ) : <p className="text-[12px] text-[var(--color-amber)]">Run Admin › System Setup first to install the secure login method.</p>}
     </Section>
   );
 }
@@ -276,7 +278,7 @@ export default function Roles() {
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--color-red-wash)] text-[var(--color-red-hover)]"><ShieldCheck size={18} /></span>
           <div>
             <h2 className="text-[15px] font-semibold text-[var(--color-text)]">Roles & Permissions</h2>
-            <p className="mt-1 text-[13px] text-[var(--color-text-muted)]">Decide what HR and Employee accounts are allowed to do in ERPNext. One click below grants everything the HR and Employee workspaces need, so you don't hit permission errors one at a time.</p>
+            <p className="mt-1 text-[13px] text-[var(--color-text-muted)]">Decide what HR and Employee accounts are allowed to do. One click below grants everything the HR and Employee workspaces need, so you don't hit permission errors one at a time.</p>
             <ApplyEverything />
           </div>
         </div>
@@ -316,7 +318,7 @@ function RequiredPermissions() {
       for (const item of todo) await applyItem(role, item);
       setMsg({ ok: true, text: `Permissions applied for ${role}. Ask the user to sign out and back in.` });
     } catch (e) {
-      setMsg({ ok: false, text: errMsg(e, "ERPNext refused the change. You must be signed in as Administrator.") });
+      setMsg({ ok: false, text: errMsg(e, "The change was refused. Sign in as an administrator and try again.") });
     } finally {
       setBusy(false);
       load();
@@ -328,7 +330,7 @@ function RequiredPermissions() {
       action={<Button onClick={applyAll} disabled={busy || !todo.length}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />} {todo.length ? `Apply ${todo.length} missing` : "All set"}</Button>}>
       <div className="mb-4 flex flex-wrap gap-2">{ROLES.map((r) => <button key={r} type="button" onClick={() => setRole(r)} className={chip(role === r)}>{r}</button>)}</div>
 
-      {!items ? <p className="flex items-center gap-2 py-6 text-[13px] text-[var(--color-text-muted)]"><Loader2 size={14} className="animate-spin" /> Checking ERPNext…</p> : (
+      {!items ? <p className="flex items-center gap-2 py-6 text-[13px] text-[var(--color-text-muted)]"><Loader2 size={14} className="animate-spin" /> Checking permissions…</p> : (
         <ul className="divide-y divide-[var(--color-border)]">
           {items.map((i) => (
             <li key={`${i.doctype}-${i.permlevel ?? 0}`} className="flex flex-wrap items-center justify-between gap-3 py-3">
@@ -403,7 +405,7 @@ function StaffRestrictions() {
     load();
   }
   return (
-    <Section title="HR & Project Manager logins limited to their own record" hint="ERPNext restricts any login linked to an Employee record to that employee. For HR and Project Managers this hides other people's requisitions, timesheets and team data. Remove it for staff who need to see across the company (their Company restriction stays)."
+    <Section title="HR & Project Manager logins limited to their own record" hint="Employee-linked accounts are limited to that employee. For HR and Project Managers this hides other people's requisitions, timesheets and team data. Remove it for staff who need to see across the company (their Company restriction stays)."
       action={<Button onClick={() => lift(rows || [])} disabled={busy || !(rows || []).length}>{busy ? "Working…" : `Lift ${(rows || []).length || ""}`.trim()}</Button>}>
       {!rows ? <p className="flex items-center gap-2 py-3 text-[13px] text-[var(--color-text-muted)]"><Loader2 size={14} className="animate-spin" /> Checking…</p> : rows.length === 0 ? <p className="py-2 text-[13px] text-[var(--color-green)]"><Check size={14} className="mr-1 inline" /> No HR or Project Manager login is limited to its own employee record.</p> : (
         <ul className="divide-y divide-[var(--color-border)] text-[13px]">{rows.map((r) => <li key={r.name} className="flex items-center justify-between py-2"><span>{r.user} <span className="text-[11px] text-[var(--color-text-faint)]">{r.roles.join(", ")} · limited to {r.for_value}</span></span><button type="button" disabled={busy} onClick={() => lift([r])} className="text-[12px] text-[var(--color-red-hover)] hover:underline">Lift</button></li>)}</ul>
@@ -436,7 +438,7 @@ function EmployeeRestrictions() {
   }
 
   return (
-    <Section title="Employee record restrictions" hint="Employee logins should only see their own record and company. ERPNext does this with User Permissions, which HR may not be allowed to create - fix any gaps here."
+    <Section title="Employee record restrictions" hint="Employee logins should only see their own record and company. These restrictions may need administrator access to create - fix any gaps here."
       action={<div className="flex gap-2"><Button variant="secondary" onClick={load}><RefreshCw size={14} /> Refresh</Button><Button onClick={() => fix(open)} disabled={busy || !open.length}>{busy ? "Working…" : `Restrict ${open.length || ""}`.trim()}</Button></div>}>
       {!rows ? <p className="flex items-center gap-2 py-4 text-[13px] text-[var(--color-text-muted)]"><Loader2 size={14} className="animate-spin" /> Checking…</p> : rows.length === 0 ? <p className="py-3 text-[13px] text-[var(--color-text-muted)]">No employee-only logins yet.</p> : (
         <ul className="divide-y divide-[var(--color-border)]">
@@ -487,7 +489,7 @@ function PermissionEditor() {
       await frappe.callMethod(`${PM}.update`, { doctype: loaded, role: row.role, permlevel: row.permlevel, ptype, value: value ? 1 : 0, if_owner: Number(row.if_owner) || 0 });
       await load(loaded);
     } catch (e) {
-      setError(errMsg(e, "ERPNext refused the change."));
+      setError(errMsg(e, "The change was refused."));
       setBusy("");
     }
   }

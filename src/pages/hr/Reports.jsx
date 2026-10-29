@@ -16,7 +16,7 @@ export default function Reports() {
   const [tab, setTab] = useState("headcount");
   return (
     <div className="space-y-5">
-      <PageHeader icon={FileBarChart} title="Reports" subtitle="Headcount, joiners and leavers, leave, attendance and timesheet utilisation - live from ERPNext" />
+      <PageHeader icon={FileBarChart} title="Reports" subtitle="Headcount, joiners and leavers, leave, attendance and timesheet utilisation" />
       <Tabs value={tab} onChange={setTab} tabs={[{ id: "headcount", label: "Headcount" }, { id: "movement", label: "Joiners & leavers" }, { id: "leave", label: "Leave" }, { id: "attendance", label: "Attendance" }, { id: "utilisation", label: "Utilisation" }]} />
       {tab === "headcount" && <Headcount />}
       {tab === "movement" && <Movement />}
@@ -198,4 +198,3 @@ function Utilisation() {
     </div>
   );
 }
-

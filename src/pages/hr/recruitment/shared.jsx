@@ -50,7 +50,7 @@ export function SetupHint() {
   if (ready.loading || ready.data) return null;
   return (
     <Notice>
-      Recruitment isn't fully set up on this ERPNext site yet (pipeline stages, CTC, offer approval and retention fields are missing).{" "}
+      Recruitment isn't fully set up yet (pipeline stages, CTC, offer approval and retention fields are missing).{" "}
       {user?.email === "Administrator" ? <Link to="/hr/recruitment/setup" className="underline">Run the one-time setup</Link> : "Ask the Administrator to open HR › Recruitment › Setup and run it."}
     </Notice>
   );
@@ -212,7 +212,7 @@ export function MoveStageModal({ applicant, to, opening, onClose, onSaved }) {
           const m = regretEmail(applicant, opening);
           await emailDocument({ doctype: "Job Applicant", name: applicant.name, to: applicant.email_id, subject: m.subject, message: m.message, printFormat: false });
         } catch (x) {
-          setWarn(`Rejected, but the email couldn't be sent: ${errMsg(x, "check ERPNext's outgoing email account")}`);
+          setWarn(`Rejected, but the email couldn't be sent: ${errMsg(x, "check the outgoing email settings")}`);
           return;
         }
       }
@@ -311,7 +311,7 @@ export function ScheduleModal({ applicant, opening, interview, onClose, onSaved 
           <Field label="Mode"><select className={inputCls} value={f.mode} onChange={(e) => setF({ ...f, mode: e.target.value })}>{["Video call", "In person", "Phone"].map((m) => <option key={m}>{m}</option>)}</select></Field>
           <Field label={f.mode === "In person" ? "Location" : "Meeting link"}><input className={inputCls} value={f.link} onChange={(e) => setF({ ...f, link: e.target.value })} placeholder={f.mode === "In person" ? "Office, room" : "Teams / Meet link"} /></Field>
         </Row>
-        <Field label="Panel" hint="Interviewers get ERPNext's Interviewer role and read access to this candidate's profile.">
+        <Field label="Panel" hint="Interviewers get access to this candidate's profile.">
           <div className="max-h-40 overflow-y-auto rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] p-2">
             {(users.data || []).map((u) => (
               <label key={u.name} className="flex items-center gap-2 py-0.5 text-[12.5px] text-[var(--color-text)]">
@@ -410,7 +410,7 @@ export function DecideModal({ interview, applicant, onClose, onSaved }) {
         </div>
         <Field label="Summary"><textarea rows={2} className={inputCls} value={summary} onChange={(e) => setSummary(e.target.value)} /></Field>
         {result === "Rejected" && applicant && <label className="flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><input type="checkbox" checked={alsoReject} onChange={(e) => setAlsoReject(e.target.checked)} /> Also move the candidate to Rejected</label>}
-        <p className="text-[11px] text-[var(--color-text-faint)]">Recording the decision submits the interview in ERPNext; it can't be edited afterwards.</p>
+        <p className="text-[11px] text-[var(--color-text-faint)]">Recording the decision submits the interview; it can't be edited afterwards.</p>
         {err && <Notice>{err}</Notice>}
         <Buttons onClose={onClose} busy={busy} disabled={!result} label="Record decision" />
       </form>
@@ -546,7 +546,7 @@ export function HireModal({ offer, onClose, onSaved }) {
           {d.onboarding?.docstatus !== 1 && (
             <label className="flex items-start gap-2 text-[12px] text-[var(--color-text-muted)]">
               <input type="checkbox" className="mt-0.5" checked={f.useOnboarding} onChange={(e) => setF({ ...f, useOnboarding: e.target.checked })} />
-              Start an ERPNext onboarding first (documents, laptop / email, buddy tasks from a template)
+              Start onboarding first (documents, laptop / email, buddy tasks from a template)
             </label>
           )}
           {f.useOnboarding && d.onboarding?.docstatus !== 1 && (

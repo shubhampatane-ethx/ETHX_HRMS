@@ -107,7 +107,7 @@ function CreateModal({ onClose, onDone }) {
       onDone();
     } catch (err) {
       if (created) onDone();
-      setError(`${created ? "The user was created, but a later step failed. Use Manage to finish it. " : ""}${errMsg(err, "ERPNext refused this.")}`);
+      setError(`${created ? "The user was created, but a later step failed. Use Manage to finish it. " : ""}${errMsg(err, "The change was refused.")}`);
     }
     setBusy(false);
   }
@@ -147,7 +147,7 @@ function ManageModal({ user, onClose, onDone }) {
     setBusy(label);
     setError("");
     setNote("");
-    try { await fn(); setNote(ok); onDone(); } catch (e) { setError(errMsg(e, "ERPNext refused this change.")); }
+    try { await fn(); setNote(ok); onDone(); } catch (e) { setError(errMsg(e, "The change was refused.")); }
     setBusy("");
   }
 

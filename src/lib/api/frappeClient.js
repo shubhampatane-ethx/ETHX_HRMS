@@ -203,10 +203,11 @@ async function cancelDoc(doctype, name) {
 }
 
 /** Upload a browser File and (optionally) attach it to a document. */
-async function uploadFile(file, { doctype, docname, isPrivate = true } = {}) {
+async function uploadFile(file, { doctype, docname, isPrivate = true, folder } = {}) {
   const form = new FormData();
   form.append("file", file, file.name);
   form.append("is_private", isPrivate ? "1" : "0");
+  if (folder) form.append("folder", folder);
   if (doctype && docname) {
     form.append("doctype", doctype);
     form.append("docname", docname);

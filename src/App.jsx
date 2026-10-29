@@ -71,6 +71,8 @@ const Onboarding = lazy(() => import("./pages/hr/Onboarding"));
 const Performance = lazy(() => import("./pages/hr/Performance"));
 const Training = lazy(() => import("./pages/hr/Training"));
 const DoctypeView = lazy(() => import("./pages/hr/DoctypeView"));
+const Policies = lazy(() => import("./pages/hr/Policies"));
+const Assets = lazy(() => import("./pages/hr/Assets"));
 
 export default function App() {
   return (
@@ -147,6 +149,8 @@ export default function App() {
               <Route path="timesheets" element={<Timesheets />} />
               <Route path="leave" element={<Leave />} />
               <Route path="expenses" element={<ExpenseClaims />} />
+              <Route path="policies" element={<Policies />} />
+              <Route path="assets" element={<Assets />} />
               <Route path="setup/expense-claim" element={<ExpenseClaims />} />
               <Route path="payroll" element={<Payroll />} />
               <Route path="recruitment" element={<RecruitmentOverview />} />

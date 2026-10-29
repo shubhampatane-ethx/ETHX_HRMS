@@ -63,7 +63,7 @@ export function LeaveApproversByBU() {
 
   return (
     <div>
-      <Hint>Each department is a business unit (sub-departments also use their parent unit's approvers). The first approver is the default; whoever is on approved leave is skipped and the next one is used - new requests at once, pending ones by a daily job (Admin › ERPNext Setup installs it). Employees without an approver here fall back to the approver on their own Employee record.</Hint>
+      <Hint>Each department is a business unit (sub-departments also use their parent unit's approvers). The first approver is the default; whoever is on approved leave is skipped and the next one is used - new requests at once, pending ones by a daily job (configured in Admin › System Setup). Employees without an approver here fall back to the approver on their own Employee record.</Hint>
       <div className="mb-3"><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search business unit or company…" className={`${inputCls} max-w-xs`} /></div>
       <Card className="overflow-hidden">
         {rows === null ? <p className="flex h-28 items-center justify-center gap-2 text-[13px] text-[var(--color-text-muted)]"><Loader2 size={14} className="animate-spin" /> Loading…</p> : (
@@ -99,7 +99,7 @@ function ApproverEditor({ title, initial, users, names, onClose, onSave }) {
   async function save() {
     setBusy(true);
     setErr("");
-    try { await onSave(list); onClose(); } catch (e) { setErr(errMsg(e, "ERPNext refused this change.")); setBusy(false); }
+    try { await onSave(list); onClose(); } catch (e) { setErr(errMsg(e, "The change was refused.")); setBusy(false); }
   }
 
   return (
@@ -176,7 +176,7 @@ export function ExpenseApproversByType() {
       if (email) await ensureRole(email, EXPENSE_ROLE);
       setRows((r) => r.map((x) => (x.name === type ? { ...x, expense_approver: email } : x)));
     } catch (e) {
-      setError(errMsg(e, "ERPNext refused this change."));
+      setError(errMsg(e, "The change was refused."));
     }
     setBusy("");
   }
@@ -196,7 +196,7 @@ export function ExpenseApproversByType() {
       for (const t of targets) { await saveApprover(t.name, bulk); done += 1; }
       setMsg(`${names[bulk] || bulk} now approves ${done} expense type(s).`);
     } catch (e) {
-      setError(`${done} updated, then ERPNext refused: ${errMsg(e, "change rejected.")}`);
+      setError(`${done} updated, then the remaining changes were refused: ${errMsg(e, "change rejected.")}`);
     }
     setBusy("");
     load();
@@ -230,7 +230,7 @@ export function ExpenseApproversByType() {
       <Hint>Each expense type has its own approver. When an employee picks a type, that person becomes the claim's approver. If the type has none, or its approver is on leave, the business unit's expense approver (then the employee's own) is used. Claims need a bill to be approved and a reason to be rejected.</Hint>
       {fieldMissing && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-4 py-3 text-[13px] text-[var(--color-text-muted)]">
-          <span>ERPNext's Expense Claim Type has no approver field yet. This adds a standard custom field (no code or server change).</span>
+          <span>The expense type has no approver field yet. This adds a standard custom field (no code or server change).</span>
           <Button onClick={setup} disabled={busy === "setup"}>{busy === "setup" ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />} Add the approver field</Button>
         </div>
       )}
@@ -307,7 +307,7 @@ export function ExpenseAccounting() {
     setBusy(key);
     setError("");
     setMsg("");
-    try { await fn(); setMsg(done); await load(); } catch (e) { setError(errMsg(e, "ERPNext refused this change.")); }
+    try { await fn(); setMsg(done); await load(); } catch (e) { setError(errMsg(e, "The change was refused.")); }
     setBusy("");
   }
   const setCompany = (c, field, value) => run(`${c.name}-${field}`, () => frappe.updateDoc("Company", c.name, { [field]: value || null }), `${c.name} updated.`);

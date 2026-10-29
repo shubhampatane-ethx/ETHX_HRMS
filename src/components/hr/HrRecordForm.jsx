@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { Loader2, X } from "lucide-react";
 import { frappe } from "../../lib/api/frappeClient";
+import { errMsg } from "../../lib/employeePortal";
 import { Button, Card, DateField, Input, LinkField } from "../ui/primitives";
 
 /**
  * submittable: the doctype is submittable (e.g. Attendance) - new records are submitted after saving, and editing a
- * submitted record cancels it and saves an amended copy (ERPNext doesn't allow editing submitted records).
+ * submitted record cancels it and saves an amended copy (submitted records cannot be edited directly).
  */
 export function HrRecordForm({ doctype, fields, recordName, onCancel, onSaved, submittable = false }) {
   const [values, setValues] = useState({});
@@ -77,7 +78,7 @@ export function HrRecordForm({ doctype, fields, recordName, onCancel, onSaved, s
       <div className="mb-5 flex items-start justify-between gap-3">
         <div>
           <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--color-red-hover)]">
-            ERPNext record
+            HRMS record
           </p>
           <h2 className="mt-1 text-[16px] font-semibold text-[var(--color-text)]">
             {recordName ? `Edit ${doctype}` : `New ${doctype}`}
@@ -143,5 +144,5 @@ function Field({ field, value, onChange }) {
 }
 
 function errorMessage(error) {
-  return error?.response?.data?.exception || error?.response?.data?.message || error?.message || "ERPNext could not save this record.";
+  return errMsg(error, "Couldn't save this record.");
 }

@@ -49,7 +49,7 @@ function Moves({ kind }) {
   const [msg, setMsg] = useState(null);
 
   async function submit(r) {
-    if (r[date] > isoDate()) return setMsg({ ok: false, text: `ERPNext only accepts a ${kind} on or after its effective date (${dmy(r[date])}). Submit it then.` });
+    if (r[date] > isoDate()) return setMsg({ ok: false, text: `A ${kind} can only be submitted on or after its effective date (${dmy(r[date])}). Submit it then.` });
     if (!window.confirm(`Submit this ${kind}? The employee record is updated now.`)) return;
     try {
       await frappe.submitDoc(await frappe.getDoc(dt, r.name));
@@ -92,7 +92,7 @@ function MoveModal({ kind, onClose, onSaved }) {
     if (!changes.length && !(kind === "promotion" && f.revised_ctc) && !(kind === "transfer" && f.new_company && f.new_company !== e.company)) return setErr("Change at least one detail.");
     // ERPNext requires at least one property row on a transfer (e.g. the department in the new company)
     if (kind === "transfer" && !changes.length) return setErr("Also choose what changes with the transfer (for example the department or designation in the new company).");
-    if (f.submitNow && f.date > isoDate()) return setErr(`ERPNext only accepts a ${kind} on or after its effective date - save it now and submit it on ${dmy(f.date)}.`);
+    if (f.submitNow && f.date > isoDate()) return setErr(`A ${kind} can only be submitted on or after its effective date - save it now and submit it on ${dmy(f.date)}.`);
     setBusy(true);
     setErr("");
     try {
@@ -250,4 +250,3 @@ function LeftModal({ row, emp, onClose, onSaved }) {
     </Modal>
   );
 }
-

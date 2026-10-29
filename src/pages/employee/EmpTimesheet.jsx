@@ -476,7 +476,7 @@ function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, on
                           <input list="ts-known-projects" value={r.project} onChange={(e) => patchRow(r.id, { project: e.target.value })} placeholder="Project" className={inp} />
                           <input list="ts-tasks" value={r.task} onChange={(e) => patchRow(r.id, { task: e.target.value })} placeholder="Task" className={inp} />
                         </div>
-                        {r.project && !resolved && <span className="block text-[10px] text-[var(--color-amber)]">Not an ERPNext project - saved as text only</span>}
+                        {r.project && !resolved && <span className="block text-[10px] text-[var(--color-amber)]">Not in the project list - saved as text only</span>}
                         <input value={r.notes} onChange={(e) => patchRow(r.id, { notes: e.target.value })} placeholder="Work done this week (optional)" className={`${inp} !text-[11.5px]`} />
                       </td>
                       {days.map((d) => {

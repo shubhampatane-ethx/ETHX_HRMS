@@ -105,9 +105,9 @@ export default function Attendance() {
   }, [visible]);
 
   const unconfirmed = visible.filter((r) => r.derived);
-  async function remove(row) { if (!window.confirm(`Delete attendance for ${row.employee_name || row.employee || row.name} on ${row.attendance_date}?`)) return; try { if (Number(row.docstatus) === 1) await frappe.cancelDoc("Attendance", row.name); await frappe.deleteDoc("Attendance", row.name); load(); } catch (error) { window.alert(error?.response?.data?.exception || "ERPNext could not delete this attendance record."); } }
+  async function remove(row) { if (!window.confirm(`Delete attendance for ${row.employee_name || row.employee || row.name} on ${row.attendance_date}?`)) return; try { if (Number(row.docstatus) === 1) await frappe.cancelDoc("Attendance", row.name); await frappe.deleteDoc("Attendance", row.name); load(); } catch (error) { window.alert(errMsg(error, "Couldn't delete this attendance record.")); } }
   async function confirmRows(list) {
-    if (!list.length || !window.confirm(`Save ${list.length} punched-in day(s) as Present in ERPNext?`)) return;
+    if (!list.length || !window.confirm(`Save ${list.length} punched-in day(s) as Present?`)) return;
     setConfirming(true);
     let failed = 0;
     let last = "";
@@ -129,7 +129,7 @@ export default function Attendance() {
     {formOpen && <HrRecordForm doctype="Attendance" submittable fields={FIELDS} recordName={editing} onCancel={closeForm} onSaved={() => { closeForm(); load(); }} />}
 
     {state === "loading" && <Card><div className="flex h-32 items-center justify-center text-[13px] text-[var(--color-text-muted)]">Loading attendance...</div></Card>}
-    {state === "error" && <Card><div className="p-6 text-[13px] text-[var(--color-text-muted)]">Could not load Attendance records. Check ERPNext permissions and connectivity.</div></Card>}
+    {state === "error" && <Card><div className="p-6 text-[13px] text-[var(--color-text-muted)]">Could not load attendance records. Check your permissions and connection.</div></Card>}
     {state === "ready" && employees.length === 0 && <Card><div className="flex h-32 items-center justify-center text-[13px] text-[var(--color-text-muted)]">No attendance records found.</div></Card>}
 
     {state === "ready" && current && <>

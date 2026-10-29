@@ -15,7 +15,7 @@ export default function RecruitmentSetup() {
   const isAdmin = user?.email === "Administrator";
   return (
     <div className="space-y-5">
-      <PageHeader icon={Settings2} title="Recruitment setup" subtitle="One-time ERPNext setup, and candidate data retention" />
+      <PageHeader icon={Settings2} title="Recruitment setup" subtitle="One-time setup and candidate data retention" />
       {isAdmin ? <SiteSetupPanel /> : <Notice tone="info">The one-time setup can only be run by the Administrator. Data retention is below.</Notice>}
       <Retention />
     </div>

@@ -64,18 +64,19 @@ export function money(n, currency = "INR") {
 }
 
 export function errMsg(e, fallback = "Something went wrong. Please try again.") {
+  const forDisplay = (message) => String(message).replace(/\berpnext\b/gi, "HRMS");
   try {
     const raw = e?.response?.data?._server_messages;
     if (raw) {
       const first = JSON.parse(JSON.parse(raw)[0]);
-      if (first?.message) return stripHtml(first.message);
+      if (first?.message) return forDisplay(stripHtml(first.message));
     }
   } catch {
     /* ignore */
   }
   const exc = e?.response?.data?.exception;
-  if (exc) return stripHtml(String(exc).split(": ").slice(1).join(": ") || exc);
-  return fallback;
+  if (exc) return forDisplay(stripHtml(String(exc).split(": ").slice(1).join(": ") || exc));
+  return forDisplay(fallback);
 }
 
 /** Friendly text for a failed read - most failures here are ERPNext permissions or a feature not enabled on the site. */
@@ -83,7 +84,7 @@ export function friendlyError(e) {
   const status = e?.response?.status;
   const type = e?.response?.data?.exc_type;
   if (type === "PermissionError" || status === 403) return "Your account doesn't have access to this yet. Ask your administrator to enable it for the Employee role.";
-  if (status === 404 || type === "DoesNotExistError") return "This feature isn't set up on your ERPNext site yet.";
+  if (status === 404 || type === "DoesNotExistError") return "This feature isn't set up yet. Contact your administrator.";
   if (!e?.response) return "Can't reach the server. Check your connection and try again.";
   return errMsg(e, "Couldn't load this section.");
 }
@@ -95,6 +96,17 @@ export function friendlyError(e) {
 
 // Upload company policies / handbook to this folder in ERPNext (File Manager, public files).
 export const POLICY_FOLDER = "Home/Policies";
+export const ASSET_FOLDER = "Home/Assets";
+export async function ensureAssetFolder() {
+  const folders = await frappe.getList("File", {
+    filters: [["file_name", "=", "Assets"], ["folder", "=", "Home"], ["is_folder", "=", 1]],
+    fields: ["name"],
+    limit: 1,
+  });
+  if (!folders.length) await frappe.createDoc("File", { file_name: "Assets", folder: "Home", is_folder: 1 });
+}
+export const getAssetLists = () =>
+  frappe.getList("File", { filters: [["is_private", "=", 1], ["folder", "=", ASSET_FOLDER], ["is_folder", "=", 0]], fields: ["name", "file_name", "file_url", "creation"], orderBy: "creation desc", limit: 0 });
 
 // Reminder window for passport / contract expiry (days)
 export const EXPIRY_WARN_DAYS = 90;

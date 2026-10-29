@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, FileBarChart2, Plus, Trash2, X, Loader2 } from "lucide-react";
 import { frappe } from "../../lib/api/frappeClient";
+import { errMsg } from "../../lib/employeePortal";
 import { Card, Table, Button, Input, LinkField } from "../../components/ui/primitives";
 import { findSetupItem } from "../../lib/hrSetupConfig";
 import { useAuth } from "../../context/AuthContext";
@@ -145,7 +146,7 @@ export function DoctypeCrud({ item }) {
         )}
         {state === "error" && (
           <div className="flex h-32 flex-col items-center justify-center gap-1 text-center text-[13px] text-[var(--color-text-muted)]">
-            <p>Couldn't load {item.doctype} from ERPNext.</p>
+            <p>Couldn't load {item.doctype}.</p>
             <p className="text-[var(--color-text-faint)]">
               Check that the doctype exists and this user has read access to it.
             </p>
@@ -430,7 +431,7 @@ function ReportRunner({ item }) {
         report_name: item.doctype,
         filters: activeFilters,
       });
-      if (!res) throw new Error("This report can't be run from here (it is a Report Builder view). Open it in ERPNext.");
+      if (!res) throw new Error("This report can't be run from here. Contact your administrator for access.");
       setResult(res);
       setState("ok");
     } catch (err) {
@@ -523,12 +524,7 @@ function fieldLabel(key) {
 }
 
 function errorMessage(err) {
-  return (
-    err?.response?.data?.exception ||
-    err?.response?.data?._server_messages ||
-    err?.message ||
-    "Something went wrong talking to ERPNext."
-  );
+  return errMsg(err, "Something went wrong while loading this data.");
 }
 
 function formatDate(value) {

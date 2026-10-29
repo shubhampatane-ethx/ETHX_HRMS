@@ -1,9 +1,9 @@
 // Employee portal: all employee pages in one file.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowRight, BadgeCheck, Bell, CalendarCheck, CalendarClock, CalendarDays, CheckCheck, ChevronLeft, ChevronRight, ClipboardCheck, Download, ExternalLink, FileText, GraduationCap, HeartPulse, KeyRound, Laptop, LifeBuoy, LogIn, LogOut, Mail, Megaphone, Paperclip, Pencil, Phone, Plus, Receipt, Search, ShieldAlert, Target, Undo2, UserRound, Users, Wallet, Wrench } from "lucide-react";
+import { ArrowRight, BadgeCheck, Bell, CalendarCheck, CalendarClock, CalendarDays, CheckCheck, ChevronLeft, ChevronRight, ClipboardCheck, Download, ExternalLink, FileText, GraduationCap, HeartPulse, KeyRound, Laptop, LifeBuoy, LogIn, LogOut, Mail, Megaphone, Paperclip, Pencil, Phone, Plus, Receipt, Search, ShieldAlert, Target, Undo2, UserRound, Users, Wallet } from "lucide-react";
 import { Async, ChangePasswordForm, chipCls, Empty, ErrorState, Field, Grid, inputCls, KeyValue, Loading, Modal, Notice, PageHeader, Panel, Skeleton, Stat, StatusPill, Tabs, useEmployee } from "../../components/employee/EmployeeShell";
-import { acknowledgePolicy, CONTACTS, createRequest, daysBetween, daysUntil, dmy, dmyHm, errMsg, EXPIRY_WARN_DAYS, getAcknowledged, getAnnouncements, getAppraisals, getApprovals, getAttendanceHistory, getAttendanceRequests, getBenefitClaims, getCheckinsBetween, getEvents, getExpenseClaims, getFeedback, getGoals, getHelpArticles, getHolidays, getLeaveApplications, getLeaveBalance, getLeaveTypes, getMyAssets, getMyDocuments, getMyLeavesBetween, getMyTraining, getNotifications, getPayslips, getPolicies, getRequests, getShiftAssignments, getTeamAvailability, getTodayAttendance, hm, hoursLabel, isoDate, LETTER_TYPES, money, MONTHS, MONTHS_LONG, nowStamp, pad, POLICY_FOLDER, REQUEST_CATEGORIES, stripHtml, summariseCheckins, useAsync, WEEKDAYS } from "../../lib/employeePortal";
+import { CONTACTS, createRequest, daysBetween, daysUntil, dmy, dmyHm, errMsg, EXPIRY_WARN_DAYS, getAcknowledged, getAnnouncements, getAppraisals, getApprovals, getAttendanceHistory, getAttendanceRequests, getBenefitClaims, getCheckinsBetween, getEvents, getExpenseClaims, getFeedback, getGoals, getHelpArticles, getHolidays, getLeaveApplications, getLeaveBalance, getLeaveTypes, getMyAssets, getMyDocuments, getMyLeavesBetween, getMyTraining, getNotifications, getPayslips, getPolicies, getRequests, getShiftAssignments, getTeamAvailability, getTodayAttendance, hm, hoursLabel, isoDate, LETTER_TYPES, money, MONTHS, MONTHS_LONG, nowStamp, pad, REQUEST_CATEGORIES, stripHtml, summariseCheckins, useAsync, WEEKDAYS } from "../../lib/employeePortal";
 import { useAuth } from "../../context/AuthContext";
 import { Button, DateField } from "../../components/ui/primitives";
 import { frappe } from "../../lib/api/frappeClient";
@@ -62,11 +62,10 @@ export function EmpAssets() {
   const { employee } = useEmployee();
   const assets = useAsync(() => getMyAssets(employee.name), [employee.name]);
   const requests = useAsync(() => getRequests(user.email, "Asset"), [user.email]);
-  const [req, setReq] = useState(null);
 
   return (
     <>
-      <PageHeader icon={Laptop} title="My Assets" subtitle="Equipment assigned to you, plus repair and return requests" />
+      <PageHeader icon={Laptop} title="My Assets" subtitle="Equipment assigned to you and your repair or return request history" />
       <Panel title="Assigned to me">
         <Async state={assets}>
           {(rows) => <Grid rows={rows} empty="No equipment is assigned to you." columns={[
@@ -75,44 +74,13 @@ export function EmpAssets() {
             { key: "location", label: "Location" },
             { key: "purchase_date", label: "Issued", render: (r) => dmy(r.purchase_date) },
             { key: "status", label: "Status", render: (r) => <StatusPill status={r.status} /> },
-            { key: "_a", label: "", render: (r) => <div className="flex gap-3 text-[11px]"><button type="button" onClick={() => setReq({ type: "Repair", asset: r })} className="flex items-center gap-1 text-[var(--color-red-hover)] hover:underline"><Wrench size={12} /> Repair</button><button type="button" onClick={() => setReq({ type: "Return", asset: r })} className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]">Return</button></div> },
           ]} />}
         </Async>
       </Panel>
       <Panel title="My asset requests">
         <Async state={requests}>{(rows) => <Grid rows={rows} empty="No repair or return requests." columns={[{ key: "subject", label: "Request" }, { key: "creation", label: "Raised", render: (r) => dmy(r.creation) }, { key: "status", label: "Status", render: (r) => <StatusPill status={r.status} /> }]} />}</Async>
       </Panel>
-      {req && <ReqModal req={req} user={user.email} onClose={() => setReq(null)} onSaved={() => { setReq(null); requests.reload(); }} />}
     </>
-  );
-}
-
-function ReqModal({ req, user, onClose, onSaved }) {
-  const [notes, setNotes] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState("");
-  async function submit(e) {
-    e.preventDefault();
-    setBusy(true);
-    setErr("");
-    try {
-      await createRequest({ category: `Asset ${req.type.toLowerCase()}`, subject: `${req.asset.asset_name} (${req.asset.name})`, description: notes, user });
-      onSaved();
-    } catch (x) {
-      setErr(errMsg(x, "Couldn't raise the request."));
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <Modal title={`${req.type} request`} onClose={onClose}>
-      <form onSubmit={submit} className="space-y-3">
-        <p className="text-[13px] text-[var(--color-text)]">{req.asset.asset_name} <span className="text-[var(--color-text-faint)]">({req.asset.name})</span></p>
-        <Field label={req.type === "Repair" ? "What's wrong?" : "Reason / handover details"}><textarea required rows={3} className={inputCls} value={notes} onChange={(e) => setNotes(e.target.value)} /></Field>
-        {err && <Notice>{err}</Notice>}
-        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Sending…" : "Send request"}</Button></div>
-      </form>
-    </Modal>
   );
 }
 
@@ -561,19 +529,6 @@ export function EmpDocuments() {
   const policies = useAsync(getPolicies, []);
   const acks = useAsync(() => getAcknowledged(user.email), [user.email]);
   const mine = useAsync(() => getMyDocuments(employee.name), [employee.name]);
-  const [busy, setBusy] = useState("");
-
-  async function ack(name) {
-    setBusy(name);
-    try {
-      await acknowledgePolicy(name);
-      acks.reload();
-    } catch (e) {
-      window.alert(errMsg(e, "Couldn't record your acknowledgement."));
-    } finally {
-      setBusy("");
-    }
-  }
 
   const done = acks.data || new Set();
   const required = (policies.data || []).filter((p) => !done.has(p.name)).length;
@@ -584,16 +539,16 @@ export function EmpDocuments() {
       <Tabs value={tab} onChange={setTab} tabs={[{ id: "policies", label: "Policies & handbook", count: policies.data ? required : undefined }, { id: "mine", label: "My documents" }]} />
 
       {tab === "policies" && (
-        <Panel title="Company policies" hint={required ? `${required} awaiting your acknowledgement` : "You've acknowledged everything"}>
+        <Panel title="Company policies" hint={required ? `${required} awaiting acknowledgement` : "You've acknowledged everything"}>
           <Async state={policies}>
-            {(rows) => rows.length === 0 ? <Empty text={`No policies published yet. HR can upload files to the "${POLICY_FOLDER}" folder in ERPNext.`} /> : (
+            {(rows) => rows.length === 0 ? <Empty text="No policies published yet. HR will publish company policies here." /> : (
               <ul className="divide-y divide-[var(--color-border)]">
                 {rows.map((p) => (
                   <li key={p.name} className="flex flex-wrap items-center justify-between gap-3 py-3">
                     <div className="flex min-w-0 items-center gap-3"><FileText size={16} className="shrink-0 text-[var(--color-text-muted)]" /><div className="min-w-0"><p className="truncate text-[13px] text-[var(--color-text)]">{title(p.file_name)}</p><p className="text-[11px] text-[var(--color-text-muted)]">Published {dmy(p.creation)}</p></div></div>
                     <div className="flex items-center gap-3">
                       <a href={p.file_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-[12px] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"><ExternalLink size={13} /> Read</a>
-                      {acks.error ? null : done.has(p.name) ? <span className="flex items-center gap-1 text-[12px] text-[var(--color-green)]"><BadgeCheck size={14} /> Acknowledged</span> : <Button variant="secondary" disabled={busy === p.name || acks.loading} onClick={() => ack(p.name)}>{busy === p.name ? "Saving…" : "I have read this"}</Button>}
+                      {acks.error ? null : done.has(p.name) ? <span className="flex items-center gap-1 text-[12px] text-[var(--color-green)]"><BadgeCheck size={14} /> Acknowledged</span> : <span className="text-[12px] text-[var(--color-text-muted)]">Acknowledgement pending</span>}
                     </div>
                   </li>
                 ))}
@@ -987,7 +942,7 @@ function ApplyModal({ employee, balance, onClose, onSaved }) {
         {switched && <Notice tone="info">{list[0].name} is on leave, so {auto.name} will approve instead.</Notice>}
         {list.length > 0 && approvers.data && !approvers.data.checked && <p className="text-[11px] text-[var(--color-text-faint)]">Couldn't check approvers' availability; HR re-assigns if your approver is away.</p>}
         <Field label="Reason"><textarea rows={3} className={inputCls} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} /></Field>
-        <p className="text-[12px] text-[var(--color-text-muted)]">Requesting about <b className="text-[var(--color-text)]">{Math.max(days, 0)}</b> day(s). Weekly offs and holidays are excluded automatically by ERPNext.</p>
+        <p className="text-[12px] text-[var(--color-text-muted)]">Requesting about <b className="text-[var(--color-text)]">{Math.max(days, 0)}</b> day(s). Weekly offs and holidays are excluded automatically.</p>
         {err && <Notice>{err}</Notice>}
         <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy || !f.leave_type}>{busy ? "Submitting…" : "Submit"}</Button></div>
       </form>

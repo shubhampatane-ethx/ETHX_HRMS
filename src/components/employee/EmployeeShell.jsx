@@ -267,7 +267,7 @@ export function ChangePasswordForm({ forced = false, onCancel }) {
   return (
     <form onSubmit={submit} className="space-y-3">
       <Field label={forced ? "Temporary password (from HR)" : "Current password"}><input type={type} required autoComplete="current-password" className={inputCls} value={f.current} onChange={set("current")} /></Field>
-      <Field label="New password" hint="At least 8 characters. Mix letters, numbers and a symbol - ERPNext rejects easy passwords."><input type={type} required autoComplete="new-password" className={inputCls} value={f.next} onChange={set("next")} /></Field>
+      <Field label="New password" hint="At least 8 characters. Use a mix of letters, numbers and symbols."><input type={type} required autoComplete="new-password" className={inputCls} value={f.next} onChange={set("next")} /></Field>
       <Field label="Confirm new password"><input type={type} required autoComplete="new-password" className={inputCls} value={f.confirm} onChange={set("confirm")} /></Field>
       <label className="flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><input type="checkbox" checked={show} onChange={(e) => setShow(e.target.checked)} /> Show passwords</label>
       {err && <Notice>{err}</Notice>}
@@ -339,7 +339,7 @@ function Gate() {
     return (
       <div className="mx-auto mt-16 max-w-md rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 text-center">
         <h2 className="text-[15px] font-semibold text-[var(--color-text)]">Your account isn't linked to an employee profile</h2>
-        <p className="mt-2 text-[13px] text-[var(--color-text-muted)]">Ask HR to set your sign-in email as the <b>User ID</b> on your Employee record in ERPNext, then refresh this page.</p>
+        <p className="mt-2 text-[13px] text-[var(--color-text-muted)]">Ask HR to link your sign-in email to your employee profile, then refresh this page.</p>
       </div>
     );
   }

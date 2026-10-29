@@ -338,7 +338,7 @@ function HRUserModal({ user, onClose, onChanged, onChangeCompany }) {
       onChanged();
       q.reload();
     } catch (e) {
-      setError(portalErr(e, "ERPNext refused this change."));
+      setError(portalErr(e, "The change was refused."));
     }
     setBusy("");
   }
@@ -358,7 +358,7 @@ function HRUserModal({ user, onClose, onChanged, onChangeCompany }) {
       onChanged();
       onClose();
     } catch (e) {
-      setError(portalErr(e, "ERPNext couldn't delete this user - it is probably linked to other records. Disable it instead."));
+      setError(portalErr(e, "Couldn't delete this user - it is probably linked to other records. Disable it instead."));
       setBusy("");
     }
   };

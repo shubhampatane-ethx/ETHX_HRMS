@@ -23,7 +23,7 @@ export default function MyTeam() {
   return (
     <>
       <PageHeader icon={Users} title="My team" subtitle="Your direct reports, today's attendance, upcoming leave and leave requests waiting for you" />
-      {d && !d.ready && <Notice>Manager self-service isn't set up yet - ask the Administrator to run Admin › ERPNext Setup.</Notice>}
+      {d && !d.ready && <Notice>Manager self-service isn't set up yet - ask the Administrator to run Admin › System Setup.</Notice>}
       <Async state={q}>
         {() => (
           <>
@@ -39,7 +39,7 @@ export default function MyTeam() {
             </Panel>
             <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
               <Panel title={`Team (${d.team.length})`} hint="Employees whose Reports To is you">
-                {d.team.length === 0 ? <Empty text="No one reports to you in ERPNext. HR sets this as Reports To on each employee." /> : <Grid rows={d.team} columns={[
+                {d.team.length === 0 ? <Empty text="No one reports to you yet. HR can add you as the manager on employee profiles." /> : <Grid rows={d.team} columns={[
                   { key: "employee_name", label: "Name", render: (t) => <span>{t.employee_name}<span className="block text-[11px] text-[var(--color-text-faint)]">{[t.designation, t.department].filter(Boolean).join(" · ")}</span></span> },
                   { key: "today", label: "Today", render: (t) => { const x = d.today[t.name]; if (!x) return d.away.some((a) => a.employee === t.name && a.from_date <= new Date().toISOString().slice(0, 10)) ? <StatusPill status="On Leave" /> : <span className="text-[12px] text-[var(--color-text-faint)]">Not punched in</span>; return x.status ? <StatusPill status={x.status} /> : <span className="text-[12px]">{x.log_type === "IN" ? "In" : "Out"} since {hm(x.time)}</span>; } },
                 ]} />}

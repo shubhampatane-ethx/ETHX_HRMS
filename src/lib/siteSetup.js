@@ -47,7 +47,7 @@ export async function setupStatus() {
   };
 }
 
-const why = (e) => String(e?.response?.data?.exception || e?.response?.data?._server_messages || e?.message || "").slice(0, 220);
+const why = (e) => String(e?.response?.data?.exception || e?.response?.data?._server_messages || e?.message || "").replace(/\berpnext\b/gi, "HRMS").slice(0, 220);
 
 export async function runSetup(onStep = () => {}) {
   const log = [];
@@ -98,7 +98,7 @@ export async function runSetup(onStep = () => {}) {
         const msg = why(e);
         if (/server script/i.test(msg) && /disabled|enable/i.test(msg)) {
           scriptsBlocked = true;
-          step("Server scripts are disabled on this ERPNext site. Run `bench set-config -g server_script_enabled 1` on the server, restart, then run setup again.", false);
+          step("Server-side rules are disabled. Ask your administrator to enable them, restart the service, and run setup again.", false);
         } else step(`${m.label}: couldn't install "${s.name}": ${msg}`, false);
       }
     }

@@ -1,4 +1,4 @@
-// One-click ERPNext setup for every module (custom fields, change history, field restrictions, server rules).
+// One-click setup for every module (custom fields, change history, field restrictions, server rules).
 import { useState } from "react";
 import { Check, Loader2, Wand2, X } from "lucide-react";
 import { Button } from "./ui/primitives";
@@ -26,7 +26,7 @@ export function SiteSetupPanel() {
     status.reload();
   }
   return (
-    <Panel title="ERPNext setup" hint="Adds the fields the app uses, switches on change history, restricts sensitive fields and installs the server-side rules. Safe to run again - it only adds or updates what's missing or out of date." action={<Button onClick={run} disabled={busy}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />} Run setup</Button>}>
+    <Panel title="System setup" hint="Adds required fields, enables change history, applies sensitive-field restrictions and installs server-side rules. Safe to run again - it only adds or updates what's missing or out of date." action={<Button onClick={run} disabled={busy}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />} Run setup</Button>}>
       <Async state={status}>
         {(st) => (
           <div className="grid grid-cols-1 gap-5 text-[12.5px] text-[var(--color-text)] lg:grid-cols-3">
@@ -41,7 +41,7 @@ export function SiteSetupPanel() {
               </div>
             ))}
             {st.modules.some((m) => m.scripts.some((s) => !s.installed)) && (
-              <p className="text-[11px] text-[var(--color-text-faint)] lg:col-span-3">Server rules marked ✗ are missing or out of date - run setup. Server scripts must be enabled on the ERPNext site (<code>bench set-config -g server_script_enabled 1</code>, then restart). Without them the app falls back to browser-side checks, which could be bypassed through the ERPNext desk or API.</p>
+              <p className="text-[11px] text-[var(--color-text-faint)] lg:col-span-3">Server rules marked ✗ are missing or out of date. Ask your administrator to enable server-side rules for this workspace and run setup again.</p>
             )}
             <p className="text-[11px] text-[var(--color-text-faint)] lg:col-span-3">After setup: Admin › Roles & Permissions › Apply everything, so each role gets the new permissions. Everyone signs out and back in.</p>
           </div>

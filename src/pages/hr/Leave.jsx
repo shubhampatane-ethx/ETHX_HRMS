@@ -105,7 +105,7 @@ function DecideModal({ app, to, onClose, onSaved }) {
       await decideLeaveDirect(app.name, to, note.trim());
       onSaved();
     } catch (x) {
-      setErr(errMsg(x, "ERPNext refused this decision."));
+      setErr(errMsg(x, "The decision was refused."));
       setBusy(false);
     }
   }
@@ -114,7 +114,7 @@ function DecideModal({ app, to, onClose, onSaved }) {
       <form onSubmit={submit} className="space-y-3">
         <p className="text-[12px] text-[var(--color-text-muted)]">{app.leave_type} · {dmy(app.from_date)}{app.to_date !== app.from_date ? ` – ${dmy(app.to_date)}` : ""} · {app.total_leave_days} day(s){app.description ? ` · “${app.description}”` : ""}</p>
         <Field label={to === "Rejected" ? "Reason (required)" : "Note (optional)"}><textarea rows={2} className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} /></Field>
-        <p className="text-[11px] text-[var(--color-text-faint)]">The decision is final in ERPNext (the application is submitted). To change it later, cancel the application in ERPNext.</p>
+        <p className="text-[11px] text-[var(--color-text-faint)]">The decision is final after submission. To change it later, cancel the application.</p>
         {err && <Notice>{err}</Notice>}
         <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Saving…" : to === "Approved" ? "Approve" : "Reject"}</Button></div>
       </form>
@@ -250,7 +250,7 @@ function ReassignModal({ app, onClose, onSaved }) {
       await reassignLeave(app.name, chosen, options.find((a) => a.email === chosen)?.name);
       onSaved();
     } catch (e) {
-      setErr(errMsg(e, "ERPNext refused this change."));
+      setErr(errMsg(e, "The change was refused."));
       setBusy(false);
     }
   }

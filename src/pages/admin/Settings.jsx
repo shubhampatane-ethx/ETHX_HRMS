@@ -12,7 +12,7 @@ const PLATFORM = [
   { to: "/admin/organization?tab=expense", label: "Expense approvers", hint: "Who approves each expense type", icon: Receipt },
   { to: "/admin/organization?tab=leave", label: "Leave approvers", hint: "Approvers per business unit", icon: CalendarCheck },
   { to: "/admin/roles", label: "Roles & Permissions", hint: "What HR, Project Managers and employees may do", icon: ShieldCheck },
-  { to: "/admin/setup", label: "ERPNext Setup", hint: "Custom fields and server rules", icon: Wrench },
+  { to: "/admin/setup", label: "System Setup", hint: "Custom fields and server rules", icon: Wrench },
   { to: "/admin/audit-logs", label: "Audit Logs", hint: "Who changed what", icon: ScrollText },
 ];
 

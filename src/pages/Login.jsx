@@ -20,7 +20,7 @@ const FEATURES = [
   { icon: Users, title: "Employees", text: "Profiles, departments and records in one place" },
   { icon: CalendarCheck, title: "Attendance", text: "Daily tracking with monthly and yearly views" },
   { icon: CalendarClock, title: "Leave", text: "Requests and approvals without the paperwork" },
-  { icon: Wallet, title: "Payroll", text: "Salary runs synced with ERPNext" },
+  { icon: Wallet, title: "Payroll", text: "Salary information in one place" },
 ];
 
 // Browsers paint autofilled inputs white/blue; keep them on-theme instead.
@@ -61,7 +61,7 @@ export default function Login() {
       const noReply = err?.code === "ECONNABORTED" || !err?.response;
       setError(
         noReply
-          ? "Can't reach the ERPNext server. Check your connection and try again."
+          ? "Can't reach the sign-in service. Check your connection and try again."
           : err.response.status === 401 || err.response.status === 403
             ? "Invalid email or password."
             : "Sign-in failed. Please try again."
@@ -93,7 +93,7 @@ export default function Login() {
             <span className="bg-gradient-to-r from-[var(--color-red-hover)] to-[color-mix(in_srgb,var(--color-red)_55%,var(--color-text))] bg-clip-text text-transparent">built for the way your team works.</span>
           </h2>
           <p className="mt-3 text-[13px] leading-6 text-[var(--color-text-muted)]">
-            One workspace for everything HR, connected to your ERPNext data.
+            One workspace for everything HR, connected to your company data.
           </p>
 
           <div className="mt-6 grid grid-cols-1 gap-2.5 xl:grid-cols-2">
@@ -119,7 +119,7 @@ export default function Login() {
           <div className="mb-8 min-[800px]:hidden"><LoginBrand /></div>
 
           <h1 className="text-2xl font-semibold tracking-tight text-[var(--color-text)]">Welcome back</h1>
-          <p className="mt-1.5 text-[14px] text-[var(--color-text-muted)]">Sign in with your ERPNext account to continue.</p>
+          <p className="mt-1.5 text-[14px] text-[var(--color-text-muted)]">Sign in with your work account to continue.</p>
 
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
             <label className="block">

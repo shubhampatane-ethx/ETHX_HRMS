@@ -3,7 +3,7 @@ import { RefreshCw, Wifi, WifiOff } from "lucide-react";
 import { frappe } from "../../lib/api/frappeClient";
 import { Button, Card, Table } from "../ui/primitives";
 
-/** A consistent live-data screen for stock ERPNext/HRMS doctypes. */
+/** A consistent live-data screen for HRMS records. */
 export function LiveRecords({ title, description, doctype, emptyLabel }) {
   const [rows, setRows] = useState([]);
   const [state, setState] = useState("loading");
@@ -32,7 +32,7 @@ export function LiveRecords({ title, description, doctype, emptyLabel }) {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="mb-2 flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--color-red-hover)]">
-              {state === "error" ? <WifiOff size={14} /> : <Wifi size={14} />} ERPNext HRMS
+              {state === "error" ? <WifiOff size={14} /> : <Wifi size={14} />} Live HRMS data
             </div>
             <h2 className="text-lg font-semibold text-[var(--color-text)]">{title}</h2>
             <p className="mt-1 text-[13px] text-[var(--color-text-muted)]">{description}</p>

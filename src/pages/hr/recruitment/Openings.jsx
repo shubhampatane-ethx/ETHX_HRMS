@@ -49,7 +49,7 @@ export default function Openings() {
       await frappe.deleteDoc("Job Opening", o.name);
       openings.reload();
     } catch (e) {
-      window.alert(errMsg(e, "ERPNext could not delete this opening (it probably has candidates - close it instead)."));
+      window.alert(errMsg(e, "Couldn't delete this opening (it probably has candidates - close it instead)."));
     }
   }
 
@@ -173,7 +173,7 @@ export function OpeningModal({ opening, onClose, onSaved }) {
             <Field label="Salary to"><input type="number" min="0" className={inputCls} value={f.upper_range} onChange={set("upper_range")} /></Field>
             <Field label="Per"><select className={inputCls} value={f.salary_per} onChange={set("salary_per")}><option>Year</option><option>Month</option></select></Field>
           </div>
-          <label className="flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><input type="checkbox" checked={f.publish} onChange={(e) => setF({ ...f, publish: e.target.checked })} /> Publish on the careers page (ERPNext /jobs)</label>
+          <label className="flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><input type="checkbox" checked={f.publish} onChange={(e) => setF({ ...f, publish: e.target.checked })} /> Publish on the careers page</label>
           <label className="flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><input type="checkbox" checked={f.publish_salary_range} onChange={(e) => setF({ ...f, publish_salary_range: e.target.checked })} /> Show the salary range publicly</label>
         </div>
         <div className="space-y-3">

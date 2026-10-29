@@ -9,7 +9,7 @@ import { useAuth } from "../../context/AuthContext";
 import { dmy, errMsg, money, stripHtml, useAsync } from "../../lib/employeePortal";
 import { decideExpense, decideLeave, getWaitingForMe } from "../../lib/approvals";
 
-const failMsg = (e) => (e?.response ? errMsg(e, "ERPNext refused this.") : e?.message || "Something went wrong.");
+const failMsg = (e) => (e?.response ? errMsg(e, "This request couldn't be completed.") : e?.message || "Something went wrong.");
 const dates = (r) => `${dmy(r.from_date)}${r.to_date && r.to_date !== r.from_date ? ` – ${dmy(r.to_date)}` : ""}${Number(r.half_day) ? " (half day)" : ""}`;
 
 /** The signed-in user's queue (leave + expense claims waiting for them), as an async state. */

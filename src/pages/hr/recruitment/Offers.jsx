@@ -40,7 +40,7 @@ export default function Offers() {
       if (ok) setMsg({ ok: true, text: ok });
       offers.reload();
     } catch (e) {
-      setMsg({ ok: false, text: errMsg(e, "ERPNext refused this action.") });
+      setMsg({ ok: false, text: errMsg(e, "This action was refused.") });
     }
   }
 
@@ -161,7 +161,7 @@ function SendModal({ offer, onClose, onSaved }) {
     try {
       await sendOffer(offer);
     } catch (x) {
-      setErr(errMsg(x, "ERPNext refused to send this offer."));
+      setErr(errMsg(x, "This offer couldn't be sent."));
       setBusy(false);
       return;
     }
@@ -170,14 +170,14 @@ function SendModal({ offer, onClose, onSaved }) {
         await emailDocument({ doctype: "Job Offer", name: offer.name, to: offer.applicant_email, subject: `Offer of employment - ${offer.designation}`, message: `<p>Dear ${String(offer.applicant_name || "").split(" ")[0]},</p><p>We are delighted to offer you the position of ${offer.designation}. Please find your offer letter attached${offer.custom_valid_till ? `; this offer is valid until ${dmy(offer.custom_valid_till)}` : ""}.</p><p>Regards,<br/>HR Team</p>` });
         return onSaved("Offer sent and emailed with the PDF letter.");
       } catch (x) {
-        return onSaved(`Offer marked as sent, but the email failed (${errMsg(x, "check ERPNext's outgoing email account")}). Download the PDF and send it yourself.`);
+        return onSaved(`Offer marked as sent, but the email failed (${errMsg(x, "check the outgoing email settings")}). Download the PDF and send it yourself.`);
       }
     }
     onSaved("Offer marked as sent.");
   }
   return (
     <Modal title={`Send offer · ${offer.applicant_name}`} onClose={onClose}>
-      <p className="text-[13px] text-[var(--color-text-muted)]">Sending locks the offer (ERPNext submits it). To change it later, use Revise.</p>
+      <p className="text-[13px] text-[var(--color-text-muted)]">Sending locks the offer. To change it later, use Revise.</p>
       <label className="mt-3 flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><input type="checkbox" checked={email} onChange={(e) => setEmail(e.target.checked)} /><Mail size={13} /> Email the PDF offer letter to {offer.applicant_email || "the candidate"}</label>
       {err && <div className="mt-3"><Notice>{err}</Notice></div>}
       <div className="mt-4 flex justify-end gap-2"><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={go} disabled={busy}>{busy ? "Sending…" : "Send offer"}</Button></div>

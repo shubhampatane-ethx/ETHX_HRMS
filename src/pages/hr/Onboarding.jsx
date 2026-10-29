@@ -79,7 +79,7 @@ export default function Onboarding() {
             { key: "due", label: "Due", render: (a) => dmy(a.due) || "—" },
             { key: "status", label: "Status", render: (a) => <StatusPill status={a.status} /> },
           ]} />
-          <p className="mt-3 text-[11px] text-[var(--color-text-faint)]">Owners update their tasks in ERPNext (Projects › Task) or HR marks the whole onboarding complete here.</p>
+          <p className="mt-3 text-[11px] text-[var(--color-text-faint)]">Task owners update their assigned tasks, or HR can mark the whole onboarding complete here.</p>
         </Modal>
       )}
       {modal?.kind === "hire" && <HireModal offer={modal.offer} onClose={() => setModal(null)} onSaved={() => { setModal(null); data.reload(); }} />}

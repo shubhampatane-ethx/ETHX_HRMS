@@ -84,7 +84,7 @@ function ApproverModal({ row, onClose, onSaved }) {
   async function save() {
     setBusy(true);
     setErr("");
-    try { await frappe.updateDoc("Expense Claim", row.name, { expense_approver: chosen }); onSaved(); } catch (e) { setErr(errMsg(e, "ERPNext refused this change.")); setBusy(false); }
+    try { await frappe.updateDoc("Expense Claim", row.name, { expense_approver: chosen }); onSaved(); } catch (e) { setErr(errMsg(e, "The change was refused.")); setBusy(false); }
   }
   return (
     <Modal title={`Change approver · ${row.name}`} onClose={onClose}>

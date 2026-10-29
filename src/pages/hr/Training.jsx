@@ -129,7 +129,7 @@ function EventDetail({ event, onClose }) {
           ]} />
           {msg && <Notice tone={msg.ok ? "info" : "error"}>{msg.text}</Notice>}
           {d.event_status === "Scheduled" && <div className="flex justify-end gap-2"><Button variant="ghost" disabled={busy} onClick={() => save("Cancelled")}>Cancel event</Button><Button disabled={busy} onClick={() => save("Completed")}>Mark completed</Button></div>}
-          <p className="text-[11px] text-[var(--color-text-faint)]">Attendees see this training in their portal (Training &amp; Learning) and can give feedback there or in ERPNext.</p>
+          <p className="text-[11px] text-[var(--color-text-faint)]">Attendees see this training in their portal (Training &amp; Learning) and can give feedback there.</p>
         </div>
       )}
     </Modal>

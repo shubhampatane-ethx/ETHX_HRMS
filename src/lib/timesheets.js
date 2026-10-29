@@ -73,11 +73,11 @@ export function getDefaultActivityType() {
       try {
         rows = await frappe.getList("Activity Type", { filters: [["disabled", "=", 0]], fields: ["name"], limit: 0 });
       } catch (e) {
-        if (e?.response?.data?.exc_type === "PermissionError") throw validationError("Your account can't read Activity Types. Ask your administrator to re-apply the Employee preset in Admin → Roles.");
+        if (e?.response?.data?.exc_type === "PermissionError") throw validationError("Your account can't read activity types. Ask your administrator to review the Employee role permissions in Admin → Roles.");
         rows = await frappe.getList("Activity Type", { fields: ["name"], limit: 0 });
       }
       const pick = rows.find((r) => r.name === DEFAULT_ACTIVITY_TYPE) || rows[0];
-      if (!pick) throw validationError(`No Activity Type exists in ERPNext. Ask your administrator to create one named "${DEFAULT_ACTIVITY_TYPE}".`);
+      if (!pick) throw validationError(`No activity type is available. Ask your administrator to create one named "${DEFAULT_ACTIVITY_TYPE}".`);
       return pick.name;
     })().catch((e) => { activityPromise = null; throw e; });
   }
@@ -310,7 +310,7 @@ export async function reviewTimesheet({ name, action, note = "", version = 0, pr
     if (!missing) throw e;
     if (action === "approve") return approveTimesheet(name, note);
     if (action === "return") return returnTimesheet(name, note);
-    throw Object.assign(new Error("setup"), { friendly: "Finalizing needs the timesheet review rules - ask the Administrator to run Admin › ERPNext Setup." });
+    throw Object.assign(new Error("setup"), { friendly: "Finalizing needs the timesheet review rules - ask the Administrator to run Admin › System Setup." });
   }
 }
 

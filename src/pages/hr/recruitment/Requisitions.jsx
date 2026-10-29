@@ -36,7 +36,7 @@ export default function Requisitions({ mine = false }) {
     <div className="space-y-5">
       <PageHeader icon={ClipboardList} title={mine ? "My hiring requests" : "Job requisitions"} subtitle={mine ? "Ask HR for a hire for your project - HR approves it and opens the position" : "Hiring requests from managers: approve, hold or reject, then open the position"} actions={<Button onClick={() => setModal({ kind: "new" })} disabled={mine && !me.data}><Plus size={14} /> New requisition</Button>} />
       {!mine && <SetupHint />}
-      {mine && me.data === null && !me.loading && <Notice>Your login isn't linked to an Employee record, which ERPNext needs as the requester. Ask HR to set your email as the User ID on your Employee record.</Notice>}
+      {mine && me.data === null && !me.loading && <Notice>Your login isn't linked to an employee profile. Ask HR to link your sign-in email to your employee record.</Notice>}
       {!mine && !approver && <Notice tone="info">You can raise and edit requisitions. Approving or rejecting needs an HR Manager.</Notice>}
       <Panel>
         <div className="mb-4 flex flex-wrap gap-2">{FILTERS.map(([v, l]) => <button key={v} type="button" onClick={() => setFilter(v)} className={chipCls(filter === v)}>{l}</button>)}</div>
@@ -181,12 +181,11 @@ function CreateOpeningModal({ req, onClose, onSaved }) {
         <p className="text-[12px] text-[var(--color-text-muted)]">Copies the role, department, positions ({req.no_of_positions}), budget and description from {req.name}. You can add skills, salary range and interview rounds on the opening afterwards.</p>
         <Field label="Job title"><input required className={inputCls} value={f.job_title} onChange={(e) => setF({ ...f, job_title: e.target.value })} /></Field>
         <DateField label="Applications close on (optional)" value={f.closes_on} onChange={(v) => setF({ ...f, closes_on: v })} />
-        <label className="flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><input type="checkbox" checked={f.publish} onChange={(e) => setF({ ...f, publish: e.target.checked })} /> Publish on the careers page (ERPNext /jobs)</label>
+        <label className="flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><input type="checkbox" checked={f.publish} onChange={(e) => setF({ ...f, publish: e.target.checked })} /> Publish on the careers page</label>
         {err && <Notice>{err}</Notice>}
         <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Creating…" : "Create opening"}</Button></div>
       </form>
     </Modal>
   );
 }
-
 

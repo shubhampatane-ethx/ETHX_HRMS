@@ -43,7 +43,7 @@ export default function PMApprovals() {
   return (
     <>
       <PageHeader icon={CheckCheck} title="Timesheet approvals" subtitle="Hours logged on your projects. Approve your part; HR sees the whole timesheet." />
-      {q.data && !q.data.ready && <Notice>Per-project timesheet approval isn't switched on for this ERPNext site yet. An Administrator (a user with the System Manager role) must run Admin › ERPNext Setup › Run setup - server scripts need to be enabled on the ERPNext server first (<code>bench set-config -g server_script_enabled 1</code>, then restart).</Notice>}
+      {q.data && !q.data.ready && <Notice>Per-project timesheet approval isn't enabled yet. Ask an Administrator to enable server-side rules and run Admin › System Setup › Run setup.</Notice>}
       <Panel>
         <div className="mb-4 flex gap-2">{[["pending", `Awaiting you${pendingCount ? ` (${pendingCount})` : ""}`], ["approved", "Approved by you"], ["all", "All"]].map(([v, l]) => <button key={v} type="button" onClick={() => setFilter(v)} className={chipCls(filter === v)}>{l}</button>)}</div>
         <Async state={q}>

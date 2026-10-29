@@ -101,7 +101,7 @@ export default function BrandStudio() {
       refreshBranding();
       setMessage(`${theme.name} is now the shared theme for ${currentCompany?.company_name || companyName}.`);
     } catch (e) {
-      setError(`Theme preview is active on this browser, but ERPNext could not save it for everyone. ${errMsg(e, "Check Custom Field and Company permissions.")}`);
+      setError(`Theme preview is active on this browser, but the shared theme could not be saved. ${errMsg(e, "Check company permissions.")}`);
     } finally {
       setBusy("");
     }
@@ -116,7 +116,7 @@ export default function BrandStudio() {
     setMessage("");
     try {
       const uploaded = await frappe.uploadFile(file, { doctype: "Company", docname: companyName, isPrivate: false });
-      if (!uploaded?.file_url) throw new Error("ERPNext did not return a public file URL.");
+      if (!uploaded?.file_url) throw new Error("The upload did not return a public file URL.");
       const saved = await frappe.updateDoc("Company", companyName, { company_logo: uploaded.file_url });
       cacheBranding(saved || { ...currentCompany, company_logo: uploaded.file_url });
       companyQuery.reload();
@@ -156,7 +156,7 @@ export default function BrandStudio() {
           <div className="max-w-xl">
             <p className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--color-red-hover)]"><Palette size={14} /> Tenant identity</p>
             <h1 className="text-xl font-semibold text-[var(--color-text)]">Brand studio</h1>
-            <p className="mt-1.5 text-[13px] leading-5 text-[var(--color-text-muted)]">Give every company its own logo and color system. Changes are saved to ERPNext so the brand follows the company’s users.</p>
+            <p className="mt-1.5 text-[13px] leading-5 text-[var(--color-text-muted)]">Give every company its own logo and color system. Changes are shared with that company’s users.</p>
           </div>
           <label className="min-w-60">
             <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">Company workspace</span>
@@ -209,7 +209,7 @@ export default function BrandStudio() {
       </div>
 
       <Card className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-        <span className="flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><Check size={14} className="text-[var(--color-green)]" /> Company logo and theme are stored with the selected ERPNext Company.</span>
+        <span className="flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><Check size={14} className="text-[var(--color-green)]" /> Company logo and theme are stored with the selected company.</span>
         <Button type="button" variant="ghost" disabled={Boolean(busy)} onClick={() => { companiesQuery.reload(); companyQuery.reload(); refreshBranding(); }}><RefreshCw size={13} /> Refresh</Button>
       </Card>
     </div>

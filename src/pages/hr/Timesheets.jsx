@@ -304,7 +304,7 @@ export function Detail({ sheet, onClose, onChanged, readOnly = false, onlyProjec
       await reviewTimesheet({ name: sheet.name, action: mode, note: note.trim(), version: Number(d?.custom_review_version) || 0, projects: mode === "approve" && (scope || onlyProjects) ? target.map((g) => g.key) : undefined });
       onChanged();
     } catch (e) {
-      setErr(`${e.partial ? `${e.partial} ` : ""}${e.friendly || errMsg(e, "ERPNext refused this action.")}`);
+      setErr(`${e.partial ? `${e.partial} ` : ""}${e.friendly || errMsg(e, "This action was refused.")}`);
       setBusy(false);
       if (e.partial) setTimeout(onChanged, 4000);
     }

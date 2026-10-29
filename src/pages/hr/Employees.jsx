@@ -114,7 +114,7 @@ function loginError(e) {
   const detail = errMsg(e, e.response.data?.exc_type || `HTTP ${e.response.status}`);
   const where = e.step ? `${e.step} failed. ` : "";
   const hint = e.response.data?.exc_type === "PermissionError" ? " Ask the Administrator to check this HR role in Admin > Roles & Permissions (use \"Check an account\")." : "";
-  return `${where}ERPNext said: ${detail}.${hint}`;
+  return `${where}${detail}.${hint}`;
 }
 
 export default function Employees() {
@@ -146,7 +146,7 @@ export default function Employees() {
       await frappe.deleteDoc("Employee", employee.name);
       load();
     } catch (error) {
-      window.alert(error?.response?.data?.exception || "ERPNext could not delete this employee.");
+      window.alert(errMsg(error, "Couldn't delete this employee."));
     }
   }
 
@@ -175,7 +175,7 @@ export default function Employees() {
 
       <Card className="overflow-hidden">
         {state === "loading" && <div className="flex h-40 items-center justify-center text-[13px] text-[var(--color-text-muted)]">Loading employees...</div>}
-        {state === "error" && <div className="p-6 text-[13px] text-[var(--color-text-muted)]">Could not load Employee records. Check ERPNext permissions and connectivity.</div>}
+        {state === "error" && <div className="p-6 text-[13px] text-[var(--color-text-muted)]">Could not load employee records. Check your permissions and connection.</div>}
         {state === "ready" && <Table columns={[
           { key: "employee_name", label: "Name", render: (row) => <button type="button" onClick={() => setDetail(row)} className="text-left text-[var(--color-text)] hover:text-[var(--color-red-hover)] hover:underline">{row.employee_name || row.name}</button> },
           { key: "department", label: "Department" },
@@ -263,7 +263,7 @@ function LoginModal({ employee, onClose, onDone }) {
             <label className="block">
               <span className="mb-1.5 block text-[12px] text-[var(--color-text-muted)]">Temporary password</span>
               <input type="text" required minLength={8} autoComplete="off" className={inputCls} value={password} onChange={(e) => setPassword(e.target.value)} />
-              <span className="mt-1 block text-[11px] text-[var(--color-text-faint)]">At least 8 characters with letters, numbers and a symbol - ERPNext rejects weak passwords.</span>
+              <span className="mt-1 block text-[11px] text-[var(--color-text-faint)]">At least 8 characters with a mix of letters, numbers and symbols.</span>
             </label>
             <label className="flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} /> Use this as the default password on this browser</label>
             {error && <p className="rounded-md border border-[var(--color-red-deep)] bg-[var(--color-red-wash)] px-3 py-2 text-[12px] text-[var(--color-red-hover)]">{error}</p>}
@@ -271,7 +271,7 @@ function LoginModal({ employee, onClose, onDone }) {
               {reset && <Button type="button" variant="ghost" className="mr-auto" disabled={busy} onClick={async () => {
                 if (!window.confirm(`Disable ${employee.employee_name}'s portal login? They won't be able to sign in until it's enabled again.`)) return;
                 setBusy(true); setError("");
-                try { await setLoginEnabled(employee, false); onDone(); onClose(); } catch (err) { setError(methodMissing(err) ? "Disabling logins needs Admin › ERPNext Setup to be run first." : loginError(err)); setBusy(false); }
+                try { await setLoginEnabled(employee, false); onDone(); onClose(); } catch (err) { setError(methodMissing(err) ? "Disabling logins needs Admin › System Setup to be run first." : loginError(err)); setBusy(false); }
               }}>Disable login</Button>}
               <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
               <Button type="submit" disabled={busy}>{busy ? "Working…" : reset ? "Reset password" : "Create login"}</Button>
