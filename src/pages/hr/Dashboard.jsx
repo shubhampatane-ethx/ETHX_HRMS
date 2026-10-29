@@ -78,8 +78,7 @@ function SectionTitle({ title, hint, to }) {
   );
 }
 
-/** `embedded`: shown under the employee dashboard for HR staff who are also employees (one dashboard), so no greeting hero. */
-export default function HRDashboard({ embedded = false }) {
+export default function HRDashboard() {
   const { user } = useAuth();
   const [data, setData] = useState(null);
 
@@ -187,15 +186,7 @@ export default function HRDashboard({ embedded = false }) {
 
   return (
     <div className="space-y-6">
-      {embedded ? (
-        <div className="flex flex-wrap items-end justify-between gap-4 border-t border-[var(--color-border)] pt-6">
-          <div>
-            <h2 className="text-[17px] font-semibold text-[var(--color-text)]">HR overview</h2>
-            <p className="mt-1 text-[13px] text-[var(--color-text-muted)]">{summary}</p>
-          </div>
-          {actions}
-        </div>
-      ) : (
+      {/* Hero */}
       <section className="relative overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-7 py-7">
         <div className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(600px 220px at 100% 0%, color-mix(in srgb, var(--color-red) 22%, transparent), transparent 70%), radial-gradient(400px 200px at 0% 100%, color-mix(in srgb, var(--color-red) 8%, transparent), transparent 70%)" }} />
         <div className="relative flex flex-wrap items-center justify-between gap-5">
@@ -207,7 +198,6 @@ export default function HRDashboard({ embedded = false }) {
           {actions}
         </div>
       </section>
-      )}
 
       {/* Stats */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">

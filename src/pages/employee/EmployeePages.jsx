@@ -1,13 +1,13 @@
 // Employee portal: all employee pages in one file.
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowRight, BadgeCheck, Bell, CalendarCheck, CalendarClock, CalendarDays, CheckCheck, ChevronLeft, ChevronRight, ClipboardCheck, Download, ExternalLink, FileText, GraduationCap, HeartPulse, KeyRound, Laptop, LifeBuoy, LogIn, LogOut, Mail, Megaphone, Paperclip, Pencil, Phone, Plus, Receipt, Search, ShieldAlert, Target, Undo2, UserRound, Users, Wallet } from "lucide-react";
+import { ArrowRight, BadgeCheck, Briefcase, Bell, CalendarCheck, CalendarClock, CalendarDays, CheckCheck, ChevronLeft, ChevronRight, ClipboardCheck, Download, ExternalLink, FileText, GraduationCap, HeartPulse, KeyRound, Laptop, LifeBuoy, LogIn, LogOut, Mail, Megaphone, Paperclip, Pencil, Phone, Plus, Receipt, Search, ShieldAlert, Target, Undo2, UserRound, Users, Wallet } from "lucide-react";
 import { Async, ChangePasswordForm, chipCls, Empty, ErrorState, Field, Grid, inputCls, KeyValue, Loading, Modal, Notice, PageHeader, Panel, Skeleton, Stat, StatusPill, Tabs, useEmployee } from "../../components/employee/EmployeeShell";
 import { CONTACTS, createRequest, daysBetween, daysUntil, dmy, dmyHm, errMsg, EXPIRY_WARN_DAYS, getAcknowledged, getAnnouncements, getAppraisals, getApprovals, getAttendanceHistory, getAttendanceRequests, getBenefitClaims, getCheckinsBetween, getEvents, getExpenseClaims, getFeedback, getGoals, getHelpArticles, getHolidays, getLeaveApplications, getLeaveBalance, getLeaveTypes, getMyAssets, getMyDocuments, getMyLeavesBetween, getMyTraining, getNotifications, getPayslips, getPolicies, getRequests, getShiftAssignments, getTeamAvailability, getTodayAttendance, hm, hoursLabel, isoDate, LETTER_TYPES, money, MONTHS, MONTHS_LONG, nowStamp, pad, REQUEST_CATEGORIES, stripHtml, summariseCheckins, useAsync, WEEKDAYS } from "../../lib/employeePortal";
 import { useAuth } from "../../context/AuthContext";
 import { hasPermission } from "../../permissions/roles";
 
-// Workspace overviews shown on the one combined dashboard for HR staff / Project Managers who are also employees.
+// Workspace dashboards that HR staff / Project Managers who are also employees switch to from their one Dashboard.
 const HRDashboard = lazy(() => import("../hr/Dashboard"));
 const PMDashboard = lazy(() => import("../pm/PMPages").then((m) => ({ default: m.PMDashboard })));
 import { Button, DateField } from "../../components/ui/primitives";
@@ -390,7 +390,43 @@ function TeamTab({ employee }) {
 /* ===== EmpDashboard.jsx ===== */
 const greeting = (h) => (h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening");
 
+const VIEW_KEY = "ethx.dashboard.view";
+
+/**
+ * The one Dashboard. Plain employees see their own; HR staff and Project Managers who are also
+ * employees switch between "My dashboard" and their HR / Projects dashboard (remembered per browser).
+ */
 export function EmpDashboard() {
+  const { user } = useAuth();
+  const [params, setParams] = useSearchParams();
+  const work = hasPermission(user, "dashboard.hr") ? { id: "hr", label: "HR dashboard", Page: HRDashboard }
+    : hasPermission(user, "dashboard.pm") ? { id: "pm", label: "Projects dashboard", Page: PMDashboard } : null;
+  if (!work) return <SelfDashboard />;
+
+  let saved = null;
+  try { saved = localStorage.getItem(VIEW_KEY); } catch { /* storage blocked: default to self */ }
+  const view = params.get("view") || (saved === work.id ? work.id : "self");
+  const choose = (id) => {
+    try { localStorage.setItem(VIEW_KEY, id); } catch { /* not critical */ }
+    setParams(id === "self" ? {} : { view: id }, { replace: true });
+  };
+
+  return (
+    <>
+      <div role="tablist" aria-label="Dashboard" className="inline-flex rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-1">
+        {[{ id: "self", label: "My dashboard", icon: UserRound }, { id: work.id, label: work.label, icon: Briefcase }].map(({ id, label, icon: Icon }) => (
+          <button key={id} type="button" role="tab" aria-selected={view === id} onClick={() => choose(id)}
+            className={`flex items-center gap-2 rounded-md px-3.5 py-1.5 text-[13px] font-medium transition-colors ${view === id ? "bg-[var(--color-red)] text-[var(--color-on-accent)]" : "text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]"}`}>
+            <Icon size={14} /> {label}
+          </button>
+        ))}
+      </div>
+      {view === work.id ? <Suspense fallback={<Loading />}><work.Page /></Suspense> : <SelfDashboard />}
+    </>
+  );
+}
+
+function SelfDashboard() {
   const { user } = useAuth();
   const { employee } = useEmployee();
   const navigate = useNavigate();
@@ -524,9 +560,6 @@ export function EmpDashboard() {
           </Link>
         ))}
       </div>
-      {/* One dashboard: HR staff and Project Managers see their workspace overview under their own. */}
-      {hasPermission(user, "dashboard.hr") && <Suspense fallback={<Loading />}><HRDashboard embedded /></Suspense>}
-      {!hasPermission(user, "dashboard.hr") && hasPermission(user, "dashboard.pm") && <Suspense fallback={<Loading />}><PMDashboard embedded /></Suspense>}
     </>
   );
 }

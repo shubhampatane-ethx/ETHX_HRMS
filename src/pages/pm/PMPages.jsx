@@ -28,8 +28,7 @@ function useTeam() {
 
 /* ------------------------------- dashboard ------------------------------- */
 
-/** `embedded`: shown under the employee dashboard for Project Managers who are also employees (one dashboard). */
-export function PMDashboard({ embedded = false }) {
+export function PMDashboard() {
   const { projects, employees, assignments, rows } = useTeam();
   const today = isoDate();
   const active = rows.filter(isActive);
@@ -42,15 +41,7 @@ export function PMDashboard({ embedded = false }) {
 
   return (
     <>
-      {embedded ? (
-        <div className="flex flex-wrap items-end justify-between gap-4 border-t border-[var(--color-border)] pt-6">
-          <div>
-            <h2 className="text-[17px] font-semibold text-[var(--color-text)]">Projects overview</h2>
-            <p className="mt-1 text-[13px] text-[var(--color-text-muted)]">Assign people to projects with a role and ETA - their timesheets fill in automatically</p>
-          </div>
-          <Link to="/pm/assignments?assign=1"><Button><Plus size={14} /> Assign employee</Button></Link>
-        </div>
-      ) : <PageHeader icon={Briefcase} title="Project Manager" subtitle="Assign people to projects with a role and ETA - their timesheets fill in automatically" actions={<Link to="/pm/assignments?assign=1"><Button><Plus size={14} /> Assign employee</Button></Link>} />}
+      <PageHeader icon={Briefcase} title="Project Manager" subtitle="Assign people to projects with a role and ETA - their timesheets fill in automatically" actions={<Link to="/pm/assignments?assign=1"><Button><Plus size={14} /> Assign employee</Button></Link>} />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat to="/pm/projects" icon={Briefcase} label="Open projects" value={projects.data ? openProjects.length : projects.error ? "—" : undefined} sub="Not completed or cancelled" accent="#4f8cff" />
         <Stat to="/pm/assignments" icon={ClipboardList} label="Active assignments" value={assignments.data ? active.length : assignments.error ? "—" : undefined} sub="People on projects" accent="var(--color-green)" />
