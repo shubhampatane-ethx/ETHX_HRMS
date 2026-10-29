@@ -5,7 +5,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useBranding } from "../../context/BrandingContext";
 import { hasPermission } from "../../permissions/roles";
 import { getSavedTheme, hasSavedTheme, saveTheme, THEME_OPTIONS } from "../../lib/theme";
-import { displayName, ProfileAvatar } from "../ProfilePhoto";
+import { displayName, initials, ProfileAvatar } from "../ProfilePhoto";
 
 function ThemeTile({ option, selected, onChoose }) {
   const [background, accent, foreground] = option.swatches;
@@ -138,8 +138,7 @@ export function Topbar({ roleLabel, pageTitle }) {
             className="flex items-center gap-2.5 rounded-full border border-[var(--color-red-deep)] bg-[var(--color-red-wash)] py-1 pl-1 pr-3 text-[13px] transition-colors hover:border-[var(--color-red)]"
           >
             <ProfileAvatar size={28} />
-            <span className="max-w-[16rem] truncate text-[var(--color-text)]">{name}</span>
-            <span className="text-[11px] font-medium text-[var(--color-red-hover)]">{roleLabel}</span>
+            <span title={name} className="font-semibold tracking-wide text-[var(--color-text)]">{initials(name)}</span>
             <ChevronDown size={14} className={`text-[var(--color-text-muted)] transition-transform ${open ? "rotate-180" : ""}`} />
           </button>
 

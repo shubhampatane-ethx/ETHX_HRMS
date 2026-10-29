@@ -1126,7 +1126,7 @@ export function EmpProfile() {
 
   return (
     <>
-      <PageHeader icon={UserRound} avatar={<ProfileAvatar size={56} editable />} title={e.employee_name} subtitle={`${e.designation || "Employee"} · ${e.name}`} actions={<><Button variant="secondary" onClick={() => setPwOpen(true)}><KeyRound size={14} /> Change password</Button><Button variant="secondary" onClick={open}><Pencil size={14} /> Update contact details</Button></>} />
+      <PageHeader icon={UserRound} avatar={<ProfileAvatar size={72} />} title={e.employee_name} subtitle={`${e.designation || "Employee"} · ${e.name}`} actions={<><Button variant="secondary" onClick={() => setPwOpen(true)}><KeyRound size={14} /> Change password</Button><Button variant="secondary" onClick={open}><Pencil size={14} /> Update contact details</Button></>} />
 
       <Panel title="Employment">
         <KeyValue items={[
