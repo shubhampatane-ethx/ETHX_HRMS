@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { ChevronDown } from "lucide-react";
-import { Brand } from "../Brand";
+import { useBranding } from "../../context/BrandingContext";
+import { AdaptiveLogo } from "../AdaptiveLogo";
 
 /**
  * @param {{
@@ -14,17 +15,24 @@ import { Brand } from "../Brand";
  */
 export function Sidebar({ title, items }) {
   const { pathname } = useLocation();
+  const { company } = useBranding();
+  const logo = company?.company_logo || "/ethx-logo.svg";
+  const companyName = company?.company_name || "ETHX Softcon";
 
   return (
     <aside className="flex h-screen w-64 shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)]">
-      <div className="border-b border-[var(--color-border)] px-5 py-4">
-        <Brand compact />
-        <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--color-text-muted)]">
-          {title}
+      <div className="border-b border-[var(--color-border)] px-5 pb-4 pt-5">
+        <AdaptiveLogo
+          src={logo}
+          alt={`${companyName} logo`}
+          className="h-16 w-auto max-w-full object-contain object-left [filter:contrast(1.15)_saturate(1.2)_drop-shadow(0_1px_1px_rgb(0_0_0/0.25))]"
+        />
+        <p className="mt-3 truncate text-[15px] font-bold leading-tight tracking-tight text-[var(--color-text)]" title={companyName}>
+          {companyName}
         </p>
       </div>
 
-      <nav className="flex-1 overflow-y-auto px-3 py-4">
+      <nav aria-label={title} className="flex-1 overflow-y-auto px-3 py-4">
         <ul className="space-y-0.5">
           {items.map((item) =>
             item.children ? (

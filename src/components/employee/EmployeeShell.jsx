@@ -26,11 +26,12 @@ export function Field({ label, hint, children }) {
   );
 }
 
-export function PageHeader({ icon: Icon, title, subtitle, actions }) {
+export function PageHeader({ icon: Icon, avatar, title, subtitle, actions }) {
   return (
     <section className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4">
       <div className="flex items-center gap-3">
-        {Icon && (
+        {avatar}
+        {!avatar && Icon && (
           <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--color-red-wash)] text-[var(--color-red-hover)]">
             <Icon size={18} strokeWidth={1.9} />
           </span>

@@ -68,12 +68,15 @@ export function AuthProvider({ children }) {
       frappe.refreshCsrfToken();
       const { roles, mustChangePassword, erpRoles = [] } = await resolveAccount(email);
       let userImage = "";
+      let fullName = "";
       try {
-        userImage = (await frappe.getDoc("User", email)).user_image || "";
+        const doc = await frappe.getDoc("User", email);
+        userImage = doc.user_image || "";
+        fullName = doc.full_name || [doc.first_name, doc.last_name].filter(Boolean).join(" ");
       } catch {
-        // A missing profile image must not prevent an otherwise valid login.
+        // A missing profile image or name must not prevent an otherwise valid login.
       }
-      const nextUser = { email, roles, erpRoles, permissions: rolesToPermissions(roles), mustChangePassword, userImage };
+      const nextUser = { email, fullName, roles, erpRoles, permissions: rolesToPermissions(roles), mustChangePassword, userImage };
       setUser(nextUser);
       setStatus("authenticated");
       return nextUser;

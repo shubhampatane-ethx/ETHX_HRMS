@@ -6,6 +6,7 @@ import { Async, ChangePasswordForm, chipCls, Empty, ErrorState, Field, Grid, inp
 import { CONTACTS, createRequest, daysBetween, daysUntil, dmy, dmyHm, errMsg, EXPIRY_WARN_DAYS, getAcknowledged, getAnnouncements, getAppraisals, getApprovals, getAttendanceHistory, getAttendanceRequests, getBenefitClaims, getCheckinsBetween, getEvents, getExpenseClaims, getFeedback, getGoals, getHelpArticles, getHolidays, getLeaveApplications, getLeaveBalance, getLeaveTypes, getMyAssets, getMyDocuments, getMyLeavesBetween, getMyTraining, getNotifications, getPayslips, getPolicies, getRequests, getShiftAssignments, getTeamAvailability, getTodayAttendance, hm, hoursLabel, isoDate, LETTER_TYPES, money, MONTHS, MONTHS_LONG, nowStamp, pad, REQUEST_CATEGORIES, stripHtml, summariseCheckins, useAsync, WEEKDAYS } from "../../lib/employeePortal";
 import { useAuth } from "../../context/AuthContext";
 import { Button, DateField } from "../../components/ui/primitives";
+import { ProfileAvatar } from "../../components/ProfilePhoto";
 import { frappe } from "../../lib/api/frappeClient";
 import { addBills, billCounts, createExpenseClaim, getApprovers, getRejectionReasons, pickApprover } from "../../lib/approvals";
 import { ApprovalQueue, useApprovalQueue } from "../../components/approvals/ApprovalQueue";
@@ -1125,7 +1126,7 @@ export function EmpProfile() {
 
   return (
     <>
-      <PageHeader icon={UserRound} title={e.employee_name} subtitle={`${e.designation || "Employee"} · ${e.name}`} actions={<><Button variant="secondary" onClick={() => setPwOpen(true)}><KeyRound size={14} /> Change password</Button><Button variant="secondary" onClick={open}><Pencil size={14} /> Update contact details</Button></>} />
+      <PageHeader icon={UserRound} avatar={<ProfileAvatar size={56} editable />} title={e.employee_name} subtitle={`${e.designation || "Employee"} · ${e.name}`} actions={<><Button variant="secondary" onClick={() => setPwOpen(true)}><KeyRound size={14} /> Change password</Button><Button variant="secondary" onClick={open}><Pencil size={14} /> Update contact details</Button></>} />
 
       <Panel title="Employment">
         <KeyValue items={[
