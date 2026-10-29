@@ -186,7 +186,6 @@ function ImportModal({ file, reg, employees, assets, onClose, onDone }) {
   async function apply() {
     setErr("");
     if (blocked.length) return setErr(`${blocked.length} row(s) still need attention - choose who holds them (or "Leave unassigned"), or untick them.`);
-    if (needsValue && !(Number(opts.value) > 0)) return setErr("Enter the value to record for new assets (ERPNext needs a purchase value for each asset).");
     if (needsValue && !opts.company) return setErr("Choose the company for assets that aren't assigned to anyone.");
     const n = todo.filter((p) => !p.existing).length;
     const u = todo.length - n;
@@ -222,7 +221,7 @@ function ImportModal({ file, reg, employees, assets, onClose, onDone }) {
           <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--color-border)] p-3 sm:grid-cols-4">
             <Field label="Company (unassigned assets)"><select className={inputCls} value={opts.company} onChange={(e) => setOpts({ ...opts, company: e.target.value })}>{companies.map((c) => <option key={c}>{c}</option>)}</select></Field>
             <Field label="Default location"><input className={inputCls} value={opts.location} onChange={(e) => setOpts({ ...opts, location: e.target.value })} /></Field>
-            <Field label="Value per new asset (₹)" hint="Required by ERPNext; edit single assets later"><input className={inputCls} type="number" min="1" value={opts.value} onChange={(e) => setOpts({ ...opts, value: e.target.value })} /></Field>
+            <Field label="Value per new asset (₹, optional)" hint="Blank records ₹1 as a placeholder - ERPNext needs some value"><input className={inputCls} type="number" min="1" placeholder="1" value={opts.value} onChange={(e) => setOpts({ ...opts, value: e.target.value })} /></Field>
             <Field label="Purchase date if none" hint="Rows with an assigned date use that"><input className={inputCls} type="date" value={opts.purchaseDate} onChange={(e) => setOpts({ ...opts, purchaseDate: e.target.value })} /></Field>
           </div>
         )}

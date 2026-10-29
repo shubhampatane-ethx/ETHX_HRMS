@@ -405,7 +405,8 @@ export async function applyRegister(items, opts, employees, onStep = () => {}) {
         const doc = await frappe.createDoc("Asset", {
           company, item_code: itemCode, asset_name: item.assetName, asset_category: item.type, location,
           custodian: w.custodian || undefined, is_existing_asset: 1, calculate_depreciation: 0,
-          purchase_date: date, available_for_use_date: date, [value]: Number(opts.value) || 0,
+          // ERPNext rejects an asset without a purchase value; the register has none, so ₹1 stands in until HR knows it.
+          purchase_date: date, available_for_use_date: date, [value]: Number(opts.value) > 0 ? Number(opts.value) : 1,
           ...fields, custom_register_key: item.key,
         });
         await frappe.submitDoc(doc);
