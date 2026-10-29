@@ -2,7 +2,7 @@ import { Outlet, useLocation } from "react-router-dom";
 import { PageLoading } from "../PageLoading";
 import {
   LayoutDashboard,
-  Briefcase,
+  UserRound,
   Users,
   CalendarCheck,
   CalendarDays,
@@ -55,6 +55,51 @@ export const TOP_NAV = [
   },
 ];
 
+// HR staff are employees too: their own self-service pages (the /employee routes) sit in the HR
+// sidebar as one group, so they work from a single workspace instead of switching to the portal.
+export const SELF_SERVICE = {
+  label: "My Self-Service",
+  icon: UserRound,
+  children: [
+    { to: "/employee", label: "My Overview", end: true },
+    { to: "/employee/attendance", label: "My Attendance" },
+    { to: "/employee/leave", label: "My Leave" },
+    { to: "/employee/timesheet", label: "My Timesheet" },
+    { to: "/employee/calendar", label: "Calendar & Holidays" },
+    { to: "/employee/approvals", label: "My Approvals" },
+    { to: "/employee/team", label: "My Team" },
+    { to: "/employee/payslips", label: "My Payslips" },
+    { to: "/employee/expenses", label: "My Expense Claims" },
+    { to: "/employee/benefits", label: "My Benefits" },
+    { to: "/employee/goals", label: "My Goals & Feedback" },
+    { to: "/employee/training", label: "My Training" },
+    { to: "/employee/documents", label: "My Documents" },
+    { to: "/employee/assets", label: "My Assets" },
+    { to: "/employee/help", label: "Help & Requests" },
+    { to: "/employee/notifications", label: "Notifications" },
+  ],
+};
+
+// Pages reached outside the sidebar, listed only so the top bar shows the right title.
+const HIDDEN_PAGES = [
+  { to: "/employee/profile", label: "My Profile" },
+  { to: "/employee/search", label: "Search" },
+  { to: "/employee/interviews", label: "My Interviews" },
+];
+
+/** HR sidebar: Dashboard first, then the person's own self-service (when they have an employee login), then HR work. */
+export function hrNav(user) {
+  const isAdmin = hasPermission(user, "dashboard.admin");
+  const [dashboard, ...rest] = TOP_NAV;
+  return [
+    ...(isAdmin ? [{ to: "/admin", label: "Back to Admin", icon: ArrowLeft }] : []),
+    dashboard,
+    ...(hasPermission(user, "dashboard.employee") ? [SELF_SERVICE] : []),
+    ...rest,
+    ...hrSetupGroups(isAdmin),
+  ];
+}
+
 // Section titles that would clash with the main menu items of the same name
 const SETUP_LABELS = { Settings: "HR & Payroll Settings", Leaves: "Leave Setup", Attendance: "Attendance Setup", "Expense Claim": "Expense Setup" };
 
@@ -70,9 +115,11 @@ export function hrSetupGroups(isAdmin = false) {
 }
 
 /** Longest-prefix match across both top-level links and grouped children, for the topbar title. */
-function titleFor(pathname) {
+export function hrTitleFor(pathname) {
   const flat = [
     ...TOP_NAV.flatMap((n) => (n.children ? n.children : [n])),
+    ...SELF_SERVICE.children,
+    ...HIDDEN_PAGES,
     ...hrSetupGroups(true).flatMap((g) => g.children),
   ];
   const match = [...flat]
@@ -86,17 +133,12 @@ export function HRLayout() {
   const { user } = useAuth();
   const isAdmin = hasPermission(user, "dashboard.admin");
   // Administrator can open every HR page too, with a way back to the admin workspace
-  const nav = useMemo(() => [
-    ...(isAdmin ? [{ to: "/admin", label: "Back to Admin", icon: ArrowLeft }] : []),
-    ...(hasPermission(user, "dashboard.employee") ? [{ to: "/employee", label: "My Employee Portal", icon: Briefcase }] : []),
-    ...TOP_NAV,
-    ...hrSetupGroups(isAdmin),
-  ], [isAdmin, user]);
+  const nav = useMemo(() => hrNav(user), [user]);
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--color-bg)]">
       <Sidebar title={isAdmin ? "HR Workspace (Admin)" : "HR Workspace"} items={nav} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar roleLabel={isAdmin ? "Admin" : "HR"} pageTitle={titleFor(pathname)} />
+        <Topbar roleLabel={isAdmin ? "Admin" : "HR"} pageTitle={hrTitleFor(pathname)} />
         <main className="flex-1 overflow-y-auto p-6">
           <Suspense fallback={<PageLoading />}><Outlet /></Suspense>
         </main>

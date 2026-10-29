@@ -97,10 +97,11 @@ function accountMenu(user, roleLabel) {
     items.push({ to: "/admin/settings", label: "Settings", icon: Settings });
     if (hasPermission(user, "dashboard.hr")) items.push({ to: "/hr/setup/hr-settings", label: "HR Settings", icon: SlidersHorizontal });
   } else if (roleLabel === "HR") {
-    items.push({ to: "/hr/setup/hr-settings", label: "HR Settings", icon: Settings });
+    // Their own self-service pages are in the HR sidebar ("My Self-Service"); only the profile lives here.
     if (hasPermission(user, "dashboard.employee")) {
-      items.push({ to: "/employee", label: "My Employee Portal", icon: Briefcase });
+      items.push({ to: "/employee/profile", label: "My profile & password", icon: UserRound });
     }
+    items.push({ to: "/hr/setup/hr-settings", label: "HR Settings", icon: Settings });
   } else if (roleLabel === "Employee") {
     items.push({ to: "/employee/profile", label: "Profile & password", icon: UserRound });
     if (hasPermission(user, "dashboard.hr")) items.push({ to: "/hr", label: "HR Workspace", icon: Briefcase });
