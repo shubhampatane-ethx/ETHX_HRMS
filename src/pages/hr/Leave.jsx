@@ -10,6 +10,7 @@ import { Async, chipCls, Field, Grid, inputCls, Modal, Notice, PageHeader, Panel
 import { dmy, errMsg, isoDate, listTry, useAsync } from "../../lib/employeePortal";
 import { downloadCsv } from "../../lib/recruitment";
 import { approversOnLeave, decideLeaveDirect, getApprovers, pickApprover, reassignLeave, rerouteUnavailable } from "../../lib/approvals";
+import { alertDialog, confirmDialog, previewDialog } from "../../components/ui/dialogs";
 
 const APP_FIELDS = ["name", "employee", "employee_name", "department", "leave_type", "from_date", "to_date", "total_leave_days", "half_day", "status", "docstatus", "description", "leave_approver", "leave_approver_name", "posting_date", "company"];
 
@@ -41,6 +42,7 @@ function Applications() {
   const flagged = (apps.data || []).filter((a) => a.status === "Open" && a.docstatus === 0 && away.data?.has(a.leave_approver));
 
   async function reroute() {
+    if (!(await confirmDialog("Move every pending leave and expense request away from approvers who are on leave today?"))) return;
     setRerouting(true);
     let moved = 0;
     try {
@@ -55,7 +57,7 @@ function Applications() {
       }
     }
     setRerouting(false);
-    window.alert(moved ? `${moved} request(s) moved to an available approver.` : "No other available approver was found - reassign manually.");
+    alertDialog(moved ? { tone: "success", title: "Requests reassigned", message: `${moved} request(s) moved to an available approver.` } : { tone: "info", title: "Nothing reassigned", message: "No other available approver was found - reassign manually." });
     apps.reload();
   }
   const rows = (apps.data || []).filter((a) => (filter === "all" || a.status === filter) && (!q || `${a.employee_name} ${a.employee} ${a.leave_type}`.toLowerCase().includes(q.toLowerCase())));
@@ -244,6 +246,8 @@ function ReassignModal({ app, onClose, onSaved }) {
   const chosen = pick || pickApprover(options.filter((a) => a.email !== app.leave_approver))?.email || "";
 
   async function save() {
+    const who = options.find((a) => a.email === chosen);
+    if (!(await previewDialog({ title: "Change approver", rows: [["Employee", app.employee_name], ["Leave", `${app.leave_type} · ${dmy(app.from_date)}${app.to_date !== app.from_date ? ` – ${dmy(app.to_date)}` : ""}`], ["Current approver", app.leave_approver || "—"], ["New approver", who ? `${who.name} (${who.email})` : chosen]], confirmLabel: "Confirm & reassign" }))) return;
     setBusy(true);
     setErr("");
     try {

@@ -4,6 +4,7 @@ import { frappe } from "../../lib/api/frappeClient";
 import { dmy, dmyHm, errMsg, useAsync } from "../../lib/employeePortal";
 import { HrRecordForm } from "../../components/hr/HrRecordForm";
 import { Button, Card, Table } from "../../components/ui/primitives";
+import { alertDialog, confirmDialog } from "../../components/ui/dialogs";
 
 const FIELDS = [
   // ERPNext builds the full name (employee_name) from first / middle / last name; these three plus gender and date
@@ -141,12 +142,12 @@ export default function Employees() {
   useEffect(() => { load(); }, []);
 
   async function removeEmployee(employee) {
-    if (!window.confirm(`Delete ${employee.employee_name || employee.name}? This cannot be undone.`)) return;
+    if (!(await confirmDialog(`Delete ${employee.employee_name || employee.name}? This cannot be undone.`))) return;
     try {
       await frappe.deleteDoc("Employee", employee.name);
       load();
     } catch (error) {
-      window.alert(errMsg(error, "Couldn't delete this employee."));
+      alertDialog({ tone: "error", message: errMsg(error, "Couldn't delete this employee.") });
     }
   }
 
@@ -269,7 +270,7 @@ function LoginModal({ employee, onClose, onDone }) {
             {error && <p className="rounded-md border border-[var(--color-red-deep)] bg-[var(--color-red-wash)] px-3 py-2 text-[12px] text-[var(--color-red-hover)]">{error}</p>}
             <div className="flex justify-end gap-2 pt-1">
               {reset && <Button type="button" variant="ghost" className="mr-auto" disabled={busy} onClick={async () => {
-                if (!window.confirm(`Disable ${employee.employee_name}'s portal login? They won't be able to sign in until it's enabled again.`)) return;
+                if (!(await confirmDialog(`Disable ${employee.employee_name}'s portal login? They won't be able to sign in until it's enabled again.`))) return;
                 setBusy(true); setError("");
                 try { await setLoginEnabled(employee, false); onDone(); onClose(); } catch (err) { setError(methodMissing(err) ? "Disabling logins needs Admin › System Setup to be run first." : loginError(err)); setBusy(false); }
               }}>Disable login</Button>}

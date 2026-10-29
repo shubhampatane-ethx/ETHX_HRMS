@@ -3,6 +3,7 @@ import { Building2, KeyRound, Pencil, Plus, Power, Trash2, X } from "lucide-reac
 import { frappe } from "../../lib/api/frappeClient";
 import { dmyHm, errMsg as portalErr, useAsync } from "../../lib/employeePortal";
 import { Button, Card, Input, LinkField, Table } from "../../components/ui/primitives";
+import { confirmDialog } from "../../components/ui/dialogs";
 
 /**
  * Company scoping: every HR user is tied to one company through an ERPNext
@@ -328,7 +329,8 @@ function HRUserModal({ user, onClose, onChanged, onChangeCompany }) {
   const emps = q.data?.emps;
   const roleNow = doc?.roles?.some((r) => r.role === "HR Manager") ? "HR Manager" : "HR User";
 
-  async function run(label, fn, done) {
+  async function run(label, fn, done, question) {
+    if (!(await confirmDialog(question))) return;
     setBusy(label);
     setError("");
     setNote("");
@@ -346,11 +348,12 @@ function HRUserModal({ user, onClose, onChanged, onChangeCompany }) {
   const setRole = (role) => run("role", () => {
     const keep = (doc.roles || []).map((r) => r.role).filter((r) => r !== "HR Manager" && r !== "HR User");
     return frappe.updateDoc("User", user.name, { roles: [...keep, role].map((r) => ({ role: r })) });
-  }, `Role changed to ${role}.`);
-  const toggle = () => run("enable", () => frappe.updateDoc("User", user.name, { enabled: doc.enabled ? 0 : 1 }), doc.enabled ? "Account disabled - they can no longer sign in." : "Account enabled.");
-  const reset = () => run("pwd", async () => { await frappe.updateDoc("User", user.name, { new_password: pwd }); setPwd(""); }, "Password changed.");
+  }, `Role changed to ${role}.`, `Change ${user.full_name || user.name}'s role to ${role}?`);
+  const toggle = () => run("enable", () => frappe.updateDoc("User", user.name, { enabled: doc.enabled ? 0 : 1 }), doc.enabled ? "Account disabled - they can no longer sign in." : "Account enabled.",
+    doc.enabled ? { message: `Disable ${user.full_name || user.name}'s account? They won't be able to sign in.`, danger: true, confirmLabel: "Disable" } : `Enable ${user.full_name || user.name}'s account?`);
+  const reset = () => run("pwd", async () => { await frappe.updateDoc("User", user.name, { new_password: pwd }); setPwd(""); }, "Password changed.", `Set a new password for ${user.full_name || user.name}?`);
   const remove = async () => {
-    if (!window.confirm(`Delete ${user.full_name || user.name} permanently? Disabling the account is usually safer.`)) return;
+    if (!(await confirmDialog(`Delete ${user.full_name || user.name} permanently? Disabling the account is usually safer.`))) return;
     setBusy("delete");
     setError("");
     try {

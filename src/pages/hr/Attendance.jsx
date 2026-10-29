@@ -4,6 +4,7 @@ import { frappe } from "../../lib/api/frappeClient";
 import { getCheckinsBetween, hm, summariseCheckins } from "../../lib/employeePortal";
 import { HrRecordForm } from "../../components/hr/HrRecordForm";
 import { Button, Card } from "../../components/ui/primitives";
+import { alertDialog, confirmDialog } from "../../components/ui/dialogs";
 
 const FIELDS = [
   { name: "employee", label: "Employee", type: "link", linkDoctype: "Employee", required: true },
@@ -105,9 +106,9 @@ export default function Attendance() {
   }, [visible]);
 
   const unconfirmed = visible.filter((r) => r.derived);
-  async function remove(row) { if (!window.confirm(`Delete attendance for ${row.employee_name || row.employee || row.name} on ${row.attendance_date}?`)) return; try { if (Number(row.docstatus) === 1) await frappe.cancelDoc("Attendance", row.name); await frappe.deleteDoc("Attendance", row.name); load(); } catch (error) { window.alert(errMsg(error, "Couldn't delete this attendance record.")); } }
+  async function remove(row) { if (!(await confirmDialog(`Delete attendance for ${row.employee_name || row.employee || row.name} on ${row.attendance_date}?`))) return; try { if (Number(row.docstatus) === 1) await frappe.cancelDoc("Attendance", row.name); await frappe.deleteDoc("Attendance", row.name); load(); } catch (error) { alertDialog({ tone: "error", message: errMsg(error, "Couldn't delete this attendance record.") }); } }
   async function confirmRows(list) {
-    if (!list.length || !window.confirm(`Save ${list.length} punched-in day(s) as Present?`)) return;
+    if (!list.length || !(await confirmDialog(`Save ${list.length} punched-in day(s) as Present?`))) return;
     setConfirming(true);
     let failed = 0;
     let last = "";
@@ -118,7 +119,7 @@ export default function Attendance() {
       } catch (e) { failed += 1; last = e?.response?.data?.exception || e.message || ""; }
     }
     setConfirming(false);
-    if (failed) window.alert(`${failed} day(s) could not be saved. ${last}`);
+    if (failed) alertDialog({ tone: "error", message: `${failed} day(s) could not be saved. ${last}` });
     load();
   }
   function closeForm() { setFormOpen(false); setEditing(null); }

@@ -8,6 +8,7 @@ import { Button, DateField, LinkField } from "../../components/ui/primitives";
 import { Async, chipCls, Empty, Field, Grid, inputCls, Modal, Notice, PageHeader, Panel, Stat, StatusPill } from "../../components/employee/EmployeeShell";
 import { dmy, errMsg, isoDate, listTry, useAsync } from "../../lib/employeePortal";
 import { createAssignment, listAssignments, parseAssignment, ROLE_SUGGESTIONS, setAssignmentStatus, updateAssignment, workingDays } from "../../lib/assignments";
+import { alertDialog, confirmDialog } from "../../components/ui/dialogs";
 
 const loadProjects = () => listTry("Project", { fields: ["name", "project_name", "status", "expected_start_date", "expected_end_date", "percent_complete", "company"], orderBy: "modified desc" }, ["name", "project_name", "status", "expected_end_date", "company"]);
 const loadEmployees = () => listTry("Employee", { filters: [["status", "=", "Active"]], fields: ["name", "employee_name", "user_id", "department", "designation", "company"], orderBy: "employee_name asc" }, ["name", "employee_name", "user_id", "company"]);
@@ -141,12 +142,12 @@ export function PMAssignments() {
   const shown = rows.filter((a) => (filter === "all" || (filter === "active" ? isActive(a) : filter === "completed" ? a.status === "Completed" : a.status === "Cancelled")) && (!projectFilter || a.project === projectFilter) && (!search || (a.employee?.employee_name || a.assignees[0] || "").toLowerCase().includes(search.toLowerCase())));
 
   async function setStatus(a, status, text) {
-    if (!window.confirm(text)) return;
+    if (!(await confirmDialog(text))) return;
     try {
       await setAssignmentStatus(a.name, status, a);
       assignments.reload();
     } catch (e) {
-      window.alert(errMsg(e, "Couldn't update the assignment."));
+      alertDialog({ tone: "error", message: errMsg(e, "Couldn't update the assignment.") });
     }
   }
   const closeModal = () => { setModal(null); if (params.get("assign")) setParams({}); };

@@ -8,6 +8,7 @@ import { frappe } from "../../lib/api/frappeClient";
 import { dmy, errMsg, friendlyError, getAssignedTasks, getHolidays, getTimesheets, isoDate, MONTHS_LONG, pad, parseWorkNote, useAsync, WEEKDAYS } from "../../lib/employeePortal";
 import { getMyAssignments, parseAssignment } from "../../lib/assignments";
 import { composeDescription, csvToEntries, DAY_MINUTES, getEntriesBetween, getLeaveDays, getProjects, matchTask, minutesOf, parseCsv, projectResolver, roundHours, slotDay, submitTimesheet, withActivityType } from "../../lib/timesheets";
+import { confirmDialog } from "../../components/ui/dialogs";
 
 /** Review state pill: Draft / Returned / Pending Review / Approved (+ ERPNext's own status when it says more). */
 export function ReviewPill({ review }) {
@@ -42,8 +43,8 @@ export function EmpTimesheet() {
       setBusy("");
     }
   }
-  const submitSheet = (name) => window.confirm(`Submit ${name} to HR? You won't be able to edit it unless HR returns it to you.`) && act(name, () => submitTimesheet(name), "Couldn't submit this timesheet.");
-  const deleteSheet = (name) => window.confirm(`Delete draft ${name}? This can't be undone.`) && act(name, () => frappe.deleteDoc("Timesheet", name), "Couldn't delete this timesheet.");
+  const submitSheet = async (name) => (await confirmDialog(`Submit ${name} to HR? You won't be able to edit it unless HR returns it to you.`)) && act(name, () => submitTimesheet(name), "Couldn't submit this timesheet.");
+  const deleteSheet = async (name) => (await confirmDialog(`Delete draft ${name}? This can't be undone.`)) && act(name, () => frappe.deleteDoc("Timesheet", name), "Couldn't delete this timesheet.");
 
   const recentNames = (sheets.data || []).slice(0, 6).map((r) => r.name);
 
@@ -246,8 +247,8 @@ function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, on
     return out.length ? out.map((r) => ({ ...r, hours: { ...r.hours } })) : [newRow()];
   });
 
-  function move(delta) {
-    if (dirty && !window.confirm("You have unsaved entries for this week. Switch week and discard them?")) return;
+  async function move(delta) {
+    if (dirty && !(await confirmDialog("You have unsaved entries for this week. Switch week and discard them?"))) return;
     setWs(addDays(ws, delta * 7));
     setRows([newRow()]);
     setDirty(false);
@@ -387,8 +388,9 @@ function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, on
     const built = buildLogs();
     if (built.error) return setErr(built.error);
     if (!built.logs.length) return setErr(savedName ? "This timesheet has no hours left for this week - use Delete on the list instead." : "Enter hours for at least one day.");
-    if (built.onLeave.length && !window.confirm(`You entered hours on leave day(s): ${built.onLeave.join(", ")}. Save anyway?`)) return;
-    if (submit && !window.confirm(`Submit the week of ${weekLabel(ws)} (${fmt(weekTotal)} h of ${fmt(expected)} h expected)? You won't be able to edit it unless it's returned to you.`)) return;
+    if (built.onLeave.length && !(await confirmDialog(`You entered hours on leave day(s): ${built.onLeave.join(", ")}. Save anyway?`))) return;
+    if (submit && !(await confirmDialog(`Submit the week of ${weekLabel(ws)} (${fmt(weekTotal)} h of ${fmt(expected)} h expected)? You won't be able to edit it unless it's returned to you.`))) return;
+    if (!submit && !(await confirmDialog(`Save the week of ${weekLabel(ws)} as a draft (${fmt(weekTotal)} h)? You can still edit it before submitting.`))) return;
     remember(rows.map((r) => r.project.trim()));
     setBusy(submit ? "submit" : "draft");
     let name = savedName;
@@ -426,7 +428,7 @@ function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, on
   const status = savedName ? "Draft" : "New";
 
   return (
-    <Modal title={editName ? `Edit timesheet ${editName}` : "Weekly timesheet"} onClose={() => { if (!dirty || window.confirm("Close without saving your changes?")) onClose(); }} wide="xl">
+    <Modal title={editName ? `Edit timesheet ${editName}` : "Weekly timesheet"} onClose={async () => { if (!dirty || (await confirmDialog("Close without saving your changes?"))) onClose(); }} wide="xl">
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -524,7 +526,7 @@ function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, on
           <Button type="button" variant="secondary" onClick={() => fillFromAssignments(false)} disabled={waiting || assigned.loading || !assignments.length} title="Lines and hours from the projects your Project Manager assigned to you"><Wand2 size={14} /> From my assignments ({assignments.length})</Button>
           <input ref={fileInput} type="file" accept=".csv,text/csv" className="hidden" onChange={importCsv} />
           <Button type="button" variant="ghost" onClick={() => fileInput.current?.click()}><Upload size={14} /> Import CSV</Button>
-          <Button type="button" variant="ghost" onClick={() => { if (!dirty || window.confirm("Clear every line for this week?")) change(() => [newRow()]); }}>Clear</Button>
+          <Button type="button" variant="ghost" onClick={async () => { if (!dirty || (await confirmDialog("Clear every line for this week?"))) change(() => [newRow()]); }}>Clear</Button>
           <span className="text-[11px] text-[var(--color-text-faint)]">Amber totals are under the expected {DAY_HOURS} h; greyed days are weekly offs, holidays or leave.</span>
         </div>
 
@@ -534,7 +536,7 @@ function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, on
         {info && <Notice tone="info">{info}</Notice>}
         {err && <Notice>{err}</Notice>}
         <div className="flex justify-end gap-2 border-t border-[var(--color-border)] pt-3">
-          <Button type="button" variant="ghost" onClick={() => { if (!dirty || window.confirm("Close without saving your changes?")) onClose(); }}>Cancel</Button>
+          <Button type="button" variant="ghost" onClick={async () => { if (!dirty || (await confirmDialog("Close without saving your changes?"))) onClose(); }}>Cancel</Button>
           <Button type="button" variant="secondary" disabled={Boolean(busy) || waiting} onClick={() => save(false)}>{busy === "draft" ? "Saving…" : "Save draft"}</Button>
           <Button type="button" disabled={Boolean(busy) || waiting} onClick={() => save(true)}><Send size={14} /> {busy === "submit" ? "Submitting…" : "Submit week"}</Button>
         </div>

@@ -7,6 +7,7 @@ import { Card, Table, Button, Input, LinkField } from "../../components/ui/primi
 import { findSetupItem } from "../../lib/hrSetupConfig";
 import { useAuth } from "../../context/AuthContext";
 import { hasPermission } from "../../permissions/roles";
+import { alertDialog, confirmDialog, previewDialog } from "../../components/ui/dialogs";
 
 const DEFAULT_FIELDS = ["name", "modified", "owner"];
 const DEFAULT_COLUMNS = [
@@ -90,12 +91,12 @@ export function DoctypeCrud({ item }) {
   useEffect(load, [item.doctype]);
 
   async function handleDelete(name) {
-    if (!window.confirm(`Delete "${name}" from ${item.doctype}? This cannot be undone.`)) return;
+    if (!(await confirmDialog(`Delete "${name}" from ${item.doctype}? This cannot be undone.`))) return;
     try {
       await frappe.deleteDoc(item.doctype, name);
       load();
     } catch (err) {
-      window.alert(errorMessage(err));
+      alertDialog({ tone: "error", message: errorMessage(err) });
     }
   }
 
@@ -285,6 +286,9 @@ function SingleSettings({ item }) {
     : Object.entries(doc).filter(([key, v]) => !SINGLE_SYSTEM_FIELDS.includes(key) && !Array.isArray(v));
 
   async function handleSave() {
+    const labelOf = (key) => meta?.find((f) => f.fieldname === key)?.label || key.replace(/_/g, " ");
+    const shown = (v) => (v === true || v === 1 ? "Yes" : v === false || v === 0 ? "No" : v === "" || v == null ? "(empty)" : String(v));
+    if (!(await previewDialog({ title: item.label || item.doctype, rows: Object.entries(edits).map(([k, v]) => [labelOf(k), shown(v)]), confirmLabel: "Confirm & save" }))) return;
     setSaving(true);
     setError(null);
     try {

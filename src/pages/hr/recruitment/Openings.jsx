@@ -8,6 +8,7 @@ import { Async, chipCls, Field, Grid, inputCls, Modal, Notice, PageHeader, Panel
 import { dmy, errMsg, money, useAsync } from "../../../lib/employeePortal";
 import { listApplicants, listOffers, listOpenings, listRounds, roundsOf, stageOf, vacanciesOf } from "../../../lib/recruitment";
 import { enc, SetupHint } from "./shared";
+import { alertDialog, confirmDialog } from "../../../components/ui/dialogs";
 
 export function useOpeningStats(openings) {
   return useAsync(async () => {
@@ -36,20 +37,21 @@ export default function Openings() {
   const rows = (openings.data || []).filter((o) => filter === "all" || o.status === filter);
 
   async function toggle(o, field, value) {
+    if (field === "status" && !(await confirmDialog(value === "Closed" ? `Close the opening ${o.job_title}? No new candidates can be added.` : `Reopen ${o.job_title}?`))) return;
     try {
       await frappe.updateDoc("Job Opening", o.name, { [field]: value });
       openings.reload();
     } catch (e) {
-      window.alert(errMsg(e, "Couldn't update the opening."));
+      alertDialog({ tone: "error", message: errMsg(e, "Couldn't update the opening.") });
     }
   }
   async function remove(o) {
-    if (!window.confirm(`Delete ${o.job_title}? This only works when no candidates are linked to it.`)) return;
+    if (!(await confirmDialog(`Delete ${o.job_title}? This only works when no candidates are linked to it.`))) return;
     try {
       await frappe.deleteDoc("Job Opening", o.name);
       openings.reload();
     } catch (e) {
-      window.alert(errMsg(e, "Couldn't delete this opening (it probably has candidates - close it instead)."));
+      alertDialog({ tone: "error", message: errMsg(e, "Couldn't delete this opening (it probably has candidates - close it instead).") });
     }
   }
 

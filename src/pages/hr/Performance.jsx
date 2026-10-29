@@ -5,6 +5,7 @@ import { frappe } from "../../lib/api/frappeClient";
 import { Button, DateField, LinkField } from "../../components/ui/primitives";
 import { Async, chipCls, Field, Grid, inputCls, Modal, Notice, PageHeader, Panel, StatusPill, Tabs } from "../../components/employee/EmployeeShell";
 import { dmy, errMsg, isoDate, listTry, useAsync } from "../../lib/employeePortal";
+import { alertDialog, confirmDialog, promptDialog } from "../../components/ui/dialogs";
 
 const runDoc = (dt, dn, method) => frappe.client.post("/method/run_doc_method", { dt, dn, method }).then((r) => r.data);
 const pct = (v) => (v == null || v === "" ? "—" : `${Math.round(Number(v) * 10) / 10}`);
@@ -90,6 +91,8 @@ function CycleModal({ cycle, onClose }) {
   const d = doc.data;
 
   async function act(label, fn) {
+    const ask = { add: "Add every active employee of this company (and department) to the cycle?", create: "Create appraisals for everyone in this cycle?", start: "Start this cycle? Employees can then fill self-appraisals.", complete: { message: "Complete this cycle? Appraisals are closed.", danger: true, confirmLabel: "Complete cycle" } }[label];
+    if (ask && !(await confirmDialog(ask))) return;
     setBusy(label);
     setMsg(null);
     try {
@@ -148,7 +151,7 @@ function Appraisals() {
   const list = useAsync(() => listTry("Appraisal", { filters: [["docstatus", "<", 2], ...(cycle ? [["appraisal_cycle", "=", cycle]] : [])], fields: ["name", "employee", "employee_name", "department", "designation", "appraisal_cycle", "appraisal_template", "goal_score_percentage", "self_score", "avg_feedback_score", "final_score", "docstatus"], orderBy: "modified desc" }, ["name", "employee", "employee_name", "appraisal_cycle", "docstatus"]), [cycle]);
   const [msg, setMsg] = useState(null);
   async function submit(a) {
-    if (!window.confirm(`Submit ${a.employee_name}'s appraisal? It can't be edited afterwards.`)) return;
+    if (!(await confirmDialog(`Submit ${a.employee_name}'s appraisal? It can't be edited afterwards.`))) return;
     try { await frappe.submitDoc(await frappe.getDoc("Appraisal", a.name)); list.reload(); } catch (e) { setMsg(errMsg(e, "Couldn't submit the appraisal.")); }
   }
   return (
@@ -180,10 +183,10 @@ function Goals() {
   const [modal, setModal] = useState(null);
   const rows = (goals.data || []).filter((g) => status === "all" || (status === "open" ? !["Completed", "Archived", "Closed"].includes(g.status) : ["Completed", "Archived", "Closed"].includes(g.status)));
   async function setProgress(g) {
-    const v = window.prompt(`Progress for "${g.goal_name}" (0-100):`, g.progress ?? 0);
+    const v = await promptDialog({ title: "Update goal progress", message: `Progress for "${g.goal_name}" (0-100)`, label: "Progress (%)", multiline: false, inputType: "number", min: 0, max: 100, defaultValue: String(g.progress ?? 0), confirmLabel: "Save progress" });
     if (v == null) return;
     const n = Math.max(0, Math.min(100, Number(v) || 0));
-    try { await frappe.updateDoc("Goal", g.name, { progress: n, status: n >= 100 ? "Completed" : n > 0 ? "In Progress" : "Pending" }); goals.reload(); } catch (e) { window.alert(errMsg(e, "Couldn't update the goal.")); }
+    try { await frappe.updateDoc("Goal", g.name, { progress: n, status: n >= 100 ? "Completed" : n > 0 ? "In Progress" : "Pending" }); goals.reload(); } catch (e) { alertDialog({ tone: "error", message: errMsg(e, "Couldn't update the goal.") }); }
   }
   return (
     <Panel action={<Button onClick={() => setModal({})}><Plus size={14} /> New goal</Button>}>

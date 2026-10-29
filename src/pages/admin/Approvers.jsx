@@ -4,6 +4,7 @@ import { frappe } from "../../lib/api/frappeClient";
 import { errMsg, listTry } from "../../lib/employeePortal";
 import { createTypeFields, ensureRole, EXPENSE_ROLE, LEAVE_ROLE, missingTypeFields } from "../../lib/approvals";
 import { Button, Card } from "../../components/ui/primitives";
+import { confirmDialog } from "../../components/ui/dialogs";
 
 /**
  * Approver configuration. It edits standard ERPNext data only:
@@ -97,6 +98,8 @@ function ApproverEditor({ title, initial, users, names, onClose, onSave }) {
   const move = (i, d) => setList((l) => { const n = [...l]; [n[i], n[i + d]] = [n[i + d], n[i]]; return n; });
 
   async function save() {
+    const order = list.map((e, i) => `${i + 1}. ${names[e] || e}`).join("\n");
+    if (!(await confirmDialog({ title: "Save approvers", message: list.length ? `Save these approvers in this order?\n\n${order}` : "Save with no approvers?" }))) return;
     setBusy(true);
     setErr("");
     try { await onSave(list); onClose(); } catch (e) { setErr(errMsg(e, "The change was refused.")); setBusy(false); }
@@ -157,6 +160,7 @@ export function ExpenseApproversByType() {
   useEffect(() => { load(); }, [load]);
 
   async function setup() {
+    if (!(await confirmDialog("Add the approver field to Expense Claim Type?"))) return;
     setBusy("setup");
     setError("");
     try { await createTypeFields(); await load(); } catch (e) { setError(errMsg(e, "Couldn't add the field. You must be signed in as Administrator.")); }
@@ -186,7 +190,7 @@ export function ExpenseApproversByType() {
     if (!bulk) return;
     const targets = rows.filter((t) => (onlyEmpty ? !t.expense_approver : t.expense_approver !== bulk));
     if (!targets.length) return setMsg("Nothing to change.");
-    if (!window.confirm(`Set ${names[bulk] || bulk} as the approver for ${targets.length} expense type(s)?`)) return;
+    if (!(await confirmDialog(`Set ${names[bulk] || bulk} as the approver for ${targets.length} expense type(s)?`))) return;
     setBusy("bulk");
     setError("");
     setMsg("");

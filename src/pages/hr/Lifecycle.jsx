@@ -7,6 +7,7 @@ import { frappe } from "../../lib/api/frappeClient";
 import { Button, DateField, LinkField } from "../../components/ui/primitives";
 import { Async, Field, Grid, inputCls, Modal, Notice, PageHeader, Panel, StatusPill, Tabs } from "../../components/employee/EmployeeShell";
 import { dmy, errMsg, isoDate, listTry, money, useAsync } from "../../lib/employeePortal";
+import { confirmDialog } from "../../components/ui/dialogs";
 
 // Employee fields a promotion or transfer can change, with the doctype they link to.
 const PROPS = [
@@ -50,7 +51,7 @@ function Moves({ kind }) {
 
   async function submit(r) {
     if (r[date] > isoDate()) return setMsg({ ok: false, text: `A ${kind} can only be submitted on or after its effective date (${dmy(r[date])}). Submit it then.` });
-    if (!window.confirm(`Submit this ${kind}? The employee record is updated now.`)) return;
+    if (!(await confirmDialog(`Submit this ${kind}? The employee record is updated now.`))) return;
     try {
       await frappe.submitDoc(await frappe.getDoc(dt, r.name));
       setMsg({ ok: true, text: `${r.employee_name}: ${kind} submitted.` });
@@ -168,7 +169,7 @@ function Exits() {
           { key: "_a", label: "", render: (r) => {
             const e = emps.data?.[r.employee];
             return <div className="flex justify-end gap-1">
-              {r.docstatus === 0 && <Button variant="secondary" className="!px-2 !py-1 text-[11px]" onClick={async () => { try { await frappe.submitDoc(await frappe.getDoc("Employee Separation", r.name)); list.reload(); } catch (x) { setMsg({ ok: false, text: errMsg(x, "Couldn't start the checklist.") }); } }}>Start checklist</Button>}
+              {r.docstatus === 0 && <Button variant="secondary" className="!px-2 !py-1 text-[11px]" onClick={async () => { if (!(await confirmDialog(`Start the separation checklist for ${r.employee_name || r.employee}?`))) return; try { await frappe.submitDoc(await frappe.getDoc("Employee Separation", r.name)); list.reload(); } catch (x) { setMsg({ ok: false, text: errMsg(x, "Couldn't start the checklist.") }); } }}>Start checklist</Button>}
               {e && e.status !== "Left" && <Button variant="ghost" className="!px-2 !py-1 text-[11px]" onClick={() => setModal({ kind: "left", row: r, emp: e })}><LogOut size={12} /> Mark as left</Button>}
             </div>;
           } },

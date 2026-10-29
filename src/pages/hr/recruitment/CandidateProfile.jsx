@@ -13,6 +13,7 @@ import {
 } from "../../../lib/recruitment";
 import { CandidateModal, candidateUrl, DecideModal, FeedbackMatrix, IcsButton, MoveStageModal, OfferModal, ScheduleModal, SetupHint, StageBadge, Stars } from "./shared";
 import { useAuth } from "../../../context/AuthContext";
+import { alertDialog, confirmDialog, promptDialog } from "../../../components/ui/dialogs";
 
 export default function CandidateProfile() {
   const { id } = useParams();
@@ -40,22 +41,23 @@ export default function CandidateProfile() {
   const cleared = new Set((interviews.data || []).filter((i) => i.docstatus === 1 && i.status === "Cleared").map((i) => i.interview_round));
 
   async function rate(n) {
+    if (!(await confirmDialog(`Set the HR rating to ${n} star(s)?`))) return;
     try {
       await frappe.updateDoc("Job Applicant", id, { applicant_rating: fromStars(n) });
       app.reload();
     } catch (e) {
-      window.alert(errMsg(e, "Couldn't save the rating."));
+      alertDialog({ tone: "error", message: errMsg(e, "Couldn't save the rating.") });
     }
   }
   async function cancelInterview(i) {
-    const why = window.prompt(`Cancel ${i.interview_round} on ${dmy(i.scheduled_on)}? Reason:`);
+    const why = await promptDialog({ title: "Cancel interview", message: `Cancel ${i.interview_round} on ${dmy(i.scheduled_on)}?`, label: "Reason (optional)", required: false, danger: true, confirmLabel: "Cancel interview", cancelLabel: "Keep it" });
     if (why == null) return;
     try {
       await frappe.deleteDoc("Interview", i.name);
       await addComment("Job Applicant", id, `${i.interview_round} on ${dmy(i.scheduled_on)} cancelled${why ? `: ${why}` : ""}`);
       reloadAll();
     } catch (e) {
-      window.alert(errMsg(e, "Couldn't cancel the interview."));
+      alertDialog({ tone: "error", message: errMsg(e, "Couldn't cancel the interview.") });
     }
   }
 

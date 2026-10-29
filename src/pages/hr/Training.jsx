@@ -5,6 +5,7 @@ import { frappe } from "../../lib/api/frappeClient";
 import { Button, LinkField } from "../../components/ui/primitives";
 import { Async, chipCls, Field, Grid, inputCls, Modal, Notice, PageHeader, Panel, StatusPill, Tabs } from "../../components/employee/EmployeeShell";
 import { dmy, dmyHm, errMsg, listTry, useAsync } from "../../lib/employeePortal";
+import { confirmDialog } from "../../components/ui/dialogs";
 
 export default function Training() {
   const [tab, setTab] = useState("events");
@@ -104,6 +105,7 @@ function EventDetail({ event, onClose }) {
   const d = doc.data;
   const list = rows || (d?.employees || []).map((r) => ({ ...r }));
   async function save(status) {
+    if (!(await confirmDialog(status === "Cancelled" ? { message: `Cancel ${event.event_name}?`, danger: true, confirmLabel: "Cancel event", cancelLabel: "Keep it" } : `Mark ${event.event_name} as ${status.toLowerCase()}?`))) return;
     setBusy(true);
     setMsg(null);
     try {

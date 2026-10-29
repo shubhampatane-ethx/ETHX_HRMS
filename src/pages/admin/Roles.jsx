@@ -4,6 +4,7 @@ import { frappe } from "../../lib/api/frappeClient";
 import { errMsg } from "../../lib/employeePortal";
 import { serverLoginsReady } from "../../lib/securitySetup";
 import { Button, Card } from "../../components/ui/primitives";
+import { confirmDialog } from "../../components/ui/dialogs";
 
 /**
  * Admin-only editor for the role permissions that the HR and Employee workspaces rely on.
@@ -197,6 +198,7 @@ function ApplyEverything() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
   async function run() {
+    if (!(await confirmDialog({ title: "Apply permissions", message: "Add every missing permission for HR Manager, HR User, Projects Manager, Employee and Interviewer? Existing permissions are not removed.", confirmLabel: "Apply everything" }))) return;
     setBusy(true);
     setMsg(null);
     let applied = 0;
@@ -233,7 +235,7 @@ function TightenHr() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
   async function run() {
-    if (!window.confirm("Remove HR's rights to create or edit Users and User Permissions? Employee logins then go only through the server-side method, which can't touch HR or admin accounts.")) return;
+    if (!(await confirmDialog("Remove HR's rights to create or edit Users and User Permissions? Employee logins then go only through the server-side method, which can't touch HR or admin accounts."))) return;
     setBusy(true);
     setMsg(null);
     try {
@@ -312,6 +314,7 @@ function RequiredPermissions() {
   const todo = (items || []).filter((i) => i.missing.length && !i.error);
 
   async function applyAll() {
+    if (!(await confirmDialog(`Add ${todo.length} missing permission(s) for ${role}?`))) return;
     setBusy(true);
     setMsg(null);
     try {
@@ -398,6 +401,7 @@ function StaffRestrictions() {
   const load = useCallback(async () => { setRows(null); try { setRows(await loadStaffRestrictions()); } catch (e) { setRows([]); setError(errMsg(e, "Couldn't check staff logins.")); } }, []);
   useEffect(() => { load(); }, [load]);
   async function lift(list) {
+    if (!(await confirmDialog({ message: `Remove the automatic Employee restriction from ${list.length} login(s)?`, confirmLabel: "Lift" }))) return;
     setBusy(true);
     setError("");
     try { for (const r of list) await frappe.deleteDoc("User Permission", r.name); } catch (e) { setError(errMsg(e, "Couldn't remove the restriction.")); }
@@ -430,6 +434,7 @@ function EmployeeRestrictions() {
   const open = (rows || []).filter((r) => !r.hasEmployee || !r.hasCompany);
 
   async function fix(list) {
+    if (!(await confirmDialog({ message: `Restrict ${list.length} employee login(s) to their own record and company?`, confirmLabel: "Restrict" }))) return;
     setBusy(true);
     setError("");
     try { for (const e of list) await restrict(e); } catch (e) { setError(errMsg(e, "Couldn't create the restriction.")); }
@@ -482,6 +487,7 @@ function PermissionEditor() {
   }
 
   async function toggle(row, ptype, value) {
+    if (!(await confirmDialog(`${value ? "Give" : "Remove"} "${ptype}" permission ${value ? "to" : "from"} ${row.role} on ${loaded}?`))) return;
     const key = `${row.role}-${row.permlevel}-${ptype}`;
     setBusy(key);
     setError("");
@@ -495,6 +501,7 @@ function PermissionEditor() {
   }
 
   async function addRole(role) {
+    if (!(await confirmDialog(`Give ${role} access to ${loaded}?`))) return;
     setBusy("add");
     setError("");
     try {
@@ -510,7 +517,7 @@ function PermissionEditor() {
 
   return (
     <Section title="Permission editor" hint="Advanced: view and change permissions of HR Manager, HR User and Employee on any doctype (for example Leave Application).">
-      <form onSubmit={(e) => { e.preventDefault(); load(); }} className="mb-4 flex gap-2">
+      <form data-no-preview onSubmit={(e) => { e.preventDefault(); load(); }} className="mb-4 flex gap-2">
         <input value={doctype} onChange={(e) => setDoctype(e.target.value)} placeholder="Doctype name, e.g. Leave Application" className="w-full max-w-sm rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-3 py-2 text-[13px] text-[var(--color-text)] placeholder:text-[var(--color-text-faint)] outline-none focus:border-[var(--color-red)]" />
         <Button type="submit" variant="secondary" disabled={busy === "load"}>{busy === "load" ? "Loading…" : "Load"}</Button>
       </form>
@@ -574,7 +581,7 @@ function AccountCheck() {
 
   return (
     <Section title="Check an account" hint="Enter an HR or employee login email to see its roles and which required permissions those roles are missing.">
-      <form onSubmit={check} className="flex gap-2">
+      <form data-no-preview onSubmit={check} className="flex gap-2">
         <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" className="w-full max-w-sm rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-3 py-2 text-[13px] text-[var(--color-text)] placeholder:text-[var(--color-text-faint)] outline-none focus:border-[var(--color-red)]" />
         <Button type="submit" variant="secondary" disabled={busy}>{busy ? "Checking…" : "Check"}</Button>
       </form>

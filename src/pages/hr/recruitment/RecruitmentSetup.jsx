@@ -9,6 +9,7 @@ import { anonymise, dueForAnonymisation, RETENTION_MONTHS, stageOf } from "../..
 import { SiteSetupPanel } from "../../../components/SiteSetupPanel";
 import { useAuth } from "../../../context/AuthContext";
 import { candidateUrl, StageBadge } from "./shared";
+import { confirmDialog } from "../../../components/ui/dialogs";
 
 export default function RecruitmentSetup() {
   const { user } = useAuth();
@@ -28,7 +29,7 @@ function Retention() {
   const [msg, setMsg] = useState(null);
   async function runAll() {
     const list = due.data || [];
-    if (!list.length || !window.confirm(`Anonymise ${list.length} candidate(s)? Names, contact details, CVs and CTC are removed permanently.`)) return;
+    if (!list.length || !(await confirmDialog(`Anonymise ${list.length} candidate(s)? Names, contact details, CVs and CTC are removed permanently.`))) return;
     setBusy(true);
     setMsg(null);
     let done = 0;

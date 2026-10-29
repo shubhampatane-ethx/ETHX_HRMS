@@ -9,6 +9,7 @@ import { DecideModal } from "../../components/approvals/ApprovalQueue";
 import { dmy, errMsg, isoDate, listTry, money, stripHtml, useAsync } from "../../lib/employeePortal";
 import { createExpenseClaim, getApprovers, getRejectionReasons, pickApprover } from "../../lib/approvals";
 import { downloadCsv } from "../../lib/recruitment";
+import { previewDialog } from "../../components/ui/dialogs";
 
 const FIELDS = ["name", "employee", "employee_name", "department", "company", "posting_date", "total_claimed_amount", "total_sanctioned_amount", "total_amount_reimbursed", "status", "approval_status", "docstatus", "expense_approver", "remark", "currency"];
 const BASIC = ["name", "employee", "employee_name", "posting_date", "total_claimed_amount", "status", "approval_status", "docstatus", "expense_approver", "remark"];
@@ -82,6 +83,8 @@ function ApproverModal({ row, onClose, onSaved }) {
   const options = list.data || [];
   const chosen = pick || pickApprover(options.filter((a) => a.email !== row.expense_approver))?.email || "";
   async function save() {
+    const who = options.find((a) => a.email === chosen);
+    if (!(await previewDialog({ title: "Change approver", rows: [["Claim", row.name], ["Current approver", row.expense_approver || "—"], ["New approver", who ? `${who.name} (${who.email})` : chosen]], confirmLabel: "Confirm & save" }))) return;
     setBusy(true);
     setErr("");
     try { await frappe.updateDoc("Expense Claim", row.name, { expense_approver: chosen }); onSaved(); } catch (e) { setErr(errMsg(e, "The change was refused.")); setBusy(false); }

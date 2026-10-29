@@ -121,7 +121,7 @@ export default function Login() {
           <h1 className="text-2xl font-semibold tracking-tight text-[var(--color-text)]">Welcome back</h1>
           <p className="mt-1.5 text-[14px] text-[var(--color-text-muted)]">Sign in with your work account to continue.</p>
 
-          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+          <form data-no-preview onSubmit={handleSubmit} className="mt-6 space-y-4">
             <label className="block">
               <span className="mb-1.5 block text-[12px] font-medium text-[var(--color-text-muted)]">Email or username</span>
               <div className="relative">

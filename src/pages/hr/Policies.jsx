@@ -4,6 +4,7 @@ import { Button } from "../../components/ui/primitives";
 import { Async, Empty, Notice, PageHeader, Panel } from "../../components/employee/EmployeeShell";
 import { dmy, errMsg, getPolicies, POLICY_FOLDER, useAsync } from "../../lib/employeePortal";
 import { frappe } from "../../lib/api/frappeClient";
+import { confirmDialog } from "../../components/ui/dialogs";
 
 const title = (fileName) => fileName.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ");
 
@@ -17,6 +18,7 @@ export default function Policies() {
 
   async function upload(file) {
     if (!file) return;
+    if (!(await confirmDialog({ title: "Publish policy", message: `Publish "${file.name}" to every employee's Policies & Documents?`, confirmLabel: "Publish" }))) { if (fileRef.current) fileRef.current.value = ""; return; }
     setBusy(true);
     setError("");
     setMessage("");
@@ -34,7 +36,7 @@ export default function Policies() {
   }
 
   async function remove(policy) {
-    if (!window.confirm(`Remove "${policy.file_name}" from published policies?`)) return;
+    if (!(await confirmDialog(`Remove "${policy.file_name}" from published policies?`))) return;
     setDeleting(policy.name);
     setError("");
     setMessage("");

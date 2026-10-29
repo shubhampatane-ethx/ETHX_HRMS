@@ -9,6 +9,7 @@ import { dmy, errMsg, money, useAsync } from "../../../lib/employeePortal";
 import { acceptedForOpening, canApprove, emailDocument, listOffers, offerStage, reviseOffer, sendOffer, setOfferApproval, vacanciesOf } from "../../../lib/recruitment";
 import { useAuth } from "../../../context/AuthContext";
 import { candidateUrl, HireModal, NoShowModal, OfferModal, ResponseModal, SetupHint } from "./shared";
+import { alertDialog, confirmDialog } from "../../../components/ui/dialogs";
 
 const FILTERS = [["open", "In progress"], ["approval", "Needs approval"], ["Sent", "Sent"], ["Accepted", "Accepted"], ["done", "Joined / closed"], ["all", "All"]];
 const pdfUrl = (o) => `/api/method/frappe.utils.print_format.download_pdf?doctype=Job%20Offer&name=${encodeURIComponent(o.name)}&format=Standard&no_letterhead=0`;
@@ -49,8 +50,8 @@ export default function Offers() {
     if (!opening || opening.status !== "Open") return;
     const filled = await acceptedForOpening(opening);
     const v = vacanciesOf(opening);
-    if (v && filled >= v && window.confirm(`${filled} of ${v} vacancies for ${opening.job_title} are now filled. Close the opening?`)) {
-      await frappe.updateDoc("Job Opening", opening.name, { status: "Closed" }).catch((e) => window.alert(errMsg(e, "Couldn't close the opening.")));
+    if (v && filled >= v && (await confirmDialog(`${filled} of ${v} vacancies for ${opening.job_title} are now filled. Close the opening?`))) {
+      await frappe.updateDoc("Job Opening", opening.name, { status: "Closed" }).catch((e) => alertDialog({ tone: "error", message: errMsg(e, "Couldn't close the opening.") }));
     }
   }
 
@@ -90,7 +91,7 @@ function Actions({ o, user, approver, setModal, act }) {
   return (
     <div className="flex flex-wrap justify-end gap-1 whitespace-nowrap">
       {o.docstatus === 0 && <button type="button" title="Edit" className={btn} onClick={() => setModal({ kind: "edit", offer: o })}><Pencil size={14} /></button>}
-      {["Draft", "Rejected"].includes(s) && <Button variant="secondary" className="!px-2 !py-1 text-[11px]" onClick={() => act(() => setOfferApproval(o, "Pending Approval"), "Sent for approval.")}>Send for approval</Button>}
+      {["Draft", "Rejected"].includes(s) && <Button variant="secondary" className="!px-2 !py-1 text-[11px]" onClick={async () => (await confirmDialog(`Send ${o.applicant_name}'s offer for approval?`)) && act(() => setOfferApproval(o, "Pending Approval"), "Sent for approval.")}>Send for approval</Button>}
       {s === "Pending Approval" && approver && (!mine || user?.email === "Administrator") && <>
         <button type="button" title="Approve" className={`${btn} !text-[var(--color-green)]`} onClick={() => setModal({ kind: "decide", offer: o, approve: true })}><Check size={14} /></button>
         <button type="button" title="Reject" className={btn} onClick={() => setModal({ kind: "decide", offer: o, approve: false })}><X size={14} /></button>
@@ -100,13 +101,13 @@ function Actions({ o, user, approver, setModal, act }) {
       {o.docstatus === 1 && <a href={pdfUrl(o)} title="Offer letter PDF" className={btn}><FileDown size={14} /></a>}
       {["Sent", "Expired"].includes(s) && <>
         <Button variant="secondary" className="!px-2 !py-1 text-[11px]" onClick={() => setModal({ kind: "response", offer: o })}>Response</Button>
-        <button type="button" title="Revise (cancel and create an amended copy)" className={btn} onClick={() => window.confirm("Revise this offer? It is cancelled and a new draft copy is created, which needs approval again.") && act(() => reviseOffer(o), "Revised - edit the new draft and send it for approval.")}><RotateCcw size={14} /></button>
+        <button type="button" title="Revise (cancel and create an amended copy)" className={btn} onClick={async () => (await confirmDialog("Revise this offer? It is cancelled and a new draft copy is created, which needs approval again.")) && act(() => reviseOffer(o), "Revised - edit the new draft and send it for approval.")}><RotateCcw size={14} /></button>
       </>}
       {s === "Accepted" && <>
         <Button className="!px-2 !py-1 text-[11px]" onClick={() => setModal({ kind: "hire", offer: o })}><UserPlus size={12} /> Hire</Button>
         <Button variant="ghost" className="!px-2 !py-1 text-[11px]" onClick={() => setModal({ kind: "noshow", offer: o })}>Didn't join</Button>
       </>}
-      {o.docstatus === 0 && <button type="button" title="Delete draft" className={`${btn} hover:!text-[var(--color-red-hover)]`} onClick={() => window.confirm("Delete this draft offer?") && act(() => frappe.deleteDoc("Job Offer", o.name), "Draft deleted.")}><Trash2 size={14} /></button>}
+      {o.docstatus === 0 && <button type="button" title="Delete draft" className={`${btn} hover:!text-[var(--color-red-hover)]`} onClick={async () => (await confirmDialog("Delete this draft offer?")) && act(() => frappe.deleteDoc("Job Offer", o.name), "Draft deleted.")}><Trash2 size={14} /></button>}
     </div>
   );
 }

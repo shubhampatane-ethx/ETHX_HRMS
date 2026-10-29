@@ -6,6 +6,7 @@ import { errMsg, useAsync } from "../../lib/employeePortal";
 import { frappe } from "../../lib/api/frappeClient";
 import { getSavedTheme, saveTheme, THEME_OPTIONS } from "../../lib/theme";
 import { AdaptiveLogo } from "../../components/AdaptiveLogo";
+import { confirmDialog } from "../../components/ui/dialogs";
 
 async function loadCompanies() {
   return frappe.getList("Company", { fields: ["name", "company_name"], limit: 0, orderBy: "company_name asc" });
@@ -88,6 +89,7 @@ export default function BrandStudio() {
 
   async function chooseTheme(theme) {
     if (!companyName) return;
+    if (!(await confirmDialog(`Make ${theme.name} the shared theme for ${currentCompany?.company_name || companyName}? Everyone in this company sees it.`))) return;
     setThemeDraft({ companyName, id: theme.id });
     saveTheme(theme.id, companyName);
     setBusy("theme");
@@ -111,6 +113,7 @@ export default function BrandStudio() {
     if (!file || !companyName) return;
     if (!file.type.startsWith("image/")) return setError("Choose an image file for the company logo.");
     if (file.size > 3 * 1024 * 1024) return setError("Logo files must be 3 MB or smaller.");
+    if (!(await confirmDialog({ title: "Upload company logo", message: `Use "${file.name}" as the logo for ${currentCompany?.company_name || companyName}?` }))) { if (fileRef.current) fileRef.current.value = ""; return; }
     setBusy("logo");
     setError("");
     setMessage("");
@@ -132,6 +135,7 @@ export default function BrandStudio() {
 
   async function removeLogo() {
     if (!companyName || !currentCompany?.company_logo) return;
+    if (!(await confirmDialog({ message: `Remove the logo of ${currentCompany?.company_name || companyName}? The default logo is shown instead.`, danger: true, confirmLabel: "Remove" }))) return;
     setBusy("logo");
     setError("");
     setMessage("");

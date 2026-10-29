@@ -4,6 +4,7 @@ import { Async, Empty, Notice, PageHeader, Panel } from "../../components/employ
 import { Button } from "../../components/ui/primitives";
 import { ASSET_FOLDER, dmy, ensureAssetFolder, errMsg, getAssetLists, useAsync } from "../../lib/employeePortal";
 import { frappe } from "../../lib/api/frappeClient";
+import { confirmDialog } from "../../components/ui/dialogs";
 
 const TEMPLATE = "Asset Name,Category,Assigned To,Location,Issued Date,Status,Serial Number,Notes\r\n";
 
@@ -31,6 +32,7 @@ export default function Assets() {
       if (fileRef.current) fileRef.current.value = "";
       return;
     }
+    if (!(await confirmDialog({ title: "Upload asset list", message: `Upload "${file.name}" as an asset list?` }))) { if (fileRef.current) fileRef.current.value = ""; return; }
     setBusy(true);
     setError("");
     setMessage("");
@@ -49,7 +51,7 @@ export default function Assets() {
   }
 
   async function remove(list) {
-    if (!window.confirm(`Remove "${list.file_name}" from asset lists?`)) return;
+    if (!(await confirmDialog(`Remove "${list.file_name}" from asset lists?`))) return;
     setDeleting(list.name);
     setError("");
     setMessage("");

@@ -9,6 +9,7 @@ import { daysUntil, dmy, errMsg, useAsync } from "../../../lib/employeePortal";
 import { EXITS, fmtTime, listApplicants, listInterviews, listOffers, moveStage, offerStage, roundsOf, stageOf, STAGES, vacanciesOf } from "../../../lib/recruitment";
 import { CandidateModal, candidateUrl, MoveStageModal, OfferModal, Rating, ScheduleModal, SetupHint, StageBadge } from "./shared";
 import { OpeningModal } from "./Openings";
+import { confirmDialog } from "../../../components/ui/dialogs";
 
 export default function Board() {
   const { opening: id } = useParams();
@@ -46,6 +47,7 @@ export default function Board() {
     if (stage === "Interview") return setModal({ kind: "schedule", applicant: a });
     if (stage === "Offer" && !offerOf(a)) return setModal({ kind: "offer", applicant: a });
     if (["Rejected", "Withdrawn", "Hold"].includes(stage)) return setModal({ kind: "move", applicant: a, to: stage });
+    if (!(await confirmDialog(`Move ${a.applicant_name} from ${stageOf(a)} to ${stage}?`))) return;
     try {
       await moveStage(a, stage);
       apps.reload();

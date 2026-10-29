@@ -10,6 +10,7 @@ import { ProfileAvatar } from "../../components/ProfilePhoto";
 import { frappe } from "../../lib/api/frappeClient";
 import { addBills, billCounts, createExpenseClaim, getApprovers, getRejectionReasons, pickApprover } from "../../lib/approvals";
 import { ApprovalQueue, useApprovalQueue } from "../../components/approvals/ApprovalQueue";
+import { alertDialog, confirmDialog } from "../../components/ui/dialogs";
 
 /* ===== EmpApprovals.jsx ===== */
 const TYPES = ["All", "Leave", "Attendance", "Timesheet", "Expense"];
@@ -134,6 +135,8 @@ export function EmpAttendance() {
   const clock = new Date(now);
 
   async function punch() {
+    const at = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    if (!(await confirmDialog({ title: nextType === "IN" ? "Punch in" : "Punch out", message: `Record punch ${nextType === "IN" ? "in" : "out"} at ${at}?`, confirmLabel: nextType === "IN" ? "Punch in" : "Punch out" }))) return;
     setBusy(true);
     setMsg("");
     try {
@@ -423,7 +426,7 @@ export function EmpDashboard() {
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-[var(--color-text)]">{greeting(now.getHours())}, {(employee.first_name || employee.employee_name || "").split(" ")[0]}</h2>
             <p className="mt-1.5 text-[13px] text-[var(--color-text-muted)]">{[employee.designation, employee.department?.replace(/\s-\s[A-Z0-9]+$/i, ""), employee.company].filter(Boolean).join(" · ")}</p>
           </div>
-          <form onSubmit={(e) => { e.preventDefault(); const q = new FormData(e.currentTarget).get("q"); navigate(`/employee/search?q=${encodeURIComponent(q || "")}`); }} className="relative w-full max-w-xs">
+          <form data-no-preview onSubmit={(e) => { e.preventDefault(); const q = new FormData(e.currentTarget).get("q"); navigate(`/employee/search?q=${encodeURIComponent(q || "")}`); }} className="relative w-full max-w-xs">
             <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-faint)]" />
             <input name="q" placeholder="Search policies, holidays, help…" className="w-full rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] py-2.5 pl-9 pr-3 text-[13px] text-[var(--color-text)] placeholder:text-[var(--color-text-faint)] outline-none focus:border-[var(--color-red)]" />
           </form>
@@ -678,7 +681,7 @@ function ClaimModal({ employee, onClose, onSaved }) {
     setErr("");
     try {
       const { failed } = await createExpenseClaim({ employee, approver: approver?.email, files, lines: [{ expense_date: f.date, expense_type: f.type, description: f.description, amount: f.amount }] });
-      if (failed) window.alert(`${failed} of the bills couldn't be uploaded - the claim was created with the rest. Use "Add bill" to retry.`);
+      if (failed) alertDialog({ tone: "error", title: "Some bills weren't uploaded", message: `${failed} of the bills couldn't be uploaded - the claim was created with the rest. Use "Add bill" to retry.` });
       onSaved();
     } catch (x) {
       setErr(x?.response ? errMsg(x, "Couldn't create the claim.") : x?.message || "Couldn't create the claim.");
@@ -848,13 +851,13 @@ export function EmpLeave() {
   const [open, setOpen] = useState(false);
 
   async function withdraw(row) {
-    if (!window.confirm(`Withdraw this leave request (${dmy(row.from_date)} – ${dmy(row.to_date)})?`)) return;
+    if (!(await confirmDialog(`Withdraw this leave request (${dmy(row.from_date)} – ${dmy(row.to_date)})?`))) return;
     try {
       await frappe.deleteDoc("Leave Application", row.name);
       apps.reload();
       balance.reload();
     } catch (e) {
-      window.alert(errMsg(e, "Couldn't withdraw this request."));
+      alertDialog({ tone: "error", message: errMsg(e, "Couldn't withdraw this request.") });
     }
   }
 
@@ -968,11 +971,12 @@ export function EmpNotifications() {
   }
 
   async function markAll() {
+    if (!(await confirmDialog(`Mark all ${unread} notification(s) as read?`))) return;
     try {
       await frappe.callMethod("frappe.desk.doctype.notification_log.notification_log.mark_all_as_read");
       notifs.reload();
     } catch (e) {
-      window.alert(errMsg(e, "Couldn't mark notifications as read."));
+      alertDialog({ tone: "error", message: errMsg(e, "Couldn't mark notifications as read.") });
     }
   }
 
@@ -1208,7 +1212,7 @@ export function EmpSearch() {
   return (
     <>
       <PageHeader icon={Search} title="Search" subtitle="Find policies, holidays, documents, help articles and pages" />
-      <form onSubmit={(e) => { e.preventDefault(); setRes(null); setParams(text ? { q: text } : {}); }} className="relative">
+      <form data-no-preview onSubmit={(e) => { e.preventDefault(); setRes(null); setParams(text ? { q: text } : {}); }} className="relative">
         <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--color-text-faint)]" />
         <input autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder="Try “leave policy”, “Diwali”, “laptop”…" className="w-full rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] py-3 pl-10 pr-3 text-[14px] text-[var(--color-text)] placeholder:text-[var(--color-text-faint)] outline-none focus:border-[var(--color-red)]" />
       </form>

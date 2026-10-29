@@ -4,6 +4,7 @@ import { frappe } from "../../lib/api/frappeClient";
 import { dmyHm, errMsg } from "../../lib/employeePortal";
 import { Button, Card, Input, LinkField } from "../../components/ui/primitives";
 import { setUserCompany } from "./Users";
+import { confirmDialog } from "../../components/ui/dialogs";
 
 /**
  * Admin sets who is a Project Manager. Project Managers hold ERPNext's standard "Projects Manager"
@@ -143,7 +144,8 @@ function ManageModal({ user, onClose, onDone }) {
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
 
-  async function run(label, fn, ok) {
+  async function run(label, fn, ok, question) {
+    if (!(await confirmDialog(question))) return;
     setBusy(label);
     setError("");
     setNote("");
@@ -157,13 +159,13 @@ function ManageModal({ user, onClose, onDone }) {
         <p className="text-[12px] text-[var(--color-text-muted)]">{user.name} · {user.enabled ? "Active" : "Disabled"}</p>
         <div className="space-y-2">
           <LinkField label="Company" linkDoctype="Company" value={company} onChange={setCompany} frappe={frappe} />
-          <Button variant="secondary" disabled={Boolean(busy) || !company || company === user.company} onClick={() => run("company", () => setUserCompany(user.name, company), "Company updated.")}><Building2 size={14} /> {busy === "company" ? "Saving…" : "Change company"}</Button>
+          <Button variant="secondary" disabled={Boolean(busy) || !company || company === user.company} onClick={() => run("company", () => setUserCompany(user.name, company), "Company updated.", `Move ${user.full_name || user.name} to ${company}?`)}><Building2 size={14} /> {busy === "company" ? "Saving…" : "Change company"}</Button>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <input type="text" value={pwd} onChange={(e) => setPwd(e.target.value)} placeholder="New temporary password" autoComplete="off" className="w-56 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-3 py-2 text-[13px] text-[var(--color-text)] placeholder:text-[var(--color-text-faint)] outline-none focus:border-[var(--color-red)]" />
-          <Button variant="secondary" disabled={Boolean(busy) || pwd.length < 8} onClick={() => run("pwd", async () => { await frappe.updateDoc("User", user.name, { new_password: pwd, last_password_reset_date: null }); setPwd(""); }, "Password reset - they must change it at next sign-in.")}><KeyRound size={14} /> Reset password</Button>
+          <Button variant="secondary" disabled={Boolean(busy) || pwd.length < 8} onClick={() => run("pwd", async () => { await frappe.updateDoc("User", user.name, { new_password: pwd, last_password_reset_date: null }); setPwd(""); }, "Password reset - they must change it at next sign-in.", `Reset ${user.full_name || user.name}'s password? They must change it at next sign-in.`)}><KeyRound size={14} /> Reset password</Button>
         </div>
-        <Button variant="ghost" disabled={Boolean(busy)} onClick={() => run("enable", () => frappe.updateDoc("User", user.name, { enabled: user.enabled ? 0 : 1 }), user.enabled ? "Account disabled." : "Account enabled.")}><Power size={14} /> {user.enabled ? "Disable account" : "Enable account"}</Button>
+        <Button variant="ghost" disabled={Boolean(busy)} onClick={() => run("enable", () => frappe.updateDoc("User", user.name, { enabled: user.enabled ? 0 : 1 }), user.enabled ? "Account disabled." : "Account enabled.", user.enabled ? { message: `Disable ${user.full_name || user.name}'s account? They won't be able to sign in.`, danger: true, confirmLabel: "Disable" } : `Enable ${user.full_name || user.name}'s account?`)}><Power size={14} /> {user.enabled ? "Disable account" : "Enable account"}</Button>
         {note && <p className="text-[12px] text-[var(--color-green)]">{note}</p>}
         {error && <ErrorNote>{error}</ErrorNote>}
       </div>

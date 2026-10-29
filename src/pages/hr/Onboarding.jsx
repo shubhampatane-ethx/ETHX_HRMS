@@ -8,6 +8,7 @@ import { Button } from "../../components/ui/primitives";
 import { Async, chipCls, Grid, Modal, Notice, PageHeader, Panel, StatusPill } from "../../components/employee/EmployeeShell";
 import { dmy, errMsg, listTry, useAsync } from "../../lib/employeePortal";
 import { HireModal, candidateUrl } from "./recruitment/shared";
+import { confirmDialog } from "../../components/ui/dialogs";
 
 async function load() {
   const list = await listTry("Employee Onboarding", { filters: [["docstatus", "<", 2]], fields: ["name", "employee_name", "job_applicant", "job_offer", "employee", "date_of_joining", "boarding_status", "company", "designation", "department", "project", "docstatus", "creation"], orderBy: "creation desc" }, ["name", "employee_name", "job_applicant", "job_offer", "employee", "date_of_joining", "boarding_status", "docstatus"]);
@@ -32,7 +33,7 @@ export default function Onboarding() {
   const rows = (data.data || []).filter((r) => (filter === "open" ? r.boarding_status !== "Completed" : filter === "done" ? r.boarding_status === "Completed" : true));
 
   async function complete(r) {
-    if (!window.confirm(`Mark onboarding for ${r.employee_name} as completed? All its tasks are closed.`)) return;
+    if (!(await confirmDialog(`Mark onboarding for ${r.employee_name} as completed? All its tasks are closed.`))) return;
     try {
       await frappe.client.post("/method/run_doc_method", { dt: "Employee Onboarding", dn: r.name, method: "mark_onboarding_as_completed" });
       data.reload();

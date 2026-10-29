@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { PageLoading } from "./components/PageLoading";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { BrandingProvider } from "./context/BrandingContext";
+import { DialogHost } from "./components/ui/dialogs";
 import { RequireAuth, RequirePermission } from "./permissions/guards";
 import { primaryAppRole } from "./permissions/roles";
 
@@ -78,6 +79,7 @@ export default function App() {
   return (
     <AuthProvider>
       <BrandingProvider>
+      <DialogHost />
       <Suspense fallback={<PageLoading full />}>
       <Routes>
         <Route path="/login" element={<Login />} />

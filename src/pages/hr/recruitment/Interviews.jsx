@@ -9,6 +9,7 @@ import { Async, Field, Grid, inputCls, Modal, Notice, PageHeader, Panel, Tabs } 
 import { dmy, errMsg, isoDate, useAsync } from "../../../lib/employeePortal";
 import { feedbackFor, fmtTime, interviewersOf, listApplicants, listInterviews, listRounds, listUsers, saveRound, toStars } from "../../../lib/recruitment";
 import { candidateUrl, DecideModal, IcsButton, Rating, ScheduleModal, SetupHint, Stars } from "./shared";
+import { alertDialog, confirmDialog } from "../../../components/ui/dialogs";
 
 export default function Interviews() {
   const [params, setParams] = useSearchParams();
@@ -73,12 +74,12 @@ function Rounds() {
   const rounds = useAsync(listRounds, []);
   const [modal, setModal] = useState(null);
   async function remove(r) {
-    if (!window.confirm(`Delete the round "${r.round_name}"? Rounds already used in interviews can't be deleted.`)) return;
+    if (!(await confirmDialog(`Delete the round "${r.round_name}"? Rounds already used in interviews can't be deleted.`))) return;
     try {
       await frappe.deleteDoc("Interview Round", r.name);
       rounds.reload();
     } catch (e) {
-      window.alert(errMsg(e, "Couldn't delete this round - it's probably used by interviews."));
+      alertDialog({ tone: "error", message: errMsg(e, "Couldn't delete this round - it's probably used by interviews.") });
     }
   }
   return (

@@ -5,6 +5,7 @@ import { Button } from "./ui/primitives";
 import { Async, Panel } from "./employee/EmployeeShell";
 import { errMsg, useAsync } from "../lib/employeePortal";
 import { runSetup, setupStatus } from "../lib/siteSetup";
+import { confirmDialog } from "./ui/dialogs";
 
 function Ok({ ok }) {
   return ok ? <Check size={14} className="mt-0.5 shrink-0 text-[var(--color-green)]" /> : <X size={14} className="mt-0.5 shrink-0 text-[var(--color-red-hover)]" />;
@@ -15,6 +16,7 @@ export function SiteSetupPanel() {
   const [log, setLog] = useState(null);
   const [busy, setBusy] = useState(false);
   async function run() {
+    if (!(await confirmDialog({ title: "Run system setup", message: "Add the required fields, change history, field restrictions and server rules on this ERPNext site?", confirmLabel: "Run setup" }))) return;
     setBusy(true);
     setLog([]);
     try {
