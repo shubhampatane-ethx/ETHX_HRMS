@@ -125,3 +125,19 @@ export function primaryAppRole(erpRoles = []) {
 export function hasPermission(user, permission) {
   return Boolean(user?.permissions?.includes(permission));
 }
+/**
+ * True for HR staff / Project Managers who also have an employee login. They are employees first:
+ * one combined dashboard (/employee) with their HR or PM overview under their own, and one sidebar.
+ */
+export function isStaffEmployee(user) {
+  return hasPermission(user, "dashboard.employee") && !hasPermission(user, "dashboard.admin")
+    && (hasPermission(user, "dashboard.hr") || hasPermission(user, "dashboard.pm"));
+}
+
+/** Where this account lands after sign-in. */
+export function homePath(user) {
+  const role = primaryAppRole(user?.roles);
+  if (role === "admin") return "/admin";
+  if (isStaffEmployee(user)) return "/employee";
+  return role === "hr" ? "/hr" : role === "pm" ? "/pm" : role === "employee" ? "/employee" : "/";
+}

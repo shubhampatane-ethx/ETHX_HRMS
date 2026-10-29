@@ -5,7 +5,7 @@ import { AuthProvider, useAuth } from "./context/AuthContext";
 import { BrandingProvider } from "./context/BrandingContext";
 import { DialogHost } from "./components/ui/dialogs";
 import { RequireAuth, RequirePermission } from "./permissions/guards";
-import { primaryAppRole } from "./permissions/roles";
+import { homePath, isStaffEmployee } from "./permissions/roles";
 
 import Login from "./pages/Login";
 import Unauthorized from "./pages/Unauthorized";
@@ -104,7 +104,7 @@ export default function App() {
 
           <Route element={<RequirePermission permission="dashboard.pm" />}>
             <Route path="/pm" element={<PMLayout />}>
-              <Route index element={<PMDashboard />} />
+              <Route index element={<StaffHome><PMDashboard /></StaffHome>} />
               <Route path="projects" element={<PMProjects />} />
               <Route path="assignments" element={<PMAssignments />} />
               <Route path="timesheets" element={<Timesheets readOnly />} />
@@ -143,7 +143,7 @@ export default function App() {
 
           <Route path="/hr" element={<HRLayout />}>
             <Route element={<RequirePermission permission="dashboard.hr" />}>
-              <Route index element={<HRDashboard />} />
+              <Route index element={<StaffHome><HRDashboard /></StaffHome>} />
               <Route path="employees" element={<Employees />} />
               <Route path="lifecycle" element={<Lifecycle />} />
               <Route path="resources" element={<div className="space-y-5"><Resources /></div>} />
@@ -185,10 +185,12 @@ export default function App() {
 /** Sends a freshly logged-in user to the layout that matches their ERPNext role. */
 function HomeRedirect() {
   const { user } = useAuth();
-  const role = primaryAppRole(user?.roles);
-  if (role === "admin") return <Navigate to="/admin" replace />;
-  if (role === "hr") return <Navigate to="/hr" replace />;
-  if (role === "pm") return <Navigate to="/pm" replace />;
-  if (role === "employee") return <Navigate to="/employee" replace />;
-  return <Navigate to="/unauthorized" replace />;
+  const home = homePath(user);
+  return <Navigate to={home === "/" ? "/unauthorized" : home} replace />;
+}
+
+/** HR / PM staff who are also employees have one dashboard: the combined one at /employee. */
+function StaffHome({ children }) {
+  const { user } = useAuth();
+  return isStaffEmployee(user) ? <Navigate to="/employee" replace /> : children;
 }

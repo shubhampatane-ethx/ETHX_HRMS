@@ -78,7 +78,8 @@ function SectionTitle({ title, hint, to }) {
   );
 }
 
-export default function HRDashboard() {
+/** `embedded`: shown under the employee dashboard for HR staff who are also employees (one dashboard), so no greeting hero. */
+export default function HRDashboard({ embedded = false }) {
   const { user } = useAuth();
   const [data, setData] = useState(null);
 
@@ -170,27 +171,43 @@ export default function HRDashboard() {
     return part ? part[0].toUpperCase() + part.slice(1) : "there";
   })();
 
+  const summary = (
+    <>
+      {headcount == null ? "Loading your workspace…" : notMarked > 0 ? `${notMarked} of ${headcount} employees have no attendance marked today.` : "Attendance is marked for everyone today."}
+      {leave?.length > 0 && ` ${leave.length} leave request${leave.length > 1 ? "s" : ""} waiting for review.`}
+    </>
+  );
+  const actions = (
+    <div className="flex flex-wrap gap-2.5">
+      <Link to="/hr/attendance" className="flex items-center gap-2 rounded-lg bg-[var(--color-red)] px-4 py-2.5 text-[13px] font-medium text-[var(--color-on-accent)] transition-colors hover:bg-[var(--color-red-hover)]"><Plus size={15} /> Mark attendance</Link>
+      <Link to="/hr/leave" className="flex items-center gap-2 rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-4 py-2.5 text-[13px] font-medium text-[var(--color-text)] transition-colors hover:border-[var(--color-text-faint)]"><CalendarClock size={15} /> Review leave</Link>
+      <Link to="/hr/employees" className="flex items-center gap-2 rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-4 py-2.5 text-[13px] font-medium text-[var(--color-text)] transition-colors hover:border-[var(--color-text-faint)]"><UserPlus size={15} /> Add employee</Link>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
-      {/* Hero */}
+      {embedded ? (
+        <div className="flex flex-wrap items-end justify-between gap-4 border-t border-[var(--color-border)] pt-6">
+          <div>
+            <h2 className="text-[17px] font-semibold text-[var(--color-text)]">HR overview</h2>
+            <p className="mt-1 text-[13px] text-[var(--color-text-muted)]">{summary}</p>
+          </div>
+          {actions}
+        </div>
+      ) : (
       <section className="relative overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-7 py-7">
         <div className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(600px 220px at 100% 0%, color-mix(in srgb, var(--color-red) 22%, transparent), transparent 70%), radial-gradient(400px 200px at 0% 100%, color-mix(in srgb, var(--color-red) 8%, transparent), transparent 70%)" }} />
         <div className="relative flex flex-wrap items-center justify-between gap-5">
           <div>
             <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-[var(--color-red-hover)]">{DAYS[now.getDay()]}, {String(now.getDate()).padStart(2, "0")} {MONTHS[now.getMonth()]} {now.getFullYear()}</p>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-[var(--color-text)]">{greeting(now.getHours())}, {firstName}</h2>
-            <p className="mt-1.5 text-[13px] text-[var(--color-text-muted)]">
-              {headcount == null ? "Loading your workspace…" : notMarked > 0 ? `${notMarked} of ${headcount} employees have no attendance marked today.` : "Attendance is marked for everyone today."}
-              {leave?.length > 0 && ` ${leave.length} leave request${leave.length > 1 ? "s" : ""} waiting for review.`}
-            </p>
+            <p className="mt-1.5 text-[13px] text-[var(--color-text-muted)]">{summary}</p>
           </div>
-          <div className="flex flex-wrap gap-2.5">
-            <Link to="/hr/attendance" className="flex items-center gap-2 rounded-lg bg-[var(--color-red)] px-4 py-2.5 text-[13px] font-medium text-[var(--color-on-accent)] transition-colors hover:bg-[var(--color-red-hover)]"><Plus size={15} /> Mark attendance</Link>
-            <Link to="/hr/leave" className="flex items-center gap-2 rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-4 py-2.5 text-[13px] font-medium text-[var(--color-text)] transition-colors hover:border-[var(--color-text-faint)]"><CalendarClock size={15} /> Review leave</Link>
-            <Link to="/hr/employees" className="flex items-center gap-2 rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-4 py-2.5 text-[13px] font-medium text-[var(--color-text)] transition-colors hover:border-[var(--color-text-faint)]"><UserPlus size={15} /> Add employee</Link>
-          </div>
+          {actions}
         </div>
       </section>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">

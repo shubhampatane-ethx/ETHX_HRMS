@@ -1,14 +1,16 @@
 import { Suspense } from "react";
 import { PageLoading } from "../PageLoading";
 import { Outlet, useLocation } from "react-router-dom";
-import { ArrowLeft, Briefcase, CalendarCheck, CheckCheck, Gauge, Users, ClipboardCheck, ClipboardList, LayoutDashboard, Timer, UserPlus, UserRound } from "lucide-react";
+import { ArrowLeft, Briefcase, CalendarCheck, CheckCheck, Gauge, Users, ClipboardCheck, ClipboardList, Timer, UserPlus } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { useAuth } from "../../context/AuthContext";
-import { hasPermission } from "../../permissions/roles";
+import { hasPermission, isStaffEmployee } from "../../permissions/roles";
+import { dashboardLink, SELF_SERVICE } from "./HRLayout";
 import { ForcedPasswordScreen } from "../employee/EmployeeShell";
 
 const TITLES = {
+  "/employee": "Dashboard",
   "/pm": "Dashboard",
   "/pm/projects": "Projects",
   "/pm/assignments": "Assignments",
@@ -21,15 +23,22 @@ const TITLES = {
   "/pm/interviews": "My Interviews",
 };
 
-/** Project Manager workspace: projects, who is assigned to what (role + ETA), and the team's timesheets. */
-export function PMLayout() {
-  const { pathname } = useLocation();
-  const { user } = useAuth();
-  if (user?.mustChangePassword) return <ForcedPasswordScreen />;
+/** Top bar title for PM pages and for the person's own self-service pages shown in the PM workspace. */
+export function pmTitleFor(pathname) {
+  if (TITLES[pathname]) return TITLES[pathname];
+  const own = [...SELF_SERVICE.children, { to: "/employee/profile", label: "My Profile" }, { to: "/employee/search", label: "Search" }, { to: "/employee/interviews", label: "My Interviews" }]
+    .sort((a, b) => b.to.length - a.to.length).find((n) => pathname === n.to || pathname.startsWith(`${n.to}/`));
+  return own?.label ?? "Project Manager";
+}
 
-  const items = [
+/** PM sidebar: the one Dashboard, the person's own self-service (when they are an employee too), then PM work. */
+export function pmNav(user) {
+  // "My Team" is already a PM page, so it is not repeated in the self-service group.
+  const selfService = { ...SELF_SERVICE, children: SELF_SERVICE.children.filter((c) => c.to !== "/employee/team") };
+  return [
     ...(hasPermission(user, "dashboard.admin") ? [{ to: "/admin", label: "Back to Admin", icon: ArrowLeft }] : []),
-    { to: "/pm", label: "Dashboard", icon: LayoutDashboard },
+    dashboardLink(user, "/pm"),
+    ...(isStaffEmployee(user) ? [selfService] : []),
     { to: "/pm/projects", label: "Projects", icon: Briefcase },
     { to: "/pm/assignments", label: "Assignments", icon: ClipboardList },
     { to: "/pm/approvals", label: "Timesheet Approvals", icon: CheckCheck },
@@ -39,14 +48,21 @@ export function PMLayout() {
     { to: "/pm/timesheets", label: "Team Timesheets", icon: Timer },
     { to: "/pm/requisitions", label: "Hiring Requests", icon: UserPlus },
     { to: "/pm/interviews", label: "My Interviews", icon: ClipboardCheck },
-    ...(hasPermission(user, "dashboard.employee") ? [{ to: "/employee", label: "My Employee Portal", icon: UserRound }] : []),
   ];
+}
+
+/** Project Manager workspace: projects, who is assigned to what (role + ETA), and the team's timesheets. */
+export function PMLayout() {
+  const { pathname } = useLocation();
+  const { user } = useAuth();
+  if (user?.mustChangePassword) return <ForcedPasswordScreen />;
+  const items = pmNav(user);
 
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--color-bg)]">
       <Sidebar title="Project Manager" items={items} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar roleLabel="Project Manager" pageTitle={TITLES[pathname] ?? "Project Manager"} />
+        <Topbar roleLabel="Project Manager" pageTitle={pmTitleFor(pathname)} />
         <main className="flex-1 overflow-y-auto p-6">
           <div className="mx-auto max-w-6xl space-y-5">
             <Suspense fallback={<PageLoading />}><Outlet /></Suspense>

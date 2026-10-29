@@ -12,6 +12,7 @@ import { Sidebar } from "../layout/Sidebar";
 import { Topbar } from "../layout/Topbar";
 import { hrNav, hrTitleFor } from "../layout/HRLayout";
 import { hasPermission } from "../../permissions/roles";
+import { pmNav, pmTitleFor } from "../layout/PMLayout";
 
 /* ===== ui.jsx ===== */
 export const inputCls =
@@ -389,16 +390,16 @@ export function EmployeeLayout() {
   const { pathname } = useLocation();
   const { user } = useAuth();
   if (user?.mustChangePassword) return <ForcedPasswordScreen />;
-  // HR staff see their own pages inside the HR workspace (same sidebar), so it is one place, not two.
-  // PM workspace links live in the account menu only.
+  // HR staff and Project Managers see their own pages inside their workspace (same sidebar), so it is one place, not two.
   const asHr = hasPermission(user, "dashboard.hr");
-  const nav = asHr ? hrNav(user) : navFor(user);
+  const asPm = !asHr && hasPermission(user, "dashboard.pm");
+  const nav = asHr ? hrNav(user) : asPm ? pmNav(user) : navFor(user);
   return (
     <EmployeeProvider>
       <div className="flex h-screen overflow-hidden bg-[var(--color-bg)]">
-        <Sidebar title={asHr ? "HR Workspace" : "Employee Portal"} items={nav} />
+        <Sidebar title={asHr ? "HR Workspace" : asPm ? "Project Manager" : "Employee Portal"} items={nav} />
         <div className="flex min-w-0 flex-1 flex-col">
-          <Topbar roleLabel={asHr ? (hasPermission(user, "dashboard.admin") ? "Admin" : "HR") : "Employee"} pageTitle={asHr ? hrTitleFor(pathname) : titleFor(pathname)} />
+          <Topbar roleLabel={asHr ? (hasPermission(user, "dashboard.admin") ? "Admin" : "HR") : asPm ? "Project Manager" : "Employee"} pageTitle={asHr ? hrTitleFor(pathname) : asPm ? pmTitleFor(pathname) : titleFor(pathname)} />
           <main className="flex-1 overflow-y-auto p-6">
             <div className="mx-auto max-w-6xl space-y-5">
               <Gate />

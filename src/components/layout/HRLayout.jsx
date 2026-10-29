@@ -19,7 +19,7 @@ import {
 import { useMemo, Suspense } from "react";
 import { Sidebar } from "./Sidebar";
 import { useAuth } from "../../context/AuthContext";
-import { hasPermission } from "../../permissions/roles";
+import { hasPermission, isStaffEmployee } from "../../permissions/roles";
 import { Topbar } from "./Topbar";
 import { HR_SETUP_SECTIONS, slugify } from "../../lib/hrSetupConfig";
 
@@ -61,7 +61,6 @@ export const SELF_SERVICE = {
   label: "My Self-Service",
   icon: UserRound,
   children: [
-    { to: "/employee", label: "My Overview", end: true },
     { to: "/employee/attendance", label: "My Attendance" },
     { to: "/employee/leave", label: "My Leave" },
     { to: "/employee/timesheet", label: "My Timesheet" },
@@ -82,19 +81,25 @@ export const SELF_SERVICE = {
 
 // Pages reached outside the sidebar, listed only so the top bar shows the right title.
 const HIDDEN_PAGES = [
+  { to: "/employee", label: "Dashboard" },
   { to: "/employee/profile", label: "My Profile" },
   { to: "/employee/search", label: "Search" },
   { to: "/employee/interviews", label: "My Interviews" },
 ];
 
+/** The one Dashboard link: staff who are also employees get the combined dashboard (/employee). */
+export function dashboardLink(user, workspaceHome) {
+  return { to: isStaffEmployee(user) ? "/employee" : workspaceHome, label: "Dashboard", icon: LayoutDashboard };
+}
+
 /** HR sidebar: Dashboard first, then the person's own self-service (when they have an employee login), then HR work. */
 export function hrNav(user) {
   const isAdmin = hasPermission(user, "dashboard.admin");
-  const [dashboard, ...rest] = TOP_NAV;
+  const rest = TOP_NAV.slice(1);
   return [
     ...(isAdmin ? [{ to: "/admin", label: "Back to Admin", icon: ArrowLeft }] : []),
-    dashboard,
-    ...(hasPermission(user, "dashboard.employee") ? [SELF_SERVICE] : []),
+    dashboardLink(user, "/hr"),
+    ...(isStaffEmployee(user) ? [SELF_SERVICE] : []),
     ...rest,
     ...hrSetupGroups(isAdmin),
   ];

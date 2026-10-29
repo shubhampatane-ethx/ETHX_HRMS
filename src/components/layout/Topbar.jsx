@@ -108,7 +108,6 @@ function accountMenu(user, roleLabel) {
     if (hasPermission(user, "dashboard.pm")) items.push({ to: "/pm", label: "Project Manager workspace", icon: Briefcase });
   } else if (roleLabel === "Project Manager" && hasPermission(user, "dashboard.employee")) {
     items.push({ to: "/employee/profile", label: "My profile & password", icon: UserRound });
-    items.push({ to: "/employee", label: "My Employee Portal", icon: Briefcase });
   }
   return items;
 }

@@ -1,10 +1,15 @@
 // Employee portal: all employee pages in one file.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, BadgeCheck, Bell, CalendarCheck, CalendarClock, CalendarDays, CheckCheck, ChevronLeft, ChevronRight, ClipboardCheck, Download, ExternalLink, FileText, GraduationCap, HeartPulse, KeyRound, Laptop, LifeBuoy, LogIn, LogOut, Mail, Megaphone, Paperclip, Pencil, Phone, Plus, Receipt, Search, ShieldAlert, Target, Undo2, UserRound, Users, Wallet } from "lucide-react";
 import { Async, ChangePasswordForm, chipCls, Empty, ErrorState, Field, Grid, inputCls, KeyValue, Loading, Modal, Notice, PageHeader, Panel, Skeleton, Stat, StatusPill, Tabs, useEmployee } from "../../components/employee/EmployeeShell";
 import { CONTACTS, createRequest, daysBetween, daysUntil, dmy, dmyHm, errMsg, EXPIRY_WARN_DAYS, getAcknowledged, getAnnouncements, getAppraisals, getApprovals, getAttendanceHistory, getAttendanceRequests, getBenefitClaims, getCheckinsBetween, getEvents, getExpenseClaims, getFeedback, getGoals, getHelpArticles, getHolidays, getLeaveApplications, getLeaveBalance, getLeaveTypes, getMyAssets, getMyDocuments, getMyLeavesBetween, getMyTraining, getNotifications, getPayslips, getPolicies, getRequests, getShiftAssignments, getTeamAvailability, getTodayAttendance, hm, hoursLabel, isoDate, LETTER_TYPES, money, MONTHS, MONTHS_LONG, nowStamp, pad, REQUEST_CATEGORIES, stripHtml, summariseCheckins, useAsync, WEEKDAYS } from "../../lib/employeePortal";
 import { useAuth } from "../../context/AuthContext";
+import { hasPermission } from "../../permissions/roles";
+
+// Workspace overviews shown on the one combined dashboard for HR staff / Project Managers who are also employees.
+const HRDashboard = lazy(() => import("../hr/Dashboard"));
+const PMDashboard = lazy(() => import("../pm/PMPages").then((m) => ({ default: m.PMDashboard })));
 import { Button, DateField } from "../../components/ui/primitives";
 import { ProfileAvatar } from "../../components/ProfilePhoto";
 import { frappe } from "../../lib/api/frappeClient";
@@ -519,6 +524,9 @@ export function EmpDashboard() {
           </Link>
         ))}
       </div>
+      {/* One dashboard: HR staff and Project Managers see their workspace overview under their own. */}
+      {hasPermission(user, "dashboard.hr") && <Suspense fallback={<Loading />}><HRDashboard embedded /></Suspense>}
+      {!hasPermission(user, "dashboard.hr") && hasPermission(user, "dashboard.pm") && <Suspense fallback={<Loading />}><PMDashboard embedded /></Suspense>}
     </>
   );
 }

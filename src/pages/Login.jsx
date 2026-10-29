@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { AlertCircle, CalendarCheck, Eye, EyeOff, Loader2, Lock, Users, UserRound, Wallet, CalendarClock, ArrowRight } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { primaryAppRole } from "../permissions/roles";
+import { homePath } from "../permissions/roles";
 
 /** Logo + a clearly visible HRMS tag (the shared Brand's label is too faint on this page). */
 function LoginBrand() {
@@ -52,8 +52,7 @@ export default function Login() {
       // Land on the workspace that matches this account. Only go back to the page the
       // user was on before if it belongs to that workspace - otherwise e.g. signing in as
       // HR after logging out of an /admin page would end on "Not authorized".
-      const role = primaryAppRole(signedIn?.roles);
-      const home = role === "admin" ? "/admin" : role === "hr" ? "/hr" : role === "employee" ? "/employee" : role === "pm" ? "/pm" : "/";
+      const home = homePath(signedIn);
       const from = location.state?.from?.pathname;
       const canReturn = from && home !== "/" && (from === home || from.startsWith(`${home}/`));
       navigate(canReturn ? from : home, { replace: true });
