@@ -27,11 +27,6 @@ export default function Assets() {
 
   async function upload(file) {
     if (!file) return;
-    if (!file.name.toLowerCase().endsWith(".csv")) {
-      setError("Choose a CSV file. You can download the template to see the required columns.");
-      if (fileRef.current) fileRef.current.value = "";
-      return;
-    }
     if (!(await confirmDialog({ title: "Upload asset list", message: `Upload "${file.name}" as an asset list?` }))) { if (fileRef.current) fileRef.current.value = ""; return; }
     setBusy(true);
     setError("");
@@ -71,7 +66,7 @@ export default function Assets() {
       <PageHeader icon={FileSpreadsheet} title="Asset Management" subtitle="Upload and manage your company asset lists" actions={
         <>
           <Button type="button" variant="secondary" onClick={downloadTemplate}><Download size={14} /> Download CSV template</Button>
-          <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => upload(e.target.files?.[0])} />
+          <input ref={fileRef} type="file" className="hidden" onChange={(e) => upload(e.target.files?.[0])} />
           <Button type="button" onClick={() => fileRef.current?.click()} disabled={busy}>
             <Upload size={14} /> {busy ? "Uploading…" : "Upload asset list"}
           </Button>
@@ -79,9 +74,9 @@ export default function Assets() {
       } />
       {error && <Notice>{error}</Notice>}
       {message && <Notice tone="info">{message}</Notice>}
-      <Panel title="Uploaded asset lists" hint="Use the CSV template columns to keep asset details consistent. Upload a revised file to update the list.">
+      <Panel title="Uploaded asset lists" hint="Any file type can be uploaded (spreadsheets, PDFs, images, documents). The CSV template is optional and keeps asset details consistent.">
         <Async state={lists}>
-          {(rows) => rows.length === 0 ? <Empty text="No asset lists uploaded yet. Upload a CSV file to get started." /> : (
+          {(rows) => rows.length === 0 ? <Empty text="No asset lists uploaded yet. Upload a file to get started." /> : (
             <ul className="divide-y divide-[var(--color-border)]">
               {rows.map((list) => (
                 <li key={list.name} className="flex flex-wrap items-center justify-between gap-3 py-3">
@@ -93,7 +88,7 @@ export default function Assets() {
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <a href={list.file_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-[12px] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"><ExternalLink size={13} /> View list</a>
+                    <a href={list.file_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-[12px] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"><ExternalLink size={13} /> View file</a>
                     <Button type="button" variant="ghost" onClick={() => remove(list)} disabled={deleting === list.name}>
                       <Trash2 size={14} /> {deleting === list.name ? "Removing…" : "Remove"}
                     </Button>
