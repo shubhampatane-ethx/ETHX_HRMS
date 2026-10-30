@@ -263,7 +263,7 @@ function TightenHr() {
     setBusy(false);
   }
   return (
-    <Section title="Tighten HR access" hint="Employee logins are created and reset by a server-side method that can only touch plain employee accounts and always restricts them. HR then doesn't need to create or edit Users and User Permissions - which would also let them reset an administrator's password or widen their own access.">
+    <Section title="Tighten HR Access" hint="Employee logins are created and reset by a server-side method that can only touch plain employee accounts and always restricts them. HR then doesn't need to create or edit Users and User Permissions - which would also let them reset an administrator's password or widen their own access.">
       {ready === null ? <p className="text-[12px] text-[var(--color-text-muted)]">Checking…</p> : ready ? (
         <div className="flex flex-wrap items-center gap-3">
           <Button variant="secondary" onClick={run} disabled={busy}>{busy ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />} Remove HR's elevated rights</Button>
@@ -337,7 +337,7 @@ function RequiredPermissions() {
   }
 
   return (
-    <Section title="Required permissions" hint="The permissions each role needs for the app to work. Only missing permissions are added - existing ones are never removed."
+    <Section title="Required Permissions" hint="The permissions each role needs for the app to work. Only missing permissions are added - existing ones are never removed."
       action={<Button onClick={applyAll} disabled={busy || !todo.length}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />} {todo.length ? `Apply ${todo.length} missing` : "All set"}</Button>}>
       <div className="mb-4 flex flex-wrap gap-2">{ROLES.map((r) => <button key={r} type="button" onClick={() => setRole(r)} className={chip(role === r)}>{r}</button>)}</div>
 
@@ -417,7 +417,7 @@ function StaffRestrictions() {
     load();
   }
   return (
-    <Section title="HR & Project Manager logins limited to their own record" hint="Employee-linked accounts are limited to that employee. For HR and Project Managers this hides other people's requisitions, timesheets and team data. Remove it for staff who need to see across the company (their Company restriction stays)."
+    <Section title="HR & Project Manager Logins Limited to Their Own Record" hint="Employee-linked accounts are limited to that employee. For HR and Project Managers this hides other people's requisitions, timesheets and team data. Remove it for staff who need to see across the company (their Company restriction stays)."
       action={<Button onClick={() => lift(rows || [])} disabled={busy || !(rows || []).length}>{busy ? "Working…" : `Lift ${(rows || []).length || ""}`.trim()}</Button>}>
       {!rows ? <p className="flex items-center gap-2 py-3 text-[13px] text-[var(--color-text-muted)]"><Loader2 size={14} className="animate-spin" /> Checking…</p> : rows.length === 0 ? <p className="py-2 text-[13px] text-[var(--color-green)]"><Check size={14} className="mr-1 inline" /> No HR or Project Manager login is limited to its own employee record.</p> : (
         <ul className="divide-y divide-[var(--color-border)] text-[13px]">{rows.map((r) => <li key={r.name} className="flex items-center justify-between py-2"><span>{r.user} <span className="text-[11px] text-[var(--color-text-faint)]">{r.roles.join(", ")} · limited to {r.for_value}</span></span><button type="button" disabled={busy} onClick={() => lift([r])} className="text-[12px] text-[var(--color-red-hover)] hover:underline">Lift</button></li>)}</ul>
@@ -451,7 +451,7 @@ function EmployeeRestrictions() {
   }
 
   return (
-    <Section title="Employee record restrictions" hint="Employee logins should only see their own record and company. These restrictions may need administrator access to create - fix any gaps here."
+    <Section title="Employee Record Restrictions" hint="Employee logins should only see their own record and company. These restrictions may need administrator access to create - fix any gaps here."
       action={<div className="flex gap-2"><Button variant="secondary" onClick={load}><RefreshCw size={14} /> Refresh</Button><Button onClick={() => fix(open)} disabled={busy || !open.length}>{busy ? "Working…" : `Restrict ${open.length || ""}`.trim()}</Button></div>}>
       {!rows ? <p className="flex items-center gap-2 py-4 text-[13px] text-[var(--color-text-muted)]"><Loader2 size={14} className="animate-spin" /> Checking…</p> : rows.length === 0 ? <p className="py-3 text-[13px] text-[var(--color-text-muted)]">No employee-only logins yet.</p> : (
         <ul className="divide-y divide-[var(--color-border)]">
@@ -524,7 +524,7 @@ function PermissionEditor() {
   const missingRoles = ROLES.filter((r) => !rows.some((x) => x.role === r && Number(x.permlevel) === 0));
 
   return (
-    <Section title="Permission editor" hint="Advanced: view and change permissions of HR Manager, HR User and Employee on any doctype (for example Leave Application).">
+    <Section title="Permission Editor" hint="Advanced: view and change permissions of HR Manager, HR User and Employee on any doctype (for example Leave Application).">
       <form data-no-preview onSubmit={(e) => { e.preventDefault(); load(); }} className="mb-4 flex gap-2">
         <input value={doctype} onChange={(e) => setDoctype(e.target.value)} placeholder="Doctype name, e.g. Leave Application" className="w-full max-w-sm rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-3 py-2 text-[13px] text-[var(--color-text)] placeholder:text-[var(--color-text-faint)] outline-none focus:border-[var(--color-red)]" />
         <Button type="submit" variant="secondary" disabled={busy === "load"}>{busy === "load" ? "Loading…" : "Load"}</Button>
@@ -588,7 +588,7 @@ function AccountCheck() {
   }
 
   return (
-    <Section title="Check an account" hint="Enter an HR or employee login email to see its roles and which required permissions those roles are missing.">
+    <Section title="Check an Account" hint="Enter an HR or employee login email to see its roles and which required permissions those roles are missing.">
       <form data-no-preview onSubmit={check} className="flex gap-2">
         <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" className="w-full max-w-sm rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-3 py-2 text-[13px] text-[var(--color-text)] placeholder:text-[var(--color-text-faint)] outline-none focus:border-[var(--color-red)]" />
         <Button type="submit" variant="secondary" disabled={busy}>{busy ? "Checking…" : "Check"}</Button>

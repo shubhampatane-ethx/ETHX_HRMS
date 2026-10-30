@@ -328,7 +328,7 @@ export function ExpenseAccounting() {
 
   return (
     <div className="mt-8">
-      <h3 className="text-[14px] font-semibold text-[var(--color-text)]">Accounting setup</h3>
+      <h3 className="text-[14px] font-semibold text-[var(--color-text)]">Accounting Setup</h3>
       <Hint>Approving a claim books it in the accounts. Each company needs a payable account (what the company owes the employee) and a default cost center, and each expense type needs an expense account per company. Check with your accountant which accounts to use.</Hint>
       <Card className="mb-4 overflow-x-auto">
         <table className="w-full text-left text-[13px]">

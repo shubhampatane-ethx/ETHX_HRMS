@@ -40,7 +40,7 @@ function Headcount() {
   const groups = useMemo(() => groupCount(active, by), [active, by]);
   const max = Math.max(1, ...groups.map((g) => g.n));
   return (
-    <Panel title={`Active headcount: ${active.length}`} action={<Button variant="secondary" disabled={!groups.length} onClick={() => downloadCsv(`headcount-by-${by}-${isoDate()}.csv`, [by, "Employees"], groups.map((g) => [g.k, g.n]))}><Download size={14} /> CSV</Button>}>
+    <Panel title={`Active Headcount: ${active.length}`} action={<Button variant="secondary" disabled={!groups.length} onClick={() => downloadCsv(`headcount-by-${by}-${isoDate()}.csv`, [by, "Employees"], groups.map((g) => [g.k, g.n]))}><Download size={14} /> CSV</Button>}>
       <div className="mb-4 flex flex-wrap gap-2">{[["department", "Department"], ["designation", "Designation"], ["company", "Company"], ["branch", "Branch"], ["employment_type", "Employment Type"], ["gender", "Gender"]].map(([v, l]) => <button key={v} type="button" onClick={() => setBy(v)} className={chipCls(by === v)}>{l}</button>)}</div>
       <Async state={emps}>
         {() => <div className="space-y-1.5">{groups.map((g) => (
@@ -73,7 +73,7 @@ function Movement() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Stat icon={UserPlus} label={`Joiners ${year}`} value={emps.data ? totJoined : undefined} sub="By date of joining" accent="var(--color-green)" />
         <Stat icon={UserMinus} label={`Leavers ${year}`} value={emps.data ? totLeft : undefined} sub="By relieving date" accent="var(--color-red-hover)" />
-        <Stat icon={TrendingDown} label="Annual attrition" value={emps.data ? `${avgHead ? ((totLeft / avgHead) * 100).toFixed(1) : "0.0"}%` : undefined} sub="Leavers ÷ average headcount" accent="var(--color-amber)" />
+        <Stat icon={TrendingDown} label="Annual Attrition" value={emps.data ? `${avgHead ? ((totLeft / avgHead) * 100).toFixed(1) : "0.0"}%` : undefined} sub="Leavers ÷ average headcount" accent="var(--color-amber)" />
       </div>
       <Panel action={<div className="flex gap-2"><select className={`${inputCls} !w-auto`} value={year} onChange={(e) => setYear(Number(e.target.value))}>{Array.from({ length: 4 }, (_, i) => new Date().getFullYear() - i).map((y) => <option key={y}>{y}</option>)}</select><Button variant="secondary" onClick={() => downloadCsv(`joiners-leavers-${year}.csv`, ["Month", "Headcount start", "Joined", "Left", "Headcount end", "Attrition %", "Joiners", "Leavers"], months.map((x) => [x.label, x.atStart, x.joined.length, x.left.length, x.atEnd, x.attrition.toFixed(1), x.joined.map((e) => e.employee_name).join("; "), x.left.map((e) => e.employee_name).join("; ")]))}><Download size={14} /> CSV</Button></div>}>
         <Async state={emps}>
@@ -99,12 +99,12 @@ function LeaveReport() {
     return [...m.values()].sort((a, b) => b.total - a.total);
   }, [data.data]);
   return (
-    <Panel title={`Approved leave taken in ${year}`} action={<div className="flex gap-2"><select className={`${inputCls} !w-auto`} value={year} onChange={(e) => setYear(Number(e.target.value))}>{Array.from({ length: 4 }, (_, i) => new Date().getFullYear() - i).map((y) => <option key={y}>{y}</option>)}</select><Button variant="secondary" disabled={!rows.length} onClick={() => downloadCsv(`leave-taken-${year}.csv`, ["Employee", "ID", "Department", ...types, "Total days"], rows.map((r) => [r.employee_name, r.employee, r.department, ...types.map((t) => r[t] || 0), r.total]))}><Download size={14} /> CSV</Button></div>}>
+    <Panel title={`Approved Leave Taken in ${year}`} action={<div className="flex gap-2"><select className={`${inputCls} !w-auto`} value={year} onChange={(e) => setYear(Number(e.target.value))}>{Array.from({ length: 4 }, (_, i) => new Date().getFullYear() - i).map((y) => <option key={y}>{y}</option>)}</select><Button variant="secondary" disabled={!rows.length} onClick={() => downloadCsv(`leave-taken-${year}.csv`, ["Employee", "ID", "Department", ...types, "Total days"], rows.map((r) => [r.employee_name, r.employee, r.department, ...types.map((t) => r[t] || 0), r.total]))}><Download size={14} /> CSV</Button></div>}>
       <Async state={data}>
         {() => <Grid rows={rows} rowKey={(r) => r.employee} empty="No approved leave this year." columns={[
           { key: "employee_name", label: "Employee", render: (r) => <span>{r.employee_name}<span className="block text-[11px] text-[var(--color-text-faint)]">{r.department}</span></span> },
           ...types.map((t) => ({ key: t, label: t, render: (r) => r[t] || "—" })),
-          { key: "total", label: "Total days", render: (r) => <b>{r.total}</b> },
+          { key: "total", label: "Total Days", render: (r) => <b>{r.total}</b> },
         ]} />}
       </Async>
     </Panel>
@@ -134,9 +134,9 @@ function AttendanceReport() {
       <Async state={data}>
         {() => <Grid rows={rows} rowKey={(r) => r.employee} empty="No attendance recorded for this month." columns={[
           { key: "employee_name", label: "Employee", render: (r) => <span>{r.employee_name}<span className="block text-[11px] text-[var(--color-text-faint)]">{r.department}</span></span> },
-          { key: "Present", label: "Present" }, { key: "Work From Home", label: "WFH" }, { key: "Half Day", label: "Half day" }, { key: "On Leave", label: "Leave" },
+          { key: "Present", label: "Present" }, { key: "Work From Home", label: "WFH" }, { key: "Half Day", label: "Half Day" }, { key: "On Leave", label: "Leave" },
           { key: "Absent", label: "Absent", render: (r) => <span className={r.Absent ? "text-[var(--color-red-hover)]" : ""}>{r.Absent}</span> },
-          { key: "late", label: "Late" }, { key: "early", label: "Early exit" }, { key: "hours", label: "Hours", render: (r) => r.hours.toFixed(1) },
+          { key: "late", label: "Late" }, { key: "early", label: "Early Exit" }, { key: "hours", label: "Hours", render: (r) => r.hours.toFixed(1) },
         ]} />}
       </Async>
     </Panel>
@@ -189,7 +189,7 @@ function Utilisation() {
           ]} />}
         </Async>
       </Panel>
-      <Panel title="By project">
+      <Panel title="By Project">
         <Grid rows={byProject} rowKey={(p) => p.project} empty="—" columns={[
           { key: "project", label: "Project" }, { key: "people", label: "People", render: (p) => p.people.size },
           { key: "submitted", label: "Submitted", render: (p) => `${p.submitted.toFixed(1)} h` }, { key: "approved", label: "Approved", render: (p) => `${p.approved.toFixed(1)} h` },

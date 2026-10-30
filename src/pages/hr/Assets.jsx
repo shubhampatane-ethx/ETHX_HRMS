@@ -90,7 +90,7 @@ export default function Assets() {
       {error && <Notice>{error}</Notice>}
       {message && <Notice tone="info">{message}</Notice>}
 
-      <Panel title="Asset register" hint="Upload a revised register at any time - changes are shown for review before anything is saved.">
+      <Panel title="Asset Register" hint="Upload a revised register at any time - changes are shown for review before anything is saved.">
         <Async state={data}>
           {({ assets }) => {
             const c = counts(assets);
@@ -120,7 +120,7 @@ export default function Assets() {
         </Async>
       </Panel>
 
-      <Panel title="Uploaded register files" hint="Every imported register is kept here as a record of what was uploaded.">
+      <Panel title="Uploaded Register Files" hint="Every imported register is kept here as a record of what was uploaded.">
         <Async state={files}>
           {(list) => list.length === 0 ? <Empty text="No register files uploaded yet." /> : (
             <ul className="divide-y divide-[var(--color-border)]">
@@ -210,7 +210,7 @@ function ImportModal({ file, reg, employees, assets, onClose, onDone }) {
 
   const visible = items.filter((p) => tab === "all" || kind(p) === tab);
   return (
-    <Modal title={`Import asset register · ${file.name}`} onClose={busy ? () => {} : onClose} wide="xl">
+    <Modal title={`Import Asset Register · ${file.name}`} onClose={busy ? () => {} : onClose} wide="xl">
       <div className="space-y-4">
         <p className="text-[12px] text-[var(--color-text-muted)]">
           Read {reg.rows.length} row(s) from {reg.sheets.map((s) => `"${s}"`).join(" and ")}{reg.skipped.length ? ` (skipped ${reg.skipped.map((s) => `"${s}"`).join(", ")} - no asset columns)` : ""}.

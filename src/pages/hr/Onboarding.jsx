@@ -58,7 +58,7 @@ export default function Onboarding() {
         <div className="mb-4 flex gap-2">{[["open", "In Progress"], ["done", "Completed"], ["all", "All"]].map(([v, l]) => <button key={v} type="button" onClick={() => setFilter(v)} className={chipCls(filter === v)}>{l}</button>)}</div>
         <Async state={data}>
           {() => <Grid rows={rows} empty="No onboarding in progress. Start one from an accepted offer (Offers › Hire)." columns={[
-            { key: "employee_name", label: "New joiner", render: (r) => <span><Link to={candidateUrl(r.job_applicant)} className="font-medium hover:underline">{r.employee_name}</Link><span className="block text-[11px] text-[var(--color-text-faint)]">{[r.designation, r.department].filter(Boolean).join(" · ")}</span></span> },
+            { key: "employee_name", label: "New Joiner", render: (r) => <span><Link to={candidateUrl(r.job_applicant)} className="font-medium hover:underline">{r.employee_name}</Link><span className="block text-[11px] text-[var(--color-text-faint)]">{[r.designation, r.department].filter(Boolean).join(" · ")}</span></span> },
             { key: "date_of_joining", label: "Joining", render: (r) => dmy(r.date_of_joining) },
             { key: "tasks", label: "Tasks", render: (r) => (r.activities.length ? <button type="button" onClick={() => setModal({ kind: "tasks", row: r })} className="text-[var(--color-red-hover)] hover:underline">{r.done}/{r.activities.length} done</button> : "—") },
             { key: "boarding_status", label: "Status", render: (r) => <StatusPill status={r.docstatus === 0 ? "Draft" : r.boarding_status} /> },
@@ -73,7 +73,7 @@ export default function Onboarding() {
         </Async>
       </Panel>
       {modal?.kind === "tasks" && (
-        <Modal title={`Onboarding tasks · ${modal.row.employee_name}`} onClose={() => setModal(null)} wide>
+        <Modal title={`Onboarding Tasks · ${modal.row.employee_name}`} onClose={() => setModal(null)} wide>
           <Grid rows={modal.row.activities} rowKey={(a, i) => `${a.activity_name}-${i}`} columns={[
             { key: "activity_name", label: "Activity", render: (a) => <span>{a.activity_name}{Number(a.required_for_employee_creation) ? <span className="ml-1 text-[10.5px] text-[var(--color-amber)]">required</span> : null}</span> },
             { key: "owner", label: "Owner", render: (a) => a.user || a.role || "—" },

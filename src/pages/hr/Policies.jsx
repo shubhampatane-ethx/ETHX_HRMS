@@ -64,7 +64,7 @@ export default function Policies() {
       } />
       {error && <Notice>{error}</Notice>}
       {message && <Notice tone="info">{message}</Notice>}
-      <Panel title="Published company policies" hint={`Employees can view policies in the "${POLICY_FOLDER}" folder.`}>
+      <Panel title="Published Company Policies" hint={`Employees can view policies in the "${POLICY_FOLDER}" folder.`}>
         <Async state={policies}>
           {(rows) => rows.length === 0 ? <Empty text="No policies published yet. Upload a policy to make it available to employees." /> : (
             <ul className="divide-y divide-[var(--color-border)]">

@@ -115,7 +115,7 @@ function CreateModal({ onClose, onDone }) {
 
   if (done) {
     return (
-      <Shell title="Project Manager created" onClose={onClose}>
+      <Shell title="Project Manager Created" onClose={onClose}>
         <p className="text-[13px] text-[var(--color-text-muted)]">Share these details. They will be asked to choose their own password the first time they sign in.</p>
         <div className="mt-3 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-2)] p-3 text-[13px] text-[var(--color-text)]"><p><span className="text-[var(--color-text-muted)]">Email:</span> {f.email}</p><p><span className="text-[var(--color-text-muted)]">Temporary password:</span> {f.password}</p></div>
         <div className="mt-4 flex justify-end"><Button onClick={onClose}>Done</Button></div>

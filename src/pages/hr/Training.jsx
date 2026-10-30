@@ -37,7 +37,7 @@ function Events() {
           { key: "event_name", label: "Event", render: (e) => <button type="button" onClick={() => setModal({ kind: "open", event: e })} className="text-left hover:underline"><b className="font-medium">{e.event_name}</b><span className="block text-[11px] text-[var(--color-text-faint)]">{[e.training_program, e.type, e.level].filter(Boolean).join(" · ")}</span></button> },
           { key: "start_time", label: "When", render: (e) => dmyHm(e.start_time) },
           { key: "location", label: "Where", render: (e) => e.location || "—" },
-          { key: "invited", label: "Invited / present", render: (e) => `${e.invited} / ${e.present}` },
+          { key: "invited", label: "Invited / Present", render: (e) => `${e.invited} / ${e.present}` },
           { key: "feedback", label: "Feedback", render: (e) => e.feedback },
           { key: "event_status", label: "Status", render: (e) => <StatusPill status={e.docstatus === 0 ? "Draft" : e.event_status} /> },
         ]} />}
@@ -73,7 +73,7 @@ function EventModal({ onClose, onSaved }) {
   }
   const name = (id) => (emps.data || []).find((e) => e.name === id)?.employee_name || id;
   return (
-    <Modal title="New training event" onClose={onClose} wide>
+    <Modal title="New Training Event" onClose={onClose} wide>
       <form onSubmit={submit} className="space-y-3">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Event name"><input required className={inputCls} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
@@ -172,7 +172,7 @@ function ProgramModal({ onClose, onSaved }) {
     }
   }
   return (
-    <Modal title="New training program" onClose={onClose}>
+    <Modal title="New Training Program" onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
         <Field label="Program name"><input required className={inputCls} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="e.g. Oracle Fusion SCM bootcamp" /></Field>
         <LinkField label="Company" linkDoctype="Company" value={f.company} onChange={(v) => setF({ ...f, company: v })} required frappe={frappe} />

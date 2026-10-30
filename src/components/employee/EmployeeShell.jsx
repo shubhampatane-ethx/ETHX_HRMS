@@ -288,7 +288,7 @@ export function ForcedPasswordScreen() {
     <div className="flex min-h-screen flex-col items-center justify-center bg-[var(--color-bg)] px-4 py-10">
       <Brand className="mb-8" />
       <div className="w-full max-w-md rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
-        <h1 className="text-[18px] font-semibold text-[var(--color-text)]">Set your own password</h1>
+        <h1 className="text-[18px] font-semibold text-[var(--color-text)]">Set Your Own Password</h1>
         <p className="mb-5 mt-1.5 text-[13px] text-[var(--color-text-muted)]">You signed in with a temporary password from HR. Choose a new one to continue.</p>
         <ChangePasswordForm forced />
       </div>
@@ -378,7 +378,7 @@ function Gate() {
   if (!employee) {
     return (
       <div className="mx-auto mt-16 max-w-md rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 text-center">
-        <h2 className="text-[15px] font-semibold text-[var(--color-text)]">Your account isn't linked to an employee profile</h2>
+        <h2 className="text-[15px] font-semibold text-[var(--color-text)]">Your Account Isn't Linked to an Employee Profile</h2>
         <p className="mt-2 text-[13px] text-[var(--color-text-muted)]">Ask HR to link your sign-in email to your employee profile, then refresh this page.</p>
       </div>
     );

@@ -59,7 +59,7 @@ export default function Candidates() {
             { key: "applicant_name", label: "Candidate", render: (a) => <Link to={candidateUrl(a.name)} className="hover:underline"><b className="font-medium">{a.applicant_name}</b><span className="block text-[11px] text-[var(--color-text-faint)]">{a.email_id}{a.phone_number ? ` · ${a.phone_number}` : ""}</span></Link> },
             { key: "job_title", label: "Opening", render: (a) => (a.job_title ? <Link to={`/hr/recruitment/openings/${encodeURIComponent(a.job_title)}`} className="hover:underline">{titles[a.job_title] || a.job_title}</Link> : <span className="text-[var(--color-text-faint)]">Talent pool</span>) },
             { key: "stage", label: "Stage", render: (a) => <StageBadge stage={stageOf(a)} /> },
-            { key: "exp", label: "Exp / notice", render: (a) => [a.custom_total_experience ? `${a.custom_total_experience}y` : null, Number(a.custom_notice_days) > 0 ? `${a.custom_notice_days}d` : null].filter(Boolean).join(" · ") || "—" },
+            { key: "exp", label: "Exp / Notice", render: (a) => [a.custom_total_experience ? `${a.custom_total_experience}y` : null, Number(a.custom_notice_days) > 0 ? `${a.custom_notice_days}d` : null].filter(Boolean).join(" · ") || "—" },
             { key: "source", label: "Source", render: (a) => a.source || "—" },
             { key: "applicant_rating", label: "Rating", render: (a) => <Rating fraction={a.applicant_rating} /> },
             { key: "creation", label: "Added", render: (a) => dmy(a.creation) },

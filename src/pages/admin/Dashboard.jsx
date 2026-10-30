@@ -123,8 +123,8 @@ export default function AdminDashboard() {
 
       {/* Stats */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat to="/admin/users" icon={UserCog} label="HR users" value={count(users)} sub={users ? `${enabledUsers} enabled` : "Manager & User roles"} accent="#4f8cff" />
-        <Stat to="/admin/organization" icon={Users} label="Active employees" value={count(data?.employees)} sub="Across all companies" accent="var(--color-green)" />
+        <Stat to="/admin/users" icon={UserCog} label="HR Users" value={count(users)} sub={users ? `${enabledUsers} enabled` : "Manager & User roles"} accent="#4f8cff" />
+        <Stat to="/admin/organization" icon={Users} label="Active Employees" value={count(data?.employees)} sub="Across all companies" accent="var(--color-green)" />
         <Stat to="/admin/organization" icon={Building2} label="Companies" value={count(data?.companies)} sub="Registered companies" accent="var(--color-amber)" />
         <Stat to="/admin/organization" icon={Layers} label="Departments" value={count(data?.departments)} sub="Excluding group nodes" accent="var(--color-red-hover)" />
       </div>
@@ -177,7 +177,7 @@ export default function AdminDashboard() {
 
       {/* Quick access */}
       <section>
-        <h2 className="mb-3 text-[13px] font-semibold text-[var(--color-text)]">Quick access</h2>
+        <h2 className="mb-3 text-[13px] font-semibold text-[var(--color-text)]">Quick Access</h2>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
           {QUICK_LINKS.map(({ to, label, hint, icon: Icon }) => (
             <Link key={to} to={to} className="group flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3.5 transition-colors hover:border-[var(--color-red-deep)] hover:bg-[var(--color-surface-2)]">

@@ -42,7 +42,7 @@ export default function ExpenseClaims() {
 
   return (
     <div className="space-y-5">
-      <PageHeader icon={Receipt} title="Expense claims" subtitle="Bills, approvers and reimbursement status for every employee" actions={<><Button variant="secondary" disabled={!rows.length} onClick={() => downloadCsv(`expense-claims-${isoDate()}.csv`, ["Claim", "Employee", "ID", "Date", "Types", "Claimed", "Approver", "Approval", "Status", "Reason"], rows.map((r) => [r.name, r.employee_name, r.employee, r.posting_date, r.types.join("; "), r.total_claimed_amount, r.expense_approver, r.approval_status, r.status, r.reason]))}><Download size={14} /> CSV</Button><Button onClick={() => setModal({ kind: "new" })}><Plus size={14} /> Claim for an employee</Button></>} />
+      <PageHeader icon={Receipt} title="Expense Claims" subtitle="Bills, approvers and reimbursement status for every employee" actions={<><Button variant="secondary" disabled={!rows.length} onClick={() => downloadCsv(`expense-claims-${isoDate()}.csv`, ["Claim", "Employee", "ID", "Date", "Types", "Claimed", "Approver", "Approval", "Status", "Reason"], rows.map((r) => [r.name, r.employee_name, r.employee, r.posting_date, r.types.join("; "), r.total_claimed_amount, r.expense_approver, r.approval_status, r.status, r.reason]))}><Download size={14} /> CSV</Button><Button onClick={() => setModal({ kind: "new" })}><Plus size={14} /> Claim for an employee</Button></>} />
       <Panel>
         <div className="mb-4 flex flex-wrap items-center gap-2">
           {FILTERS.map(([v, l]) => <button key={v} type="button" onClick={() => setFilter(v)} className={chipCls(filter === v)}>{l}{v !== "all" && q.data ? ` (${count(v)})` : ""}</button>)}
@@ -90,7 +90,7 @@ function ApproverModal({ row, onClose, onSaved }) {
     try { await frappe.updateDoc("Expense Claim", row.name, { expense_approver: chosen }); onSaved(); } catch (e) { setErr(errMsg(e, "The change was refused.")); setBusy(false); }
   }
   return (
-    <Modal title={`Change approver · ${row.name}`} onClose={onClose}>
+    <Modal title={`Change Approver · ${row.name}`} onClose={onClose}>
       <div className="space-y-3">
         <p className="text-[12px] text-[var(--color-text-muted)]">{row.employee_name} · {row.types.join(", ")} · now: {row.expense_approver || "none"}</p>
         <Async state={list}>
@@ -134,7 +134,7 @@ function NewClaimModal({ onClose, onSaved }) {
   }
 
   return (
-    <Modal title="Expense claim for an employee" onClose={onClose}>
+    <Modal title="Expense Claim for an Employee" onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
         <LinkField label="Employee" linkDoctype="Employee" value={f.employee} onChange={(v) => setF({ ...f, employee: v })} required frappe={frappe} />
         <div className="grid grid-cols-2 gap-3">

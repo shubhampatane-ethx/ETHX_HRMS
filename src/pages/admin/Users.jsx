@@ -264,7 +264,7 @@ function CreateHRModal({ onClose, onCreated }) {
   }
 
   return (
-    <ModalShell title="Create HR user" onClose={onClose}>
+    <ModalShell title="Create HR User" onClose={onClose}>
       <form onSubmit={handleSubmit} className="mt-4 space-y-3">
         <div className="grid grid-cols-2 gap-3">
           <Input label="First name" value={form.first_name} onChange={set("first_name")} required />

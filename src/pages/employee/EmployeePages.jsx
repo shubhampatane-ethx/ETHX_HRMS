@@ -73,18 +73,18 @@ export function EmpAssets() {
   return (
     <>
       <PageHeader icon={Laptop} title="My Assets" subtitle="Equipment assigned to you and your repair or return request history" />
-      <Panel title="Assigned to me">
+      <Panel title="Assigned to Me">
         <Async state={assets}>
           {(rows) => <Grid rows={rows} empty="No equipment is assigned to you." columns={[
-            { key: "custom_asset_code", label: "Asset code", render: (r) => <span className="font-medium">{r.custom_asset_code || r.name}</span> },
+            { key: "custom_asset_code", label: "Asset Code", render: (r) => <span className="font-medium">{r.custom_asset_code || r.name}</span> },
             { key: "asset_name", label: "Asset", render: (r) => <span>{r.asset_name}<span className="block text-[11px] text-[var(--color-text-faint)]">{r.asset_category}{r.custom_serial_number ? ` · S/N ${r.custom_serial_number}` : ""}</span></span> },
             { key: "custom_assigned_on", label: "Assigned on", render: (r) => dmy(r.custom_assigned_on || r.purchase_date) },
-            { key: "custom_other_assets", label: "Also given", render: (r) => r.custom_other_assets || "—" },
+            { key: "custom_other_assets", label: "Also Given", render: (r) => r.custom_other_assets || "—" },
             { key: "status", label: "Condition", render: (r) => <StatusPill status={r.custom_condition || r.status} /> },
           ]} />}
         </Async>
       </Panel>
-      <Panel title="My asset requests">
+      <Panel title="My Asset Requests">
         <Async state={requests}>{(rows) => <Grid rows={rows} empty="No repair or return requests." columns={[{ key: "subject", label: "Request" }, { key: "creation", label: "Raised", render: (r) => dmy(r.creation) }, { key: "status", label: "Status", render: (r) => <StatusPill status={r.status} /> }]} />}</Async>
       </Panel>
     </>
@@ -180,7 +180,7 @@ export function EmpAttendance() {
           )}
         </Panel>
 
-        <Panel title="Attendance history" className="lg:col-span-2" action={
+        <Panel title="Attendance History" className="lg:col-span-2" action={
           <div className="flex gap-2">
             <select value={month} onChange={(e) => setMonth(Number(e.target.value))} className={`${inputCls} !w-auto !py-1`}>{MONTHS_LONG.map((m, i) => <option key={m} value={i}>{m}</option>)}</select>
             <select value={year} onChange={(e) => setYear(Number(e.target.value))} className={`${inputCls} !w-auto !py-1`}>{years.map((y) => <option key={y}>{y}</option>)}</select>
@@ -207,7 +207,7 @@ export function EmpAttendance() {
         </Panel>
       </div>
 
-      <Panel title="Correction requests" hint="Missed punches, work from home or on-duty">
+      <Panel title="Correction Requests" hint="Missed punches, work from home or on-duty">
         <Async state={requests}>
           {(rows2) => <Grid rows={rows2} empty="No correction requests yet." columns={[
             { key: "from_date", label: "Period", render: (r) => `${dmy(r.from_date)}${r.to_date !== r.from_date ? ` – ${dmy(r.to_date)}` : ""}` },
@@ -242,7 +242,7 @@ function CorrectionModal({ employee, initial, onClose, onSaved }) {
     }
   }
   return (
-    <Modal title="Request attendance correction" onClose={onClose}>
+    <Modal title="Request Attendance Correction" onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
         <div className="grid grid-cols-2 gap-3"><DateField label="From" value={f.from_date} onChange={(v) => setF({ ...f, from_date: v })} required /><DateField label="To" value={f.to_date} onChange={(v) => setF({ ...f, to_date: v })} required /></div>
         <Field label="Reason"><select className={inputCls} value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })}><option>Work From Home</option><option>On Duty</option></select></Field>
@@ -264,16 +264,16 @@ export function EmpBenefits() {
     <>
       <PageHeader icon={HeartPulse} title="Benefits & Insurance" subtitle="Your coverage, benefit claims and who to contact" />
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <Panel title="Health insurance">
+        <Panel title="Health Insurance">
           {e.health_insurance_provider || e.health_insurance_no ? <KeyValue items={[["Provider", e.health_insurance_provider], ["Policy / member number", e.health_insurance_no]]} /> : <p className="text-[13px] text-[var(--color-text-muted)]">No insurance details are on your profile yet. Contact HR to have them added.</p>}
         </Panel>
-        <Panel title="Claim contact">
+        <Panel title="Claim Contact">
           {contact && (contact.name || contact.email || contact.phone) ? (
             <div className="space-y-1.5 text-[13px]">{contact.name && <p className="font-medium text-[var(--color-text)]">{contact.name}</p>}{contact.email && <a href={`mailto:${contact.email}`} className="flex items-center gap-2 text-[var(--color-red-hover)] hover:underline"><Mail size={13} /> {contact.email}</a>}{contact.phone && <a href={`tel:${contact.phone}`} className="flex items-center gap-2 text-[var(--color-text-muted)]"><Phone size={13} /> {contact.phone}</a>}</div>
           ) : <p className="text-[13px] text-[var(--color-text-muted)]">Claim contact details haven't been added yet.</p>}
         </Panel>
       </div>
-      <Panel title="Benefit claims">
+      <Panel title="Benefit Claims">
         <Async state={claims}>{(rows) => <Grid rows={rows} empty="You haven't made any benefit claims." columns={[{ key: "claim_date", label: "Date", render: (r) => dmy(r.claim_date) }, { key: "earning_component", label: "Benefit", render: (r) => r.earning_component || "—" }, { key: "claimed_amount", label: "Amount", render: (r) => money(r.claimed_amount) }, { key: "docstatus", label: "Status", render: (r) => <StatusPill status={r.docstatus === 1 ? "Approved" : "Pending"} /> }]} />}</Async>
       </Panel>
     </>
@@ -343,7 +343,7 @@ function CalendarTab({ employee }) {
           )}
         </Async>
       </Panel>
-      <Panel title="Upcoming holidays">
+      <Panel title="Upcoming Holidays">
         {holidays.data && !holidays.data.name && <Empty text="No holiday list is assigned to you yet." />}
         {upcoming.length > 0 && <ul className="space-y-3">{upcoming.map((h) => <li key={h.date} className="flex items-center justify-between text-[13px]"><span className="text-[var(--color-text)]">{h.description}</span><span className="text-[var(--color-text-muted)]">{dmy(h.date)}</span></li>)}</ul>}
         {holidays.data?.name && upcoming.length === 0 && <Empty text="No more holidays this year." />}
@@ -357,10 +357,10 @@ function ShiftsTab({ employee }) {
   const events = useAsync(getEvents, []);
   return (
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-      <Panel title="My shifts" hint={employee.default_shift ? `Default shift: ${employee.default_shift}` : undefined}>
+      <Panel title="My Shifts" hint={employee.default_shift ? `Default shift: ${employee.default_shift}` : undefined}>
         <Async state={shifts}>{(rows) => <Grid rows={rows} empty="No shift assignments." columns={[{ key: "shift_type", label: "Shift" }, { key: "start_date", label: "From", render: (r) => dmy(r.start_date) }, { key: "end_date", label: "To", render: (r) => dmy(r.end_date) || "Ongoing" }, { key: "status", label: "Status", render: (r) => <StatusPill status={r.status} /> }]} />}</Async>
       </Panel>
-      <Panel title="Important events" hint="Public company events">
+      <Panel title="Important Events" hint="Public company events">
         <Async state={events}>{(rows) => rows.length === 0 ? <Empty text="No upcoming events." /> : <ul className="space-y-3">{rows.map((e) => <li key={e.name} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)] p-3"><p className="text-[13px] font-medium text-[var(--color-text)]">{e.subject}</p><p className="text-[11px] text-[var(--color-text-muted)]">{e.all_day ? dmy(e.starts_on) : dmyHm(e.starts_on)}</p>{e.description && <p className="mt-1 line-clamp-2 text-[12px] text-[var(--color-text-muted)]">{stripHtml(e.description)}</p>}</li>)}</ul>}</Async>
       </Panel>
     </div>
@@ -370,7 +370,7 @@ function ShiftsTab({ employee }) {
 function TeamTab({ employee }) {
   const team = useAsync(() => getTeamAvailability(employee, 14), [employee.name]);
   return (
-    <Panel title="Team availability" hint="Approved leave in your department over the next 14 days. Reasons are never shown.">
+    <Panel title="Team Availability" hint="Approved leave in your department over the next 14 days. Reasons are never shown.">
       <Async state={team}>
         {(d) => {
           const today = isoDate();
@@ -474,14 +474,14 @@ function SelfDashboard() {
       </section>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat to="/employee/attendance" icon={CalendarCheck} label="Today's attendance" value={attValue} sub={attSub} accent="var(--color-green)" />
-        <Stat to="/employee/leave" icon={CalendarClock} label="Leave balance" value={typeof remaining === "number" ? `${remaining} days` : remaining} sub={balance.data ? `${balance.data.length} leave type(s)` : ""} accent="#4f8cff" />
-        <Stat to="/employee/approvals" icon={ClipboardCheck} label="Pending requests" value={pending ? pending.length : approvals.error ? "—" : undefined} sub="Waiting for action" accent="var(--color-amber)" />
-        <Stat to="/employee/notifications" icon={Bell} label="Unread notifications" value={unread} sub="Updates & reminders" accent="var(--color-red-hover)" />
+        <Stat to="/employee/attendance" icon={CalendarCheck} label="Today's Attendance" value={attValue} sub={attSub} accent="var(--color-green)" />
+        <Stat to="/employee/leave" icon={CalendarClock} label="Leave Balance" value={typeof remaining === "number" ? `${remaining} days` : remaining} sub={balance.data ? `${balance.data.length} leave type(s)` : ""} accent="#4f8cff" />
+        <Stat to="/employee/approvals" icon={ClipboardCheck} label="Pending Requests" value={pending ? pending.length : approvals.error ? "—" : undefined} sub="Waiting for action" accent="var(--color-amber)" />
+        <Stat to="/employee/notifications" icon={Bell} label="Unread Notifications" value={unread} sub="Updates & reminders" accent="var(--color-red-hover)" />
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Panel title="Leave balance" hint="Remaining days by type" action={<Link to="/employee/leave" className="flex items-center gap-1 text-[12px] text-[var(--color-red-hover)] hover:underline">Apply <ArrowRight size={12} /></Link>}>
+        <Panel title="Leave Balance" hint="Remaining days by type" action={<Link to="/employee/leave" className="flex items-center gap-1 text-[12px] text-[var(--color-red-hover)] hover:underline">Apply <ArrowRight size={12} /></Link>}>
           <Async state={balance}>
             {(rows) => rows.length === 0 ? <Empty text="No leave allocated yet." /> : (
               <ul className="space-y-3.5">
@@ -496,7 +496,7 @@ function SelfDashboard() {
           </Async>
         </Panel>
 
-        <Panel title="Pending requests" hint="Leave, attendance, timesheet & expense" className="lg:col-span-2" action={<Link to="/employee/approvals" className="flex items-center gap-1 text-[12px] text-[var(--color-red-hover)] hover:underline">View all <ArrowRight size={12} /></Link>}>
+        <Panel title="Pending Requests" hint="Leave, attendance, timesheet & expense" className="lg:col-span-2" action={<Link to="/employee/approvals" className="flex items-center gap-1 text-[12px] text-[var(--color-red-hover)] hover:underline">View all <ArrowRight size={12} /></Link>}>
           <Async state={approvals}>
             {(d) => pending.length === 0 ? <Empty text="You're all caught up." /> : (
               <ul className="divide-y divide-[var(--color-border)]">
@@ -531,7 +531,7 @@ function SelfDashboard() {
         </Panel>
 
         <div className="space-y-4">
-          <Panel title="Document reminders" hint={`Expiring within ${EXPIRY_WARN_DAYS} days`}>
+          <Panel title="Document Reminders" hint={`Expiring within ${EXPIRY_WARN_DAYS} days`}>
             {expiries.length === 0 ? <Empty icon={ShieldAlert} text="Nothing is expiring soon." /> : (
               <ul className="space-y-2.5">
                 {expiries.map((d) => (
@@ -543,7 +543,7 @@ function SelfDashboard() {
               </ul>
             )}
           </Panel>
-          <Panel title="Team today" hint="Colleagues on approved leave">
+          <Panel title="Team Today" hint="Colleagues on approved leave">
             {team.loading && !team.data ? <Skeleton className="h-12 w-full" /> : team.error ? <p className="text-[12px] text-[var(--color-text-muted)]">Team availability isn't enabled for your account.</p> : onLeaveToday.length === 0 ? <Empty icon={Users} text="Everyone is available today." /> : (
               <ul className="space-y-2 text-[13px]">{onLeaveToday.map((l) => <li key={l.employee} className="flex justify-between"><span className="text-[var(--color-text)]">{l.employee_name}</span><span className="text-[var(--color-text-muted)]">till {dmy(l.to_date)}</span></li>)}</ul>
             )}
@@ -583,7 +583,7 @@ export function EmpDocuments() {
       <Tabs value={tab} onChange={setTab} tabs={[{ id: "policies", label: "Policies & Handbook", count: policies.data ? required : undefined }, { id: "mine", label: "My Documents" }]} />
 
       {tab === "policies" && (
-        <Panel title="Company policies" hint={required ? `${required} awaiting acknowledgement` : "You've acknowledged everything"}>
+        <Panel title="Company Policies" hint={required ? `${required} awaiting acknowledgement` : "You've acknowledged everything"}>
           <Async state={policies}>
             {(rows) => rows.length === 0 ? <Empty text="No policies published yet. HR will publish company policies here." /> : (
               <ul className="divide-y divide-[var(--color-border)]">
@@ -603,7 +603,7 @@ export function EmpDocuments() {
       )}
 
       {tab === "mine" && (
-        <Panel title="My documents" hint="Employment letters and files HR has attached to your profile">
+        <Panel title="My Documents" hint="Employment letters and files HR has attached to your profile">
           <Async state={mine}>
             {(rows) => rows.length === 0 ? <Empty text="No documents on your profile yet. Need a letter? Request it from Help & Requests." /> : (
               <ul className="divide-y divide-[var(--color-border)]">{rows.map((d) => <li key={d.name} className="flex items-center justify-between gap-3 py-3"><div className="flex min-w-0 items-center gap-3"><FileText size={16} className="shrink-0 text-[var(--color-text-muted)]" /><div className="min-w-0"><p className="truncate text-[13px] text-[var(--color-text)]">{d.file_name}</p><p className="text-[11px] text-[var(--color-text-muted)]">Added {dmy(d.creation)}</p></div></div><a href={d.file_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-[12px] text-[var(--color-red-hover)] hover:underline"><ExternalLink size={13} /> Open</a></li>)}</ul>
@@ -638,7 +638,7 @@ export function EmpExpenses() {
                   <div key={l} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5"><p className="text-[12px] text-[var(--color-text-muted)]">{l}</p><p className="mt-2 text-2xl font-semibold text-[var(--color-text)]">{money(v)}</p></div>
                 ))}
               </div>
-              <Panel title="My claims">
+              <Panel title="My Claims">
                 <Grid rows={rows} empty="No expense claims yet." columns={[
                   { key: "name", label: "Claim" },
                   { key: "posting_date", label: "Date", render: (r) => dmy(r.posting_date) },
@@ -691,7 +691,7 @@ function AddBillModal({ claim, onClose, onSaved }) {
     try { await addBills(claim, files); onSaved(); } catch (x) { setErr(x?.message || "Upload failed."); setBusy(false); }
   }
   return (
-    <Modal title={`Add bills to ${claim}`} onClose={onClose}>
+    <Modal title={`Add Bills to ${claim}`} onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
         <BillPicker files={files} setFiles={setFiles} />
         {err && <Notice>{err}</Notice>}
@@ -733,7 +733,7 @@ function ClaimModal({ employee, onClose, onSaved }) {
   const hint = !f.type ? undefined : approvers.loading && !approvers.data ? "Finding the approver…" : approver ? `Approver: ${approver.name}${approver.source ? ` (${approver.source})` : ""}` : "No approver is set for this expense type - HR will assign one.";
 
   return (
-    <Modal title="New expense claim" onClose={onClose}>
+    <Modal title="New Expense Claim" onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
         <DateField label="Expense date" value={f.date} onChange={(v) => setF({ ...f, date: v })} required />
         <Field label="Expense type" hint={hint}><select required className={inputCls} value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })}><option value="">Select…</option>{(types.data || []).map((t) => <option key={t.name}>{t.name}</option>)}</select></Field>
@@ -779,7 +779,7 @@ export function EmpGoals() {
         <Panel title="Reviews" hint="Appraisal cycles and review dates">
           <Async state={reviews}>{(rows) => <Grid rows={rows} empty="No reviews scheduled." columns={[{ key: "appraisal_cycle", label: "Cycle" }, { key: "end_date", label: "Review by", render: (r) => dmy(r.end_date) || "—" }, { key: "status", label: "Status", render: (r) => <StatusPill status={r.status} /> }, { key: "final_score", label: "Score", render: (r) => r.final_score ?? "—" }]} />}</Async>
         </Panel>
-        <Panel title="Feedback from your manager">
+        <Panel title="Feedback from Your Manager">
           <Async state={feedback}>
             {(rows) => rows.length === 0 ? <Empty text="No feedback has been shared yet." /> : (
               <ul className="space-y-3">{rows.map((f) => <li key={f.name} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)] p-3.5"><p className="text-[12px] text-[var(--color-text-muted)]">{f.reviewer_name || "Reviewer"} · {dmy(f.added_on || f.creation)}</p><p className="mt-1.5 text-[13px] leading-6 text-[var(--color-text)]">{stripHtml(f.feedback || "")}</p></li>)}</ul>
@@ -805,7 +805,7 @@ export function EmpHelp() {
       <Tabs value={tab} onChange={setTab} tabs={[{ id: "requests", label: "My Requests" }, { id: "letters", label: "Employee Letters" }, { id: "contacts", label: "HR & IT Contacts" }]} />
 
       {tab === "requests" && (
-        <Panel title="My requests">
+        <Panel title="My Requests">
           <Async state={requests}>{(rows) => <Grid rows={rows.filter((r) => !isLetter(r))} empty="You haven't raised any requests." columns={[{ key: "name", label: "Ref" }, { key: "subject", label: "Subject" }, { key: "creation", label: "Raised", render: (r) => dmy(r.creation) }, { key: "status", label: "Status", render: (r) => <StatusPill status={r.status} /> }]} />}</Async>
         </Panel>
       )}
@@ -820,7 +820,7 @@ export function EmpHelp() {
               </div>
             ))}
           </div>
-          <Panel title="My letter requests" hint="Issued letters appear under Policies & Documents > My documents">
+          <Panel title="My Letter Requests" hint="Issued letters appear under Policies & Documents > My documents">
             <Async state={requests}>{(rows) => <Grid rows={rows.filter(isLetter)} empty="No letter requests yet." columns={[{ key: "subject", label: "Letter", render: (r) => r.subject.replace(/^\[Letter\]\s*/, "") }, { key: "creation", label: "Requested", render: (r) => dmy(r.creation) }, { key: "status", label: "Status", render: (r) => <StatusPill status={r.status} /> }]} />}</Async>
           </Panel>
         </>
@@ -920,7 +920,7 @@ export function EmpLeave() {
         )}
       </Async>
 
-      <Panel title="My applications">
+      <Panel title="My Applications">
         <Async state={apps}>
           {(rows) => <Grid rows={rows} empty="You haven't applied for leave yet." columns={[
             { key: "leave_type", label: "Type" },
@@ -971,7 +971,7 @@ function ApplyModal({ employee, balance, onClose, onSaved }) {
   }
 
   return (
-    <Modal title="Apply for leave" onClose={onClose}>
+    <Modal title="Apply for Leave" onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
         <Field label="Leave type" hint={left != null ? `${left} day(s) available` : undefined}>
           <select required className={inputCls} value={f.leave_type} onChange={(e) => setF({ ...f, leave_type: e.target.value })}><option value="">Select…</option>{(types.data || []).map((t) => <option key={t}>{t}</option>)}</select>
@@ -1088,7 +1088,7 @@ export function EmpPayslips() {
                   { key: "start_date", label: "Period", render: (r) => `${dmy(r.start_date)} – ${dmy(r.end_date)}` },
                   { key: "gross_pay", label: "Gross", render: (r) => money(r.gross_pay, r.currency) },
                   { key: "total_deduction", label: "Deductions", render: (r) => money(r.total_deduction, r.currency) },
-                  { key: "net_pay", label: "Net pay", render: (r) => <b>{money(r.net_pay, r.currency)}</b> },
+                  { key: "net_pay", label: "Net Pay", render: (r) => <b>{money(r.net_pay, r.currency)}</b> },
                   { key: "status", label: "Status", render: (r) => <StatusPill status={r.status} /> },
                   { key: "_p", label: "", render: (r) => <a href={pdfUrl(r.name)} target="_blank" rel="noreferrer" title="Download PDF" className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]"><Download size={14} /></a> },
                 ]} />
@@ -1195,7 +1195,7 @@ export function EmpProfile() {
         ]} />
       </Panel>
 
-      <Panel title="Personal details">
+      <Panel title="Personal Details">
         <KeyValue items={[
           ["Date of birth", dmy(e.date_of_birth)], ["Gender", e.gender], ["Blood group", e.blood_group], ["Marital status", e.marital_status],
           ["Mobile", e.cell_number], ["Personal email", e.personal_email], ["Current address", e.current_address], ["Permanent address", e.permanent_address],
@@ -1203,14 +1203,14 @@ export function EmpProfile() {
       </Panel>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <Panel title="Emergency contact"><KeyValue items={[["Name", e.person_to_be_contacted], ["Relation", e.relation], ["Phone", e.emergency_phone_number]]} /></Panel>
-        <Panel title="Document validity"><KeyValue items={[validity("Passport valid until", e.valid_upto), validity("Contract ends", e.contract_end_date), e.passport_number && ["Passport number", e.passport_number]].filter(Boolean)} />{!e.valid_upto && !e.contract_end_date && <p className="text-[13px] text-[var(--color-text-muted)]">No expiry dates on file.</p>}</Panel>
+        <Panel title="Emergency Contact"><KeyValue items={[["Name", e.person_to_be_contacted], ["Relation", e.relation], ["Phone", e.emergency_phone_number]]} /></Panel>
+        <Panel title="Document Validity"><KeyValue items={[validity("Passport valid until", e.valid_upto), validity("Contract ends", e.contract_end_date), e.passport_number && ["Passport number", e.passport_number]].filter(Boolean)} />{!e.valid_upto && !e.contract_end_date && <p className="text-[13px] text-[var(--color-text-muted)]">No expiry dates on file.</p>}</Panel>
       </div>
 
-      {pwOpen && <Modal title="Change password" onClose={() => setPwOpen(false)}><ChangePasswordForm onCancel={() => setPwOpen(false)} /></Modal>}
+      {pwOpen && <Modal title="Change Password" onClose={() => setPwOpen(false)}><ChangePasswordForm onCancel={() => setPwOpen(false)} /></Modal>}
 
       {editing && (
-        <Modal title="Edit my details" onClose={() => setEditing(false)} wide>
+        <Modal title="Edit My Details" onClose={() => setEditing(false)} wide>
           <form onSubmit={save} className="space-y-3">
             {EDIT_SECTIONS.map(([title, fields]) => (
               <fieldset key={title} className="space-y-3">
@@ -1244,10 +1244,10 @@ export function EmpProfile() {
 
 /* ===== EmpSearch.jsx ===== */
 const PAGES = [
-  ["/employee", "Dashboard"], ["/employee/profile", "My Profile"], ["/employee/attendance", "Attendance, punch in/out, correction"], ["/employee/leave", "Leave balance & apply"],
-  ["/employee/approvals", "My Approvals"], ["/employee/calendar", "Calendar, holidays, shifts, team availability"], ["/employee/timesheet", "Timesheet"], ["/employee/expenses", "Expense claims & reimbursement"],
-  ["/employee/payslips", "Payslips & salary"], ["/employee/documents", "Policies, handbook & documents"], ["/employee/assets", "My assets: laptop, mobile"], ["/employee/help", "Help, requests, letters, contacts"],
-  ["/employee/notifications", "Notifications & announcements"], ["/employee/goals", "Goals & feedback"], ["/employee/training", "Training & learning"], ["/employee/benefits", "Benefits & insurance"],
+  ["/employee", "Dashboard"], ["/employee/profile", "My Profile"], ["/employee/attendance", "Attendance, Punch In/Out, Correction"], ["/employee/leave", "Leave Balance & Apply"],
+  ["/employee/approvals", "My Approvals"], ["/employee/calendar", "Calendar, Holidays, Shifts, Team Availability"], ["/employee/timesheet", "Timesheet"], ["/employee/expenses", "Expense Claims & Reimbursement"],
+  ["/employee/payslips", "Payslips & Salary"], ["/employee/documents", "Policies, Handbook & Documents"], ["/employee/assets", "My Assets: Laptop, Mobile"], ["/employee/help", "Help, Requests, Letters, Contacts"],
+  ["/employee/notifications", "Notifications & Announcements"], ["/employee/goals", "Goals & Feedback"], ["/employee/training", "Training & Learning"], ["/employee/benefits", "Benefits & Insurance"],
 ];
 
 export function EmpSearch() {
@@ -1293,8 +1293,8 @@ export function EmpSearch() {
       {res?.pages.length > 0 && <Panel title="Pages"><ul className="space-y-2">{res.pages.map(([to, label]) => <li key={to}><Link to={to} className="text-[13px] text-[var(--color-red-hover)] hover:underline">{label}</Link></li>)}</ul></Panel>}
       {res?.holidays.length > 0 && <Panel title="Holidays"><ul className="space-y-2">{res.holidays.map((h) => <li key={h.date} className="flex items-center gap-2 text-[13px]"><CalendarDays size={14} className="text-[var(--color-text-muted)]" /><span className="text-[var(--color-text)]">{h.description}</span><span className="text-[var(--color-text-muted)]">{dmy(h.date)}</span></li>)}</ul></Panel>}
       {res?.policies.length > 0 && <Panel title="Policies"><ul className="space-y-2">{res.policies.map((f) => <li key={f.name}><a href={f.file_url} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-[13px] text-[var(--color-text)] hover:text-[var(--color-red-hover)]"><FileText size={14} /> {f.file_name} <ExternalLink size={12} /></a></li>)}</ul></Panel>}
-      {res?.docs.length > 0 && <Panel title="My documents"><ul className="space-y-2">{res.docs.map((f) => <li key={f.name}><a href={f.file_url} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-[13px] text-[var(--color-text)] hover:text-[var(--color-red-hover)]"><FileText size={14} /> {f.file_name} <ExternalLink size={12} /></a></li>)}</ul></Panel>}
-      {res?.articles.length > 0 && <Panel title="Help articles"><ul className="space-y-2">{res.articles.map((a) => <li key={a.name} className="flex items-center gap-2 text-[13px] text-[var(--color-text)]"><LifeBuoy size={14} className="text-[var(--color-text-muted)]" /> {a.title}{a.category && <span className="text-[var(--color-text-faint)]">· {a.category}</span>}</li>)}</ul></Panel>}
+      {res?.docs.length > 0 && <Panel title="My Documents"><ul className="space-y-2">{res.docs.map((f) => <li key={f.name}><a href={f.file_url} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-[13px] text-[var(--color-text)] hover:text-[var(--color-red-hover)]"><FileText size={14} /> {f.file_name} <ExternalLink size={12} /></a></li>)}</ul></Panel>}
+      {res?.articles.length > 0 && <Panel title="Help Articles"><ul className="space-y-2">{res.articles.map((a) => <li key={a.name} className="flex items-center gap-2 text-[13px] text-[var(--color-text)]"><LifeBuoy size={14} className="text-[var(--color-text-muted)]" /> {a.title}{a.category && <span className="text-[var(--color-text-faint)]">· {a.category}</span>}</li>)}</ul></Panel>}
     </>
   );
 }

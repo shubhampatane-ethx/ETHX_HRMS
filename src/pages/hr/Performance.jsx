@@ -69,7 +69,7 @@ function NewCycle({ onClose, onSaved }) {
     }
   }
   return (
-    <Modal title="New appraisal cycle" onClose={onClose}>
+    <Modal title="New Appraisal Cycle" onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
         <Field label="Name"><input required className={inputCls} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
         <LinkField label="Company" linkDoctype="Company" value={f.company} onChange={(v) => setF({ ...f, company: v })} required frappe={frappe} />
@@ -162,7 +162,7 @@ function Appraisals() {
         {(rows) => <Grid rows={rows} empty="No appraisals. Create them from a cycle." columns={[
           { key: "employee_name", label: "Employee", render: (a) => <span>{a.employee_name}<span className="block text-[11px] text-[var(--color-text-faint)]">{[a.designation, a.department].filter(Boolean).join(" · ")}</span></span> },
           { key: "appraisal_cycle", label: "Cycle" },
-          { key: "goal_score_percentage", label: "Goal score %", render: (a) => pct(a.goal_score_percentage) },
+          { key: "goal_score_percentage", label: "Goal Score %", render: (a) => pct(a.goal_score_percentage) },
           { key: "self_score", label: "Self", render: (a) => pct(a.self_score) },
           { key: "avg_feedback_score", label: "Feedback", render: (a) => pct(a.avg_feedback_score) },
           { key: "final_score", label: "Final", render: (a) => <b>{pct(a.final_score)}</b> },
@@ -223,7 +223,7 @@ function GoalModal({ onClose, onSaved }) {
     }
   }
   return (
-    <Modal title="New goal" onClose={onClose}>
+    <Modal title="New Goal" onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
         <LinkField label="Employee" linkDoctype="Employee" value={f.employee} onChange={(v) => setF({ ...f, employee: v })} required frappe={frappe} />
         <Field label="Goal"><input required className={inputCls} value={f.goal_name} onChange={(e) => setF({ ...f, goal_name: e.target.value })} placeholder="e.g. Close 3 Fusion SCM go-lives" /></Field>
@@ -255,7 +255,7 @@ function Templates() {
       <Async state={list}>
         {(rows) => <Grid rows={rows} empty="No templates. Create one with the KRAs for a role." columns={[
           { key: "name", label: "Template", render: (t) => <b className="font-medium">{t.template_title || t.name}</b> },
-          { key: "goals", label: "KRAs (weightage)", render: (t) => <span className="text-[12px]">{t.goals.map((g) => `${g.key_result_area} ${g.per_weightage}%`).join(" · ") || "—"}</span> },
+          { key: "goals", label: "KRAs (Weightage)", render: (t) => <span className="text-[12px]">{t.goals.map((g) => `${g.key_result_area} ${g.per_weightage}%`).join(" · ") || "—"}</span> },
         ]} />}
       </Async>
       {open && <TemplateModal onClose={() => setOpen(false)} onSaved={() => { setOpen(false); list.reload(); }} />}
@@ -287,7 +287,7 @@ function TemplateModal({ onClose, onSaved }) {
     }
   }
   return (
-    <Modal title="New appraisal template" onClose={onClose} wide>
+    <Modal title="New Appraisal Template" onClose={onClose} wide>
       <form onSubmit={submit} className="space-y-3">
         <Field label="Template name"><input required className={inputCls} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Oracle Fusion Consultant" /></Field>
         <div className="space-y-2">

@@ -40,10 +40,10 @@ export default function Overview() {
       </>} />
       <SetupHint />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat to="/hr/recruitment/openings" icon={Briefcase} label="Open positions" value={d ? d.openings.length : s.error ? "—" : undefined} sub={d ? `${d.reqs.filter((r) => r.status === "Pending").length} requisition(s) awaiting a decision` : ""} accent="#4f8cff" />
-        <Stat to="/hr/recruitment/candidates" icon={Users} label="Candidates in process" value={d ? active.length : undefined} sub={d ? `${d.apps.length} in total` : ""} accent="var(--color-green)" />
-        <Stat to="/hr/recruitment/interviews" icon={CalendarClock} label="Interviews scheduled" value={d ? upcoming.length : undefined} sub={d ? `${toDecide.length} awaiting a decision` : ""} accent="var(--color-amber)" />
-        <Stat to="/hr/recruitment/offers" icon={Handshake} label="Offers in progress" value={d ? d.offers.filter((o) => ["Draft", "Pending Approval", "Approved", "Sent", "Accepted"].includes(offerStage(o))).length : undefined} sub={d ? `${pendingOffers.length} need approval` : ""} accent="var(--color-red-hover)" />
+        <Stat to="/hr/recruitment/openings" icon={Briefcase} label="Open Positions" value={d ? d.openings.length : s.error ? "—" : undefined} sub={d ? `${d.reqs.filter((r) => r.status === "Pending").length} requisition(s) awaiting a decision` : ""} accent="#4f8cff" />
+        <Stat to="/hr/recruitment/candidates" icon={Users} label="Candidates in Process" value={d ? active.length : undefined} sub={d ? `${d.apps.length} in total` : ""} accent="var(--color-green)" />
+        <Stat to="/hr/recruitment/interviews" icon={CalendarClock} label="Interviews Scheduled" value={d ? upcoming.length : undefined} sub={d ? `${toDecide.length} awaiting a decision` : ""} accent="var(--color-amber)" />
+        <Stat to="/hr/recruitment/offers" icon={Handshake} label="Offers in Progress" value={d ? d.offers.filter((o) => ["Draft", "Pending Approval", "Approved", "Sent", "Accepted"].includes(offerStage(o))).length : undefined} sub={d ? `${pendingOffers.length} need approval` : ""} accent="var(--color-red-hover)" />
       </div>
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
         <Panel title="Pipeline" hint="Candidates by stage, all openings">
@@ -61,7 +61,7 @@ export default function Overview() {
             )}
           </Async>
         </Panel>
-        <Panel title="Next interviews" action={<Link to="/hr/recruitment/interviews" className="text-[12px] text-[var(--color-red-hover)] hover:underline">All</Link>}>
+        <Panel title="Next Interviews" action={<Link to="/hr/recruitment/interviews" className="text-[12px] text-[var(--color-red-hover)] hover:underline">All</Link>}>
           <Async state={s}>
             {() => upcoming.length === 0 ? <Empty text="No interviews scheduled." /> : <Grid rows={upcoming.slice(0, 6)} columns={[
               { key: "when", label: "When", render: (i) => `${dmy(i.scheduled_on)} ${fmtTime(i.from_time)}` },
@@ -71,7 +71,7 @@ export default function Overview() {
           </Async>
         </Panel>
         {(toDecide.length > 0 || (canApprove(user) && pendingOffers.length > 0)) && (
-          <Panel title="Needs your attention" className="xl:col-span-2">
+          <Panel title="Needs Your Attention" className="xl:col-span-2">
             <ul className="space-y-1.5 text-[12.5px]">
               {toDecide.slice(0, 8).map((i) => <li key={i.name}><Gavel size={12} className="mr-1.5 inline text-[var(--color-amber)]" /><Link to={candidateUrl(i.job_applicant)} className="hover:underline">{appName(i.job_applicant)}</Link> · {i.interview_round} on {dmy(i.scheduled_on)} needs a Cleared / Rejected decision</li>)}
               {canApprove(user) && pendingOffers.map((o) => <li key={o.name}><Handshake size={12} className="mr-1.5 inline text-[var(--color-red-hover)]" /><Link to="/hr/recruitment/offers" className="hover:underline">Offer for {o.applicant_name}</Link> is waiting for approval{o.owner === user.email ? " (drafted by you - another HR Manager must approve)" : ""}</li>)}

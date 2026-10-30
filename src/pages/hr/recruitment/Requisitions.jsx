@@ -34,7 +34,7 @@ export default function Requisitions({ mine = false }) {
 
   return (
     <div className="space-y-5">
-      <PageHeader icon={ClipboardList} title={mine ? "My hiring requests" : "Job requisitions"} subtitle={mine ? "Ask HR for a hire for your project - HR approves it and opens the position" : "Hiring requests from managers: approve, hold or reject, then open the position"} actions={<Button onClick={() => setModal({ kind: "new" })} disabled={mine && !me.data}><Plus size={14} /> New requisition</Button>} />
+      <PageHeader icon={ClipboardList} title={mine ? "My Hiring Requests" : "Job Requisitions"} subtitle={mine ? "Ask HR for a hire for your project - HR approves it and opens the position" : "Hiring requests from managers: approve, hold or reject, then open the position"} actions={<Button onClick={() => setModal({ kind: "new" })} disabled={mine && !me.data}><Plus size={14} /> New requisition</Button>} />
       {!mine && <SetupHint />}
       {mine && me.data === null && !me.loading && <Notice>Your login isn't linked to an employee profile. Ask HR to link your sign-in email to your employee record.</Notice>}
       {!mine && !approver && <Notice tone="info">You can raise and edit requisitions. Approving or rejecting needs an HR Manager.</Notice>}
@@ -45,7 +45,7 @@ export default function Requisitions({ mine = false }) {
             { key: "designation", label: "Role", render: (r) => <span><b className="font-medium">{r.designation}</b><span className="block text-[11px] text-[var(--color-text-faint)]">{r.name}{r.department ? ` · ${r.department}` : ""}</span></span> },
             { key: "no_of_positions", label: "Positions" },
             { key: "requested_by_name", label: "Requested by", render: (r) => <span>{r.requested_by_name || r.requested_by}{r.custom_project && <span className="block text-[11px] text-[var(--color-text-faint)]">Project: {r.custom_project}</span>}</span> },
-            { key: "expected_compensation", label: "Budget / position", render: (r) => money(r.expected_compensation) },
+            { key: "expected_compensation", label: "Budget / Position", render: (r) => money(r.expected_compensation) },
             { key: "expected_by", label: "Needed by", render: (r) => dmy(r.expected_by) || "—" },
             { key: "status", label: "Status", render: (r) => <span><StatusPill status={r.status === "Open & Approved" ? "Approved" : r.status} />{r.custom_approved_by && <span className="block text-[10.5px] text-[var(--color-text-faint)]">by {r.custom_approved_by}</span>}</span> },
             { key: "opening", label: "Opening", render: (r) => (byReq[r.name] || []).map((o) => <Link key={o.name} to={`/hr/recruitment/openings/${encodeURIComponent(o.name)}`} className="block text-[12px] text-[var(--color-red-hover)] hover:underline">{o.job_title} <ExternalLink size={10} className="inline" /></Link>) },
@@ -176,7 +176,7 @@ function CreateOpeningModal({ req, onClose, onSaved }) {
     }
   }
   return (
-    <Modal title="Create job opening" onClose={onClose}>
+    <Modal title="Create Job Opening" onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
         <p className="text-[12px] text-[var(--color-text-muted)]">Copies the role, department, positions ({req.no_of_positions}), budget and description from {req.name}. You can add skills, salary range and interview rounds on the opening afterwards.</p>
         <Field label="Job title"><input required className={inputCls} value={f.job_title} onChange={(e) => setF({ ...f, job_title: e.target.value })} /></Field>

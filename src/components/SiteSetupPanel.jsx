@@ -28,7 +28,7 @@ export function SiteSetupPanel() {
     status.reload();
   }
   return (
-    <Panel title="System setup" hint="Adds required fields, enables change history, applies sensitive-field restrictions and installs server-side rules. Safe to run again - it only adds or updates what's missing or out of date." action={<Button onClick={run} disabled={busy}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />} Run setup</Button>}>
+    <Panel title="System Setup" hint="Adds required fields, enables change history, applies sensitive-field restrictions and installs server-side rules. Safe to run again - it only adds or updates what's missing or out of date." action={<Button onClick={run} disabled={busy}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />} Run setup</Button>}>
       <Async state={status}>
         {(st) => (
           <div className="grid grid-cols-1 gap-5 text-[12.5px] text-[var(--color-text)] lg:grid-cols-3">

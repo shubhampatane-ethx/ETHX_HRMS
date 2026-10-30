@@ -33,7 +33,7 @@ export default function MyInterviews() {
 
   return (
     <div className="space-y-5">
-      <PageHeader icon={ClipboardCheck} title="My interviews" subtitle="Interviews you're on the panel for - give your scorecard after each one" />
+      <PageHeader icon={ClipboardCheck} title="My Interviews" subtitle="Interviews you're on the panel for - give your scorecard after each one" />
       <Panel>
         <div className="mb-4 flex gap-2">{[["todo", "Feedback Due"], ["done", "Done"], ["all", "All"]].map(([v, l]) => <button key={v} type="button" onClick={() => setFilter(v)} className={chipCls(filter === v)}>{l}</button>)}</div>
         <Async state={data}>
@@ -43,7 +43,7 @@ export default function MyInterviews() {
             { key: "interview_round", label: "Round" },
             { key: "where", label: "Where", render: (i) => (i.custom_meeting_link ? (/^https?:/.test(i.custom_meeting_link) ? <a href={i.custom_meeting_link} target="_blank" rel="noreferrer" className="text-[var(--color-red-hover)] hover:underline">Join <ExternalLink size={10} className="inline" /></a> : i.custom_meeting_link) : i.custom_mode || "—") },
             { key: "cv", label: "CV", render: (i) => (i.resume_link ? <a href={i.resume_link} target="_blank" rel="noreferrer" className="text-[var(--color-red-hover)] hover:underline">Open</a> : "—") },
-            { key: "mine", label: "My feedback", render: (i) => (i.myFeedback ? <span className={i.myFeedback.result === "Cleared" ? "text-[var(--color-green)]" : "text-[var(--color-red-hover)]"}>{i.myFeedback.result}</span> : i.docstatus === 1 ? "Closed" : "Due") },
+            { key: "mine", label: "My Feedback", render: (i) => (i.myFeedback ? <span className={i.myFeedback.result === "Cleared" ? "text-[var(--color-green)]" : "text-[var(--color-red-hover)]"}>{i.myFeedback.result}</span> : i.docstatus === 1 ? "Closed" : "Due") },
             { key: "_a", label: "", render: (i) => <div className="flex justify-end gap-1"><IcsButton interview={i} applicantName={i.applicantName} />{!i.myFeedback && i.docstatus === 0 && <Button className="!px-2 !py-1 text-[11px]" onClick={() => setOpen(i)} disabled={i.scheduled_on > today} title={i.scheduled_on > today ? "Available on the interview day" : undefined}>Give feedback</Button>}</div> },
           ]} />}
         </Async>

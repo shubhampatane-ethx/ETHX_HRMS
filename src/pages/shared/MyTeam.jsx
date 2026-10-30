@@ -22,12 +22,12 @@ export default function MyTeam() {
   const d = q.data;
   return (
     <>
-      <PageHeader icon={Users} title="My team" subtitle="Your direct reports, today's attendance, upcoming leave and leave requests waiting for you" />
+      <PageHeader icon={Users} title="My Team" subtitle="Your direct reports, today's attendance, upcoming leave and leave requests waiting for you" />
       {d && !d.ready && <Notice>Manager self-service isn't set up yet - ask the Administrator to run Admin › System Setup.</Notice>}
       <Async state={q}>
         {() => (
           <>
-            <Panel title="Leave waiting for you" hint="From your direct reports, or where you're set as the leave approver">
+            <Panel title="Leave Waiting for You" hint="From your direct reports, or where you're set as the leave approver">
               {d.leave.length === 0 ? <Empty text="Nothing waiting for your decision." /> : <Grid rows={d.leave} columns={[
                 { key: "employee_name", label: "Employee" },
                 { key: "leave_type", label: "Type" },
@@ -44,7 +44,7 @@ export default function MyTeam() {
                   { key: "today", label: "Today", render: (t) => { const x = d.today[t.name]; if (!x) return d.away.some((a) => a.employee === t.name && a.from_date <= new Date().toISOString().slice(0, 10)) ? <StatusPill status="On Leave" /> : <span className="text-[12px] text-[var(--color-text-faint)]">Not punched in</span>; return x.status ? <StatusPill status={x.status} /> : <span className="text-[12px]">{x.log_type === "IN" ? "In" : "Out"} since {hm(x.time)}</span>; } },
                 ]} />}
               </Panel>
-              <Panel title="Away in the next 14 days">
+              <Panel title="Away in the Next 14 Days">
                 {d.away.length === 0 ? <Empty text="No approved leave coming up." /> : <Grid rows={d.away} rowKey={(a, i) => `${a.employee}-${i}`} columns={[
                   { key: "employee_name", label: "Employee" }, { key: "leave_type", label: "Type" },
                   { key: "dates", label: "Dates", render: (a) => `${dmy(a.from_date)}${a.to_date !== a.from_date ? ` – ${dmy(a.to_date)}` : ""}${Number(a.half_day) ? " (half)" : ""}` },

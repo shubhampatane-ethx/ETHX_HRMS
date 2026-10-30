@@ -153,7 +153,7 @@ function CropDialog({ file, onClose }) {
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 px-4" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
       <div role="dialog" aria-modal="true" aria-label="Crop profile photo" className="w-full max-w-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 text-left shadow-2xl">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-[14px] font-semibold text-[var(--color-text)]">Crop profile photo</h2>
+          <h2 className="text-[14px] font-semibold text-[var(--color-text)]">Crop Profile Photo</h2>
           <button type="button" onClick={onClose} disabled={busy} aria-label="Close" className="text-[var(--color-text-muted)] hover:text-[var(--color-text)] disabled:opacity-50"><X size={16} /></button>
         </div>
 

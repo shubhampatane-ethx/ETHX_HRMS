@@ -51,7 +51,7 @@ export default function Settings() {
 
       {hrSettings.length > 0 && (
         <section>
-          <h3 className="mb-3 text-[13px] font-semibold text-[var(--color-text)]">HR & payroll settings</h3>
+          <h3 className="mb-3 text-[13px] font-semibold text-[var(--color-text)]">HR & Payroll Settings</h3>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">{hrSettings.map((i) => <Tile key={i.doctype} to={`/hr/setup/${slugify(i.doctype)}`} label={i.label} icon={Briefcase} />)}</div>
         </section>
       )}

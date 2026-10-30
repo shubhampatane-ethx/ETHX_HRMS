@@ -71,7 +71,7 @@ export default function RecruitmentReports() {
 
   return (
     <div className="space-y-5">
-      <PageHeader icon={BarChart3} title="Recruitment reports" subtitle={`Applications and offers created since ${dmy(since)}`} actions={<>
+      <PageHeader icon={BarChart3} title="Recruitment Reports" subtitle={`Applications and offers created since ${dmy(since)}`} actions={<>
         <select className={`${inputCls} !w-auto`} value={months} onChange={(e) => setMonths(Number(e.target.value))}>{[3, 6, 12, 24].map((m) => <option key={m} value={m}>Last {m} months</option>)}</select>
         <Button variant="secondary" onClick={exportAll} disabled={!r}><Download size={14} /> CSV</Button>
       </>} />
@@ -80,21 +80,21 @@ export default function RecruitmentReports() {
           <>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <Stat icon={Activity} label="Applications" value={r.apps.length} sub={`${r.stageCounts.find((x) => x.stage === "Hired").n} hired`} accent="#4f8cff" />
-              <Stat icon={Handshake} label="Offers sent" value={r.sent.length} sub={`${r.accepted.length} accepted`} accent="var(--color-green)" />
-              <Stat icon={Percent} label="Offer acceptance" value={pct(r.accepted.length, r.answered.length)} sub={`of ${r.answered.length} answered offers`} accent="var(--color-amber)" />
-              <Stat icon={Clock} label="Time to hire (median)" value={median(r.tth) != null ? `${median(r.tth)} d` : "—"} sub={`Application → offer accepted · ${r.tth.length} hire(s)`} accent="var(--color-red-hover)" />
+              <Stat icon={Handshake} label="Offers Sent" value={r.sent.length} sub={`${r.accepted.length} accepted`} accent="var(--color-green)" />
+              <Stat icon={Percent} label="Offer Acceptance" value={pct(r.accepted.length, r.answered.length)} sub={`of ${r.answered.length} answered offers`} accent="var(--color-amber)" />
+              <Stat icon={Clock} label="Time to Hire (Median)" value={median(r.tth) != null ? `${median(r.tth)} d` : "—"} sub={`Application → offer accepted · ${r.tth.length} hire(s)`} accent="var(--color-red-hover)" />
             </div>
-            <Panel title="Open positions" hint="Filled = accepted offers that haven't fallen through">
+            <Panel title="Open Positions" hint="Filled = accepted offers that haven't fallen through">
               <Grid rows={r.open} empty="No open positions." columns={[
                 { key: "job_title", label: "Opening" },
-                { key: "v", label: "Filled / vacancies", render: (o) => `${o.accepted} / ${vacanciesOf(o) || "—"}` },
+                { key: "v", label: "Filled / Vacancies", render: (o) => `${o.accepted} / ${vacanciesOf(o) || "—"}` },
                 { key: "total", label: "Candidates" },
                 ...["Screening", "Shortlisted", "Interview", "Offer"].map((st) => ({ key: st, label: st, render: (o) => o.stages[st] || 0 })),
                 { key: "ageDays", label: "Open for", render: (o) => `${o.ageDays} d` },
               ]} />
             </Panel>
             <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-              <Panel title="Source effectiveness" hint="Of the candidates from each source, how many moved forward">
+              <Panel title="Source Effectiveness" hint="Of the candidates from each source, how many moved forward">
                 <Grid rows={r.bySource} rowKey={(b) => b.source} empty="No applications in this period." columns={[
                   { key: "source", label: "Source" },
                   { key: "total", label: "Applied" },
@@ -104,7 +104,7 @@ export default function RecruitmentReports() {
                   { key: "hired", label: "Hired", render: (b) => `${b.hired} (${pct(b.hired, b.total)})` },
                 ]} />
               </Panel>
-              <Panel title="Candidates per stage" hint="Applications created in the period, by where they are now">
+              <Panel title="Candidates per Stage" hint="Applications created in the period, by where they are now">
                 <Grid rows={r.stageCounts} rowKey={(x) => x.stage} columns={[{ key: "stage", label: "Stage" }, { key: "n", label: "Candidates" }]} />
                 <p className="mt-3 text-[11px] text-[var(--color-text-faint)]">Median time to fill a requisition (raised → filled): {median(r.ttf) != null ? `${median(r.ttf)} days` : "no filled requisitions yet"}. Offer statuses: {Object.entries(r.offers.reduce((m, o) => { const k = offerStage(o); m[k] = (m[k] || 0) + 1; return m; }, {})).map(([k, v]) => `${k} ${v}`).join(" · ") || "none"}.</p>
               </Panel>

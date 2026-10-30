@@ -23,7 +23,7 @@ export default function Lifecycle() {
   const [tab, setTab] = useState("promotions");
   return (
     <div className="space-y-5">
-      <PageHeader icon={TrendingUp} title="Employee lifecycle" subtitle="Promotions, transfers and exits - each updates the employee record when it takes effect" />
+      <PageHeader icon={TrendingUp} title="Employee Lifecycle" subtitle="Promotions, transfers and exits - each updates the employee record when it takes effect" />
       <Tabs value={tab} onChange={setTab} tabs={[{ id: "promotions", label: "Promotions" }, { id: "transfers", label: "Transfers" }, { id: "exits", label: "Exits" }]} />
       {tab === "promotions" && <Moves kind="promotion" />}
       {tab === "transfers" && <Moves kind="transfer" />}
@@ -111,7 +111,7 @@ function MoveModal({ kind, onClose, onSaved }) {
   }
 
   return (
-    <Modal title={kind === "promotion" ? "New promotion" : "New transfer"} onClose={onClose} wide>
+    <Modal title={kind === "promotion" ? "New Promotion" : "New Transfer"} onClose={onClose} wide>
       <form onSubmit={submit} className="space-y-3">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <LinkField label="Employee" linkDoctype="Employee" value={employee} onChange={(v) => { setEmployee(v); setValues({}); }} required frappe={frappe} />
@@ -163,9 +163,9 @@ function Exits() {
         {(rows) => <Grid rows={rows} empty="No exits in progress." columns={[
           { key: "employee_name", label: "Employee", render: (r) => <span>{r.employee_name}<span className="block text-[11px] text-[var(--color-text-faint)]">{[r.designation, r.department].filter(Boolean).join(" · ")}</span></span> },
           { key: "resignation_letter_date", label: "Resigned", render: (r) => dmy(r.resignation_letter_date) || "—" },
-          { key: "boarding_begins_on", label: "Last working day", render: (r) => dmy(r.boarding_begins_on) },
+          { key: "boarding_begins_on", label: "Last Working Day", render: (r) => dmy(r.boarding_begins_on) },
           { key: "boarding_status", label: "Checklist", render: (r) => <StatusPill status={r.docstatus === 0 ? "Draft" : r.boarding_status} /> },
-          { key: "emp", label: "Employee status", render: (r) => { const e = emps.data?.[r.employee]; return e ? <span><StatusPill status={e.status} />{e.relieving_date && <span className="block text-[10.5px] text-[var(--color-text-faint)]">relieved {dmy(e.relieving_date)}</span>}</span> : "…"; } },
+          { key: "emp", label: "Employee Status", render: (r) => { const e = emps.data?.[r.employee]; return e ? <span><StatusPill status={e.status} />{e.relieving_date && <span className="block text-[10.5px] text-[var(--color-text-faint)]">relieved {dmy(e.relieving_date)}</span>}</span> : "…"; } },
           { key: "_a", label: "", render: (r) => {
             const e = emps.data?.[r.employee];
             return <div className="flex justify-end gap-1">
@@ -206,7 +206,7 @@ function ExitModal({ onClose, onSaved }) {
     }
   }
   return (
-    <Modal title="Start an exit" onClose={onClose}>
+    <Modal title="Start an Exit" onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
         <LinkField label="Employee" linkDoctype="Employee" value={f.employee} onChange={(v) => setF({ ...f, employee: v })} required frappe={frappe} />
         <div className="grid grid-cols-2 gap-3"><DateField label="Resignation date" value={f.resigned} onChange={(v) => setF({ ...f, resigned: v })} required /><DateField label="Last working day" value={f.last} onChange={(v) => setF({ ...f, last: v })} required /></div>
@@ -241,7 +241,7 @@ function LeftModal({ row, emp, onClose, onSaved }) {
     }
   }
   return (
-    <Modal title={`Mark ${row.employee_name} as left`} onClose={onClose}>
+    <Modal title={`Mark ${row.employee_name} as Left`} onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
         <DateField label="Relieving date" value={date} onChange={setDate} required />
         {emp.user_id && <label className="flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><input type="checkbox" checked={disable} onChange={(e) => setDisable(e.target.checked)} /> Disable their portal login ({emp.user_id})</label>}

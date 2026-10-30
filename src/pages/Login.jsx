@@ -117,7 +117,7 @@ export default function Login() {
         <div className="relative w-full max-w-[400px]">
           <div className="mb-8 min-[800px]:hidden"><LoginBrand /></div>
 
-          <h1 className="text-2xl font-semibold tracking-tight text-[var(--color-text)]">Welcome back</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-[var(--color-text)]">Welcome Back</h1>
           <p className="mt-1.5 text-[14px] text-[var(--color-text-muted)]">Sign in with your work account to continue.</p>
 
           <form data-no-preview onSubmit={handleSubmit} className="mt-6 space-y-4">

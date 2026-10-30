@@ -83,14 +83,14 @@ function Rounds() {
     }
   }
   return (
-    <Panel title="Interview rounds" hint="Reusable rounds with a 1–5 skill scorecard and default interviewers. Pick and order them per opening." action={<Button onClick={() => setModal({})}><Plus size={14} /> New round</Button>}>
+    <Panel title="Interview Rounds" hint="Reusable rounds with a 1–5 skill scorecard and default interviewers. Pick and order them per opening." action={<Button onClick={() => setModal({})}><Plus size={14} /> New round</Button>}>
       <Async state={rounds}>
         {(list) => <Grid rows={list} empty="No rounds yet - create e.g. Technical 1, Technical 2, HR." columns={[
           { key: "round_name", label: "Round", render: (r) => <b className="font-medium">{r.round_name}</b> },
-          { key: "designation", label: "For role", render: (r) => r.designation || "Any" },
-          { key: "skills", label: "Scorecard skills", render: (r) => <span className="text-[11.5px]">{r.skills.join(", ") || "—"}</span> },
-          { key: "interviewers", label: "Default panel", render: (r) => <span className="text-[11.5px]">{r.interviewers.join(", ") || "—"}</span> },
-          { key: "expected", label: "Pass mark", render: (r) => (r.expected_average_rating ? <Stars value={toStars(r.expected_average_rating)} size={11} /> : "—") },
+          { key: "designation", label: "For Role", render: (r) => r.designation || "Any" },
+          { key: "skills", label: "Scorecard Skills", render: (r) => <span className="text-[11.5px]">{r.skills.join(", ") || "—"}</span> },
+          { key: "interviewers", label: "Default Panel", render: (r) => <span className="text-[11.5px]">{r.interviewers.join(", ") || "—"}</span> },
+          { key: "expected", label: "Pass Mark", render: (r) => (r.expected_average_rating ? <Stars value={toStars(r.expected_average_rating)} size={11} /> : "—") },
           { key: "_a", label: "", render: (r) => <div className="flex justify-end gap-1"><button type="button" onClick={() => setModal({ round: r })} className="rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]"><Pencil size={14} /></button><button type="button" onClick={() => remove(r)} className="rounded p-1 text-[var(--color-text-muted)] hover:text-[var(--color-red-hover)]"><Trash2 size={14} /></button></div> },
         ]} />}
       </Async>

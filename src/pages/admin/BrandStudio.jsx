@@ -159,7 +159,7 @@ export default function BrandStudio() {
         <div className="relative flex flex-wrap items-end justify-between gap-5">
           <div className="max-w-xl">
             <p className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--color-red-hover)]"><Palette size={14} /> Tenant identity</p>
-            <h1 className="text-xl font-semibold text-[var(--color-text)]">Brand studio</h1>
+            <h1 className="text-xl font-semibold text-[var(--color-text)]">Brand Studio</h1>
             <p className="mt-1.5 text-[13px] leading-5 text-[var(--color-text-muted)]">Give every company its own logo and color system. Changes are shared with that company’s users.</p>
           </div>
           <label className="min-w-60">
@@ -181,7 +181,7 @@ export default function BrandStudio() {
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.75fr)]">
         <section className="space-y-3">
           <div className="flex items-end justify-between gap-3">
-            <div><h2 className="text-[14px] font-semibold text-[var(--color-text)]">Theme system</h2><p className="mt-0.5 text-[12px] text-[var(--color-text-muted)]">Choose a complete color palette for this company.</p></div>
+            <div><h2 className="text-[14px] font-semibold text-[var(--color-text)]">Theme System</h2><p className="mt-0.5 text-[12px] text-[var(--color-text-muted)]">Choose a complete color palette for this company.</p></div>
             {busy === "theme" && <span className="flex items-center gap-1.5 text-[11px] text-[var(--color-text-muted)]"><Loader2 size={13} className="animate-spin" />Saving</span>}
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -190,7 +190,7 @@ export default function BrandStudio() {
         </section>
 
         <section className="space-y-3">
-          <div><h2 className="text-[14px] font-semibold text-[var(--color-text)]">Company logo</h2><p className="mt-0.5 text-[12px] text-[var(--color-text-muted)]">A clear, horizontal image works best in navigation.</p></div>
+          <div><h2 className="text-[14px] font-semibold text-[var(--color-text)]">Company Logo</h2><p className="mt-0.5 text-[12px] text-[var(--color-text-muted)]">A clear, horizontal image works best in navigation.</p></div>
           <Card className="overflow-hidden">
             <div className="flex min-h-40 items-center justify-center bg-[var(--color-surface-2)] p-6">
               {companyQuery.loading && !currentCompany ? <Loader2 size={18} className="animate-spin text-[var(--color-text-muted)]" /> : (

@@ -138,7 +138,7 @@ export default function CandidateProfile() {
               </div>
 
               <div className="space-y-5">
-                <Panel title="Move stage">
+                <Panel title="Move Stage">
                   <div className="flex gap-2">
                     <select className={inputCls} value={moveTo} onChange={(e) => setMoveTo(e.target.value)}>
                       <option value="">Choose…</option>
@@ -156,7 +156,7 @@ export default function CandidateProfile() {
                 </Panel>
 
                 {others.data?.length > 0 && (
-                  <Panel title="Other applications" hint="Same email or phone">
+                  <Panel title="Other Applications" hint="Same email or phone">
                     <ul className="space-y-1.5 text-[12.5px]">{others.data.map((o) => <li key={o.name}><Link to={candidateUrl(o.name)} className="hover:underline">{o.job_title || "Talent pool"}</Link> <StageBadge stage={stageOf(o)} /> <span className="text-[11px] text-[var(--color-text-faint)]">{dmy(o.creation)}</span></li>)}</ul>
                   </Panel>
                 )}
@@ -213,7 +213,7 @@ function NoteModal({ id, onClose, onSaved }) {
     }
   }
   return (
-    <Modal title="Add HR note" onClose={onClose}>
+    <Modal title="Add HR Note" onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
         <Field label="Note"><textarea required rows={3} className={inputCls} value={text} onChange={(e) => setText(e.target.value)} /></Field>
         {err && <Notice>{err}</Notice>}
@@ -236,7 +236,7 @@ function AnonModal({ applicant, onClose, onDone }) {
     }
   }
   return (
-    <Modal title="Anonymise candidate" onClose={onClose}>
+    <Modal title="Anonymise Candidate" onClose={onClose}>
       <p className="text-[13px] text-[var(--color-text-muted)]">Removes {applicant.applicant_name}'s name, email, phone, CV, CTC and notes fields, deletes attached files and renames the record. Stage, source, opening and dates stay for reporting. This can't be undone.</p>
       {err && <div className="mt-3"><Notice>{err}</Notice></div>}
       <div className="mt-4 flex justify-end gap-2"><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={go} disabled={busy}>{busy ? "Anonymising…" : "Anonymise"}</Button></div>

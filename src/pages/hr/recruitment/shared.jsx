@@ -285,7 +285,7 @@ export function ScheduleModal({ applicant, opening, interview, onClose, onSaved 
 
   if (problems) {
     return (
-      <Modal title="Interview scheduled" onClose={onSaved}>
+      <Modal title="Interview Scheduled" onClose={onSaved}>
         <Notice tone="info">The interview is saved, but some interviewers may not be able to open it yet:</Notice>
         <ul className="my-3 list-disc pl-5 text-[12px] text-[var(--color-text-muted)]">{problems.map((p) => <li key={p}>{p}</li>)}</ul>
         <div className="flex justify-end"><Button onClick={onSaved}>OK</Button></div>
@@ -294,7 +294,7 @@ export function ScheduleModal({ applicant, opening, interview, onClose, onSaved 
   }
 
   return (
-    <Modal title={`${interview ? "Reschedule" : "Schedule"} interview · ${applicant.applicant_name}`} onClose={onClose} wide>
+    <Modal title={`${interview ? "Reschedule" : "Schedule"} Interview · ${applicant.applicant_name}`} onClose={onClose} wide>
       <form onSubmit={submit} className="space-y-3">
         <Field label="Round" hint={configured.length ? `This opening's rounds: ${configured.join(" → ")}` : "No rounds configured for this opening - any round can be used."}>
           <select required className={inputCls} value={f.round} onChange={(e) => pickRound(e.target.value)} disabled={Boolean(interview)}>
@@ -401,7 +401,7 @@ export function DecideModal({ interview, applicant, onClose, onSaved }) {
   }
 
   return (
-    <Modal title={`${interview.interview_round} · decision`} onClose={onClose} wide="xl">
+    <Modal title={`${interview.interview_round} · Decision`} onClose={onClose} wide="xl">
       <form onSubmit={submit} className="space-y-4">
         <FeedbackMatrix items={fb.data} />
         {pending.length > 0 && <Notice tone="info">Still waiting for feedback from: {pending.join(", ")}</Notice>}
@@ -444,7 +444,7 @@ export function OfferModal({ applicant, opening, offer, amendFrom, onClose, onSa
   }
 
   return (
-    <Modal title={`${offer ? "Edit" : amendFrom ? "Revise" : "Draft"} offer · ${applicant.applicant_name}`} onClose={onClose} wide>
+    <Modal title={`${offer ? "Edit" : amendFrom ? "Revise" : "Draft"} Offer · ${applicant.applicant_name}`} onClose={onClose} wide>
       <form onSubmit={submit} className="space-y-3">
         {rs.data && rs.data.required.length > 0 && (missing.length ? <Notice tone="info">Interview rounds not cleared yet: <b>{missing.join(", ")}</b>. The offer can be drafted, but sending it needs an override reason.</Notice> : <Notice tone="info">All {rs.data.required.length} interview round(s) cleared.</Notice>)}
         <Row>
@@ -486,7 +486,7 @@ export function ResponseModal({ offer, onClose, onSaved }) {
     }, "Couldn't record the response.");
   }
   return (
-    <Modal title={`Candidate's response · ${offer.applicant_name}`} onClose={onClose}>
+    <Modal title={`Candidate's Response · ${offer.applicant_name}`} onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
         <div className="flex gap-2">{[["Accepted", "Accepted"], ["Rejected", "Declined"]].map(([v, l]) => <button key={v} type="button" onClick={() => setStatus(v)} className={`rounded-md border px-3 py-1.5 text-[12px] ${status === v ? "border-[var(--color-red)] bg-[var(--color-red-wash)] text-[var(--color-text)]" : "border-[var(--color-border)] text-[var(--color-text-muted)]"}`}>{l}</button>)}</div>
         <DateField label="Responded on" value={date} onChange={setDate} required />
@@ -581,7 +581,7 @@ export function NoShowModal({ offer, opening, onClose, onSaved }) {
     }, "Couldn't update the offer.");
   }
   return (
-    <Modal title={`Didn't join · ${offer.applicant_name}`} onClose={onClose}>
+    <Modal title={`Didn't Join · ${offer.applicant_name}`} onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
         <div className="flex gap-2">{["No-show", "Withdrawn"].map((v) => <button key={v} type="button" onClick={() => setKind(v)} className={`rounded-md border px-3 py-1.5 text-[12px] ${kind === v ? "border-[var(--color-red)] bg-[var(--color-red-wash)] text-[var(--color-text)]" : "border-[var(--color-border)] text-[var(--color-text-muted)]"}`}>{v}</button>)}</div>
         <Field label="Reason"><input className={inputCls} value={reason} onChange={(e) => setReason(e.target.value)} /></Field>

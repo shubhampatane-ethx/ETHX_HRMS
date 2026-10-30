@@ -53,14 +53,14 @@ export function EmpTimesheet() {
       <PageHeader icon={CalendarDays} title="Timesheet" subtitle="Fill in your hours for the week - projects and the work you did - and submit it for review" actions={<Button onClick={() => setEditor({})}><CalendarDays size={14} /> Weekly timesheet</Button>} />
       {err && <Notice>{err}</Notice>}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-        <Panel title="Assigned tasks" hint="Open tasks assigned to you" className="lg:col-span-1">
+        <Panel title="Assigned Tasks" hint="Open tasks assigned to you" className="lg:col-span-1">
           <Async state={tasks}>
             {(rows) => rows.length === 0 ? <p className="text-[13px] text-[var(--color-text-muted)]">No open tasks assigned to you.</p> : (
               <ul className="space-y-2.5">{rows.map((t) => <li key={t.name} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)] p-3"><p className="text-[13px] text-[var(--color-text)]">{t.subject}</p><p className="mt-0.5 text-[11px] text-[var(--color-text-muted)]">{t.project || "No project"}{t.exp_end_date ? ` · due ${dmy(t.exp_end_date)}` : ""}</p><div className="mt-1.5"><StatusPill status={t.status} /></div></li>)}</ul>
             )}
           </Async>
         </Panel>
-        <Panel title="My timesheets" className="lg:col-span-2">
+        <Panel title="My Timesheets" className="lg:col-span-2">
           <Async state={sheets}>
             {(rows) => (
               <>

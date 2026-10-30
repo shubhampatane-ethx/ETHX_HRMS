@@ -16,7 +16,7 @@ export default function RecruitmentSetup() {
   const isAdmin = user?.email === "Administrator";
   return (
     <div className="space-y-5">
-      <PageHeader icon={Settings2} title="Recruitment setup" subtitle="One-time setup and candidate data retention" />
+      <PageHeader icon={Settings2} title="Recruitment Setup" subtitle="One-time setup and candidate data retention" />
       {isAdmin ? <SiteSetupPanel /> : <Notice tone="info">The one-time setup can only be run by the Administrator. Data retention is below.</Notice>}
       <Retention />
     </div>
@@ -42,13 +42,13 @@ function Retention() {
     due.reload();
   }
   return (
-    <Panel title="Data retention" hint={`Rejected, withdrawn and on-hold candidates are kept for ${RETENTION_MONTHS} months from when they left the process, then anonymised. Candidates who never gave consent should be anonymised sooner.`} action={<Button variant="secondary" onClick={runAll} disabled={busy || !(due.data || []).length}>{busy ? <Loader2 size={14} className="animate-spin" /> : <ShieldOff size={14} />} Anonymise all due</Button>}>
+    <Panel title="Data Retention" hint={`Rejected, withdrawn and on-hold candidates are kept for ${RETENTION_MONTHS} months from when they left the process, then anonymised. Candidates who never gave consent should be anonymised sooner.`} action={<Button variant="secondary" onClick={runAll} disabled={busy || !(due.data || []).length}>{busy ? <Loader2 size={14} className="animate-spin" /> : <ShieldOff size={14} />} Anonymise all due</Button>}>
       {msg && <div className="mb-3"><Notice tone={msg.ok ? "info" : "error"}>{msg.text}</Notice></div>}
       <Async state={due}>
         {(list) => <Grid rows={list} empty="No candidates are due for anonymisation." columns={[
           { key: "applicant_name", label: "Candidate", render: (a) => <Link to={candidateUrl(a.name)} className="hover:underline">{a.applicant_name}</Link> },
           { key: "stage", label: "Stage", render: (a) => <StageBadge stage={stageOf(a)} /> },
-          { key: "custom_retain_until", label: "Keep until", render: (a) => dmy(a.custom_retain_until) || `${dmy(a.modified)} + ${RETENTION_MONTHS}m` },
+          { key: "custom_retain_until", label: "Keep Until", render: (a) => dmy(a.custom_retain_until) || `${dmy(a.modified)} + ${RETENTION_MONTHS}m` },
           { key: "custom_consent", label: "Consent", render: (a) => (Number(a.custom_consent) ? "Given" : "Not recorded") },
         ]} />}
       </Async>

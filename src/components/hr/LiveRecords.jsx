@@ -55,7 +55,7 @@ export function LiveRecords({ title, description, doctype, emptyLabel }) {
           <Table
             columns={[
               { key: "name", label: "Record" },
-              { key: "modified", label: "Last updated", render: (record) => record.modified ? new Date(record.modified).toLocaleString() : "—" },
+              { key: "modified", label: "Last Updated", render: (record) => record.modified ? new Date(record.modified).toLocaleString() : "—" },
             ]}
             rows={rows}
             emptyLabel={emptyLabel}

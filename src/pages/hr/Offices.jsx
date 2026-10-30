@@ -187,7 +187,7 @@ function YearModal({ office, year: suggested, countries, lists, onClose, onDone 
   }
 
   return (
-    <Modal title={`Holiday list · ${office.name}`} onClose={onClose}>
+    <Modal title={`Holiday List · ${office.name}`} onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
         <p className="text-[12px] text-[var(--color-text-muted)]">Weekly off: {weeklyOffsOf(office).join(", ") || "none"} · Country: {office.custom_country || "not set"}{office.custom_region_code ? ` (${office.custom_region_code})` : ""}. Change these with the edit button on the office.</p>
         <Field label="Year"><input className={inputCls} type="number" min="2000" max="2100" value={year} onChange={(e) => setYear(e.target.value)} required /></Field>

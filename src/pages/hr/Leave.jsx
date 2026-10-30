@@ -116,7 +116,7 @@ function DecideModal({ app, to, onClose, onSaved }) {
     }
   }
   return (
-    <Modal title={`${to === "Approved" ? "Approve" : "Reject"} leave · ${app.employee_name}`} onClose={onClose}>
+    <Modal title={`${to === "Approved" ? "Approve" : "Reject"} Leave · ${app.employee_name}`} onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
         <p className="text-[12px] text-[var(--color-text-muted)]">{app.leave_type} · {dmy(app.from_date)}{app.to_date !== app.from_date ? ` – ${dmy(app.to_date)}` : ""} · {app.total_leave_days} day(s){app.description ? ` · “${app.description}”` : ""}</p>
         <Field label={to === "Rejected" ? "Reason (required)" : "Note (optional)"}><textarea rows={2} className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} /></Field>
@@ -149,7 +149,7 @@ function ApplyModal({ onClose, onSaved }) {
     }
   }
   return (
-    <Modal title="Apply for leave on an employee's behalf" onClose={onClose}>
+    <Modal title="Apply for Leave on an Employee's Behalf" onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
         <LinkField label="Employee" linkDoctype="Employee" value={f.employee} onChange={(v) => setF({ ...f, employee: v })} required frappe={frappe} />
         <LinkField label="Leave type" linkDoctype="Leave Type" value={f.leave_type} onChange={(v) => setF({ ...f, leave_type: v })} required frappe={frappe} />
@@ -195,7 +195,7 @@ function Balances() {
       <Async state={data}>
         {() => <Grid rows={rows} rowKey={(r) => r.name} empty="No leave allocations valid today. Allocate leave to get started." columns={[
           { key: "employee_name", label: "Employee", render: (r) => <span>{r.employee_name}<span className="block text-[11px] text-[var(--color-text-faint)]">{[r.employee, r.department].filter(Boolean).join(" · ")}</span></span> },
-          { key: "leave_type", label: "Leave type" },
+          { key: "leave_type", label: "Leave Type" },
           { key: "period", label: "Period", render: (r) => `${dmy(r.from_date)} – ${dmy(r.to_date)}` },
           { key: "total_leaves_allocated", label: "Allocated" },
           { key: "used", label: "Used" },
@@ -228,7 +228,7 @@ function AllocateModal({ onClose, onSaved }) {
     }
   }
   return (
-    <Modal title="Allocate leave" onClose={onClose}>
+    <Modal title="Allocate Leave" onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
         <LinkField label="Employee" linkDoctype="Employee" value={f.employee} onChange={(v) => setF({ ...f, employee: v })} required frappe={frappe} />
         <LinkField label="Leave type" linkDoctype="Leave Type" value={f.leave_type} onChange={(v) => setF({ ...f, leave_type: v })} required frappe={frappe} />
@@ -264,7 +264,7 @@ function ReassignModal({ app, onClose, onSaved }) {
   }
 
   return (
-    <Modal title="Change approver" onClose={onClose}>
+    <Modal title="Change Approver" onClose={onClose}>
       <div className="space-y-3">
         <p className="text-[12px] text-[var(--color-text-muted)]">{app.employee_name} · {app.leave_type} · {dmy(app.from_date)}{app.to_date !== app.from_date ? ` – ${dmy(app.to_date)}` : ""}. Now: {app.leave_approver_name || app.leave_approver || "none"}</p>
         <Async state={list}>

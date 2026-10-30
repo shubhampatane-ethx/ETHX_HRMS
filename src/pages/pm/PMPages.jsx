@@ -43,10 +43,10 @@ export function PMDashboard() {
     <>
       <PageHeader icon={Briefcase} title="Project Manager" subtitle="Assign people to projects with a role and ETA - their timesheets fill in automatically" actions={<Link to="/pm/assignments?assign=1"><Button><Plus size={14} /> Assign employee</Button></Link>} />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat to="/pm/projects" icon={Briefcase} label="Open projects" value={projects.data ? openProjects.length : projects.error ? "—" : undefined} sub="Not completed or cancelled" accent="#4f8cff" />
-        <Stat to="/pm/assignments" icon={ClipboardList} label="Active assignments" value={assignments.data ? active.length : assignments.error ? "—" : undefined} sub="People on projects" accent="var(--color-green)" />
-        <Stat to="/pm/assignments" icon={Users} label="Free today" value={employees.data && assignments.data ? free : undefined} sub="Employees with a login, not assigned today" accent="var(--color-amber)" />
-        <Stat to="/pm/assignments" icon={CalendarClock} label="ETA within 7 days" value={assignments.data ? ending.length : undefined} sub="Assignments ending soon" accent="var(--color-red-hover)" />
+        <Stat to="/pm/projects" icon={Briefcase} label="Open Projects" value={projects.data ? openProjects.length : projects.error ? "—" : undefined} sub="Not completed or cancelled" accent="#4f8cff" />
+        <Stat to="/pm/assignments" icon={ClipboardList} label="Active Assignments" value={assignments.data ? active.length : assignments.error ? "—" : undefined} sub="People on projects" accent="var(--color-green)" />
+        <Stat to="/pm/assignments" icon={Users} label="Free Today" value={employees.data && assignments.data ? free : undefined} sub="Employees with a login, not assigned today" accent="var(--color-amber)" />
+        <Stat to="/pm/assignments" icon={CalendarClock} label="ETA Within 7 Days" value={assignments.data ? ending.length : undefined} sub="Assignments ending soon" accent="var(--color-red-hover)" />
       </div>
       <Panel title="Upcoming ETAs" hint="Active assignments by end date" action={<Link to="/pm/assignments" className="text-[12px] text-[var(--color-red-hover)] hover:underline">View all</Link>}>
         <Async state={assignments}>
@@ -56,7 +56,7 @@ export function PMDashboard() {
               { key: "projectName", label: "Project" },
               { key: "role", label: "Role" },
               { key: "eta", label: "ETA", render: (r) => <span className={r.eta < today ? "text-[var(--color-red-hover)]" : ""}>{dmy(r.eta)}</span> },
-              { key: "hoursPerDay", label: "Hours/day" },
+              { key: "hoursPerDay", label: "Hours/Day" },
             ]} />
           )}
         </Async>
@@ -114,7 +114,7 @@ function ProjectModal({ onClose, onSaved }) {
     }
   }
   return (
-    <Modal title="New project" onClose={onClose}>
+    <Modal title="New Project" onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
         <Field label="Project name"><input required className={inputCls} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
         <LinkField label="Company" linkDoctype="Company" value={f.company} onChange={(v) => setF({ ...f, company: v })} required frappe={frappe} />
@@ -168,7 +168,7 @@ export function PMAssignments() {
             { key: "projectName", label: "Project" },
             { key: "role", label: "Role" },
             { key: "start", label: "Period", render: (a) => `${dmy(a.start)} – ${dmy(a.eta)}` },
-            { key: "hoursPerDay", label: "Hours/day" },
+            { key: "hoursPerDay", label: "Hours/Day" },
             { key: "status", label: "Status", render: (a) => <StatusPill status={isActive(a) && a.eta < today ? "Overdue" : a.status} /> },
             { key: "_a", label: "", render: (a) => isActive(a) ? (
               <div className="flex justify-end gap-1">
@@ -219,7 +219,7 @@ function AssignModal({ init, projects, employees, active, onClose, onSaved }) {
   }
 
   return (
-    <Modal title={edit ? "Edit assignment" : "Assign employee to a project"} onClose={onClose} wide>
+    <Modal title={edit ? "Edit Assignment" : "Assign Employee to a Project"} onClose={onClose} wide>
       <form onSubmit={submit} className="space-y-3">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Project">

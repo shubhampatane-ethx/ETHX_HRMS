@@ -68,7 +68,7 @@ export default function Offers() {
             { key: "applicant_name", label: "Candidate", render: (o) => <Link to={candidateUrl(o.job_applicant)} className="hover:underline"><b className="font-medium">{o.applicant_name}</b><span className="block text-[11px] text-[var(--color-text-faint)]">{o.name}{o.amended_from ? ` · revises ${o.amended_from}` : ""}</span></Link> },
             { key: "designation", label: "Role", render: (o) => <span>{o.designation}<span className="block text-[11px] text-[var(--color-text-faint)]">{o.company}</span></span> },
             { key: "custom_ctc", label: "CTC", render: (o) => (o.custom_ctc ? money(o.custom_ctc) : "—") },
-            { key: "dates", label: "Joining / valid till", render: (o) => <span>{dmy(o.custom_joining_date) || "—"}<span className="block text-[11px] text-[var(--color-text-faint)]">valid till {dmy(o.custom_valid_till) || "—"}</span></span> },
+            { key: "dates", label: "Joining / Valid Till", render: (o) => <span>{dmy(o.custom_joining_date) || "—"}<span className="block text-[11px] text-[var(--color-text-faint)]">valid till {dmy(o.custom_valid_till) || "—"}</span></span> },
             { key: "stage", label: "Status", render: (o) => <span><StatusPill status={offerStage(o)} />{o.custom_approved_by && <span className="block text-[10.5px] text-[var(--color-text-faint)]">{o.custom_approval_status} by {o.custom_approved_by}</span>}{o.custom_rounds_override && <span className="block text-[10.5px] text-[var(--color-amber)]" title={o.custom_rounds_override}>Rounds overridden</span>}</span> },
             { key: "_a", label: "", render: (o) => <Actions o={o} user={user} approver={approver} setModal={setModal} act={act} /> },
           ]} />}
@@ -140,7 +140,7 @@ function ApproveModal({ offer, approve, onClose, onSaved }) {
     }
   }
   return (
-    <Modal title={`${approve ? "Approve" : "Reject"} offer · ${offer.applicant_name}`} onClose={onClose}>
+    <Modal title={`${approve ? "Approve" : "Reject"} Offer · ${offer.applicant_name}`} onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
         <p className="text-[12px] text-[var(--color-text-muted)]">{offer.designation} · {offer.custom_ctc ? money(offer.custom_ctc) : "CTC not set"} · joining {dmy(offer.custom_joining_date) || "—"} · drafted by {offer.owner}</p>
         {offer.custom_rounds_override && <Notice tone="info">Interview rounds overridden: {offer.custom_rounds_override}</Notice>}
@@ -177,7 +177,7 @@ function SendModal({ offer, onClose, onSaved }) {
     onSaved("Offer marked as sent.");
   }
   return (
-    <Modal title={`Send offer · ${offer.applicant_name}`} onClose={onClose}>
+    <Modal title={`Send Offer · ${offer.applicant_name}`} onClose={onClose}>
       <p className="text-[13px] text-[var(--color-text-muted)]">Sending locks the offer. To change it later, use Revise.</p>
       <label className="mt-3 flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><input type="checkbox" checked={email} onChange={(e) => setEmail(e.target.checked)} /><Mail size={13} /> Email the PDF offer letter to {offer.applicant_email || "the candidate"}</label>
       {err && <div className="mt-3"><Notice>{err}</Notice></div>}

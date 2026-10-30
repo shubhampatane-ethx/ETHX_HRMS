@@ -13,7 +13,7 @@ const DEFAULT_FIELDS = ["name", "modified", "owner"];
 const DEFAULT_COLUMNS = [
   { key: "name", label: "Name" },
   { key: "owner", label: "Created by" },
-  { key: "modified", label: "Last modified", render: (r) => formatDate(r.modified) },
+  { key: "modified", label: "Last Modified", render: (r) => formatDate(r.modified) },
 ];
 const FALLBACK_FORM_FIELDS = [{ name: "name", label: "Name", type: "text", required: true }];
 

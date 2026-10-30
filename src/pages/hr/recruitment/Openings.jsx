@@ -57,7 +57,7 @@ export default function Openings() {
 
   return (
     <div className="space-y-5">
-      <PageHeader icon={Briefcase} title="Job openings" subtitle="Positions you're hiring for, their interview rounds and how far each one has got" actions={<Button onClick={() => setModal({})}><Plus size={14} /> New opening</Button>} />
+      <PageHeader icon={Briefcase} title="Job Openings" subtitle="Positions you're hiring for, their interview rounds and how far each one has got" actions={<Button onClick={() => setModal({})}><Plus size={14} /> New opening</Button>} />
       <SetupHint />
       <Panel>
         <div className="mb-4 flex flex-wrap gap-2">{[["Open", "Open"], ["Closed", "Closed"], ["all", "All"]].map(([v, l]) => <button key={v} type="button" onClick={() => setFilter(v)} className={chipCls(filter === v)}>{l}</button>)}</div>
@@ -67,7 +67,7 @@ export default function Openings() {
             { key: "vac", label: "Filled", render: (o) => { const s = stats.data?.[o.name]; const v = vacanciesOf(o); return <span>{s ? s.accepted : stats.data ? 0 : "…"} / {v || "—"}</span>; } },
             { key: "pipe", label: "Candidates", render: (o) => { const s = stats.data?.[o.name]; return s ? <span>{s.active} active<span className="block text-[11px] text-[var(--color-text-faint)]">{s.total} total</span></span> : "0"; } },
             { key: "rounds", label: "Rounds", render: (o) => roundsOf(o).length ? <span className="text-[11.5px]">{roundsOf(o).join(" → ")}</span> : <span className="text-[11px] text-[var(--color-amber)]">Not set</span> },
-            { key: "salary", label: "Salary range", render: (o) => (o.lower_range || o.upper_range ? `${money(o.lower_range, o.currency || "INR")} – ${money(o.upper_range, o.currency || "INR")}` : "—") },
+            { key: "salary", label: "Salary Range", render: (o) => (o.lower_range || o.upper_range ? `${money(o.lower_range, o.currency || "INR")} – ${money(o.upper_range, o.currency || "INR")}` : "—") },
             { key: "closes_on", label: "Closes", render: (o) => (o.status === "Closed" ? `Closed ${dmy(o.closed_on)}` : dmy(o.closes_on) || "—") },
             { key: "status", label: "Status", render: (o) => <span className="flex items-center gap-1.5"><StatusPill status={o.status} />{Number(o.publish) === 1 && <Globe size={12} className="text-[var(--color-green)]" title="On the careers page" />}</span> },
             { key: "_a", label: "", render: (o) => (

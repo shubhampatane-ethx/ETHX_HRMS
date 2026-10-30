@@ -201,10 +201,10 @@ export default function HRDashboard() {
 
       {/* Stats */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat to="/hr/employees" icon={Users} label="Active employees" value={headcount ?? (data ? "—" : undefined)} sub="Current headcount" accent="#4f8cff" />
-        <Stat to="/hr/attendance" icon={UserCheck} label="Present today" value={attendance ? attendedToday : data ? "—" : undefined} sub={headcount != null && attendance ? `of ${headcount} employees` : "Marked today"} accent="var(--color-green)" />
-        <Stat to="/hr/attendance" icon={CalendarCheck} label="Not marked today" value={notMarked ?? (data ? "—" : undefined)} sub="Awaiting attendance" accent="var(--color-amber)" />
-        <Stat to="/hr/leave" icon={CalendarClock} label="Pending leave requests" value={leave ? leave.length : data ? "—" : undefined} sub="Need your review" accent="var(--color-red-hover)" />
+        <Stat to="/hr/employees" icon={Users} label="Active Employees" value={headcount ?? (data ? "—" : undefined)} sub="Current headcount" accent="#4f8cff" />
+        <Stat to="/hr/attendance" icon={UserCheck} label="Present Today" value={attendance ? attendedToday : data ? "—" : undefined} sub={headcount != null && attendance ? `of ${headcount} employees` : "Marked today"} accent="var(--color-green)" />
+        <Stat to="/hr/attendance" icon={CalendarCheck} label="Not Marked Today" value={notMarked ?? (data ? "—" : undefined)} sub="Awaiting attendance" accent="var(--color-amber)" />
+        <Stat to="/hr/leave" icon={CalendarClock} label="Pending Leave Requests" value={leave ? leave.length : data ? "—" : undefined} sub="Need your review" accent="var(--color-red-hover)" />
       </div>
 
       {/* Charts */}
@@ -305,7 +305,7 @@ export default function HRDashboard() {
 
       {/* Quick access */}
       <section>
-        <h2 className="mb-3 text-[13px] font-semibold text-[var(--color-text)]">Quick access</h2>
+        <h2 className="mb-3 text-[13px] font-semibold text-[var(--color-text)]">Quick Access</h2>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
           {QUICK_LINKS.map(({ to, label, hint, icon: Icon }) => (
             <Link key={to} to={to} className="group flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3.5 transition-colors hover:border-[var(--color-red-deep)] hover:bg-[var(--color-surface-2)]">

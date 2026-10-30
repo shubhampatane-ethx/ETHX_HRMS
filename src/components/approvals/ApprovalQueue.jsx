@@ -26,7 +26,7 @@ export function ApprovalQueue({ state }) {
       {(d) => (
         <>
           {d.failed.length > 0 && <Notice tone="info">Couldn't load {d.failed.join(" and ")} requests - your account may not have approver access yet. Ask HR to add you as an approver.</Notice>}
-          <Panel title="Leave requests" hint="Leave you approve as the business-unit approver or as the employee's manager">
+          <Panel title="Leave Requests" hint="Leave you approve as the business-unit approver or as the employee's manager">
             <Grid rows={d.leaves} empty="No leave requests are waiting for you." columns={[
               { key: "employee_name", label: "Employee", render: (r) => <span>{r.employee_name || r.employee}<span className="block text-[11px] text-[var(--color-text-faint)]">{[r.employee, r.department].filter(Boolean).join(" · ")}</span></span> },
               { key: "leave_type", label: "Type" },
@@ -40,7 +40,7 @@ export function ApprovalQueue({ state }) {
                 </div>) },
             ]} />
           </Panel>
-          <Panel title="Expense claims" hint="Claims whose expense type (or business unit) has you as the approver">
+          <Panel title="Expense Claims" hint="Claims whose expense type (or business unit) has you as the approver">
             <Grid rows={d.expenses} empty="No expense claims are waiting for you." columns={[
               { key: "employee_name", label: "Employee" },
               { key: "posting_date", label: "Date", render: (r) => dmy(r.posting_date) },

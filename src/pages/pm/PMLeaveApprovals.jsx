@@ -9,7 +9,7 @@ export default function PMLeaveApprovals() {
   const n = state.data ? state.data.leaves.length + state.data.expenses.length : null;
   return (
     <>
-      <PageHeader icon={CalendarCheck} title="Leave & expense approvals" subtitle={n == null ? "Requests waiting for your decision" : n ? `${n} request(s) waiting for your decision` : "Nothing is waiting for you right now"} />
+      <PageHeader icon={CalendarCheck} title="Leave & Expense Approvals" subtitle={n == null ? "Requests waiting for your decision" : n ? `${n} request(s) waiting for your decision` : "Nothing is waiting for you right now"} />
       <ApprovalQueue state={state} />
     </>
   );

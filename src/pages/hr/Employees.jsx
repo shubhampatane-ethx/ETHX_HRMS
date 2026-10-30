@@ -186,7 +186,7 @@ export default function Employees() {
           { key: "designation", label: "Designation" },
           { key: "company", label: "Company" },
           { key: "status", label: "Status", render: (row) => <span className={row.status === "Active" ? "text-[var(--color-green)]" : "text-[var(--color-text-muted)]"}>{row.status || "-"}</span> },
-          { key: "user_id", label: "Portal login", render: (row) => row.user_id
+          { key: "user_id", label: "Portal Login", render: (row) => row.user_id
             ? <span className="text-[var(--color-green)]" title={row.user_id}>Active</span>
             : <span className="text-[var(--color-amber)]">No login</span> },
           { key: "_actions", label: "", render: (row) => <div className="flex justify-end gap-1">
@@ -351,7 +351,7 @@ function EmployeeDetail({ employee, onClose, onEdit, onLogin }) {
 
             {doc.user_id && (
               <section>
-                <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Portal login</h3>
+                <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Portal Login</h3>
                 {login ? (
                   <dl className="grid grid-cols-1 gap-x-8 gap-y-2.5 sm:grid-cols-2">
                     {[["Account", login.enabled ? "Enabled" : "Disabled"], ["Last login", dmyHm(login.last_login) || "Never"], ["Last active", dmyHm(login.last_active) || "—"], ["Roles", (login.roles || []).map((r) => r.role).join(", ") || "—"]].map(([k, v]) => <div key={k}><dt className="text-[11px] text-[var(--color-text-faint)]">{k}</dt><dd className="text-[13px] text-[var(--color-text)]">{v}</dd></div>)}

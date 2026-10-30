@@ -65,7 +65,7 @@ export default function AuditLogs() {
   const state = tab === "changes" ? changes : tab === "actions" ? actions : signins;
   return (
     <div className="space-y-5">
-      <PageHeader icon={ScrollText} title="Audit logs" subtitle="Who changed what, and when - from change history, the app's action log and sign-in records" actions={<Button variant="secondary" onClick={exportCsv} disabled={!(state.data || []).length}><Download size={14} /> CSV</Button>} />
+      <PageHeader icon={ScrollText} title="Audit Logs" subtitle="Who changed what, and when - from change history, the app's action log and sign-in records" actions={<Button variant="secondary" onClick={exportCsv} disabled={!(state.data || []).length}><Download size={14} /> CSV</Button>} />
       <Tabs value={tab} onChange={(t) => { setTab(t); setLimit(PAGE); }} tabs={[{ id: "changes", label: "Record Changes" }, { id: "actions", label: "App Actions" }, { id: "signins", label: "Sign-Ins", count: failed || undefined }]} />
       <Panel>
         <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-5">
@@ -82,7 +82,7 @@ export default function AuditLogs() {
                 { key: "creation", label: "When", render: (v) => dmyHm(v.creation) },
                 { key: "owner", label: "User" },
                 { key: "ref_doctype", label: "Record", render: (v) => <span>{v.ref_doctype}<span className="block text-[11px] text-[var(--color-text-faint)]">{v.docname}</span></span> },
-                { key: "what", label: "What changed", render: (v) => <button type="button" onClick={() => setOpen(v)} className="text-left hover:underline">{summary(v.parsed)}</button> },
+                { key: "what", label: "What Changed", render: (v) => <button type="button" onClick={() => setOpen(v)} className="text-left hover:underline">{summary(v.parsed)}</button> },
               ]} />}
               {tab === "actions" && <Grid rows={rows} empty="No app actions in this period." columns={[
                 { key: "creation", label: "When", render: (c) => dmyHm(c.creation) },
@@ -95,7 +95,7 @@ export default function AuditLogs() {
                 { key: "user", label: "User", render: (s) => <span>{s.full_name || s.user}<span className="block text-[11px] text-[var(--color-text-faint)]">{s.user}</span></span> },
                 { key: "operation", label: "Event" },
                 { key: "status", label: "Status", render: (s) => <span className={s.status === "Failed" ? "text-[var(--color-red-hover)]" : "text-[var(--color-green)]"}>{s.status}</span> },
-                { key: "ip_address", label: "IP address", render: (s) => s.ip_address || "—" },
+                { key: "ip_address", label: "IP Address", render: (s) => s.ip_address || "—" },
               ]} />}
               {rows.length >= limit && <div className="mt-3 flex justify-center"><Button variant="secondary" onClick={() => setLimit((l) => l + PAGE)}>Load more</Button></div>}
             </>
