@@ -10,6 +10,8 @@ import { APPROVAL_FIELDS, APPROVAL_SCRIPTS, APPROVAL_TRACK } from "./approvalSet
 import { ASSET_FIELDS, ASSET_SCRIPTS, ASSET_TRACK } from "./assetSetup";
 import { OFFICE_FIELDS, OFFICE_SCRIPTS, OFFICE_TRACK } from "./officeSetup";
 import { ATTENDANCE_SCRIPTS } from "./attendanceSetup";
+import { CONTRACTOR_FIELDS, CONTRACTOR_RECORDS, CONTRACTOR_SCRIPTS } from "./contractorSetup";
+import { PROJECT_ROLE_DOCTYPES, PROJECT_ROLE_FIELDS, PROJECT_ROLE_SCRIPTS, PROJECT_ROLE_TRACK } from "./projectRoleSetup";
 
 export const MODULES = [
   { id: "recruitment", label: "Recruitment", fields: RECRUITMENT_FIELDS, scripts: RECRUITMENT_SCRIPTS, track: RECRUITMENT_TRACK },
@@ -20,6 +22,8 @@ export const MODULES = [
   { id: "assets", label: "Asset register", fields: ASSET_FIELDS, scripts: ASSET_SCRIPTS, track: ASSET_TRACK },
   { id: "offices", label: "Office locations & holidays", fields: OFFICE_FIELDS, scripts: OFFICE_SCRIPTS, track: OFFICE_TRACK },
   { id: "attendance", label: "Attendance from punches", fields: [], scripts: ATTENDANCE_SCRIPTS, track: [] },
+  { id: "projectRoles", label: "Project roles", doctypes: PROJECT_ROLE_DOCTYPES, fields: PROJECT_ROLE_FIELDS, scripts: PROJECT_ROLE_SCRIPTS, track: PROJECT_ROLE_TRACK },
+  { id: "contractors", label: "Contractors", records: CONTRACTOR_RECORDS, fields: CONTRACTOR_FIELDS, scripts: CONTRACTOR_SCRIPTS, track: [] },
 ];
 
 const ALL_FIELDS = MODULES.flatMap((m) => m.fields);
@@ -29,13 +33,19 @@ const ALL_PROPS = MODULES.flatMap((m) => m.properties || []);
 const propKey = (p) => `${p.doc_type}:${p.field_name || ""}:${p.property}`;
 
 export async function setupStatus() {
-  const [fields, setters, props, scripts, sources] = await Promise.all([
+  const doctypeNames = MODULES.flatMap((m) => (m.doctypes || []).map((d) => d.name));
+  const [fields, setters, props, scripts, sources, doctypes] = await Promise.all([
     frappe.getList("Custom Field", { filters: [["dt", "in", [...new Set(ALL_FIELDS.map((f) => f.dt))]], ["fieldname", "in", ALL_FIELDS.map((f) => f.fieldname)]], fields: ["dt", "fieldname"], limit: 0 }).catch(() => null),
     frappe.getList("Property Setter", { filters: [["doc_type", "in", ALL_TRACK], ["property", "=", "track_changes"]], fields: ["doc_type", "value"], limit: 0 }).catch(() => null),
     ALL_PROPS.length ? frappe.getList("Property Setter", { filters: [["doc_type", "in", [...new Set(ALL_PROPS.map((p) => p.doc_type))]], ["property", "in", [...new Set(ALL_PROPS.map((p) => p.property))]]], fields: ["doc_type", "field_name", "property", "value"], limit: 0 }).catch(() => null) : Promise.resolve([]),
     frappe.getList("Server Script", { filters: [["name", "in", ALL_SCRIPTS.map((s) => s.name)]], fields: ["name", "disabled", "script"], limit: 0 }).catch(() => null),
     frappe.getList("Job Applicant Source", { fields: ["name"], limit: 0 }).catch(() => null),
+    frappe.getList("DocType", { filters: [["name", "in", doctypeNames]], fields: ["name"], limit: 0 }).catch(() => null),
   ]);
+  const recordExists = {};
+  for (const r of MODULES.flatMap((m) => m.records || [])) {
+    recordExists[`${r.doctype}:${r.name}`] = await frappe.getList(r.doctype, { filters: [["name", "=", r.name]], fields: ["name"], limit: 1 }).then((x) => x.length > 0).catch(() => false);
+  }
   const have = new Set((fields || []).map((f) => `${f.dt}:${f.fieldname}`));
   const haveProps = new Map((props || []).map((p) => [propKey(p), String(p.value)]));
   const scriptOk = (s) => Boolean((scripts || []).find((x) => x.name === s.name && !Number(x.disabled) && String(x.script || "").trim() === s.script.trim()));
@@ -44,6 +54,8 @@ export async function setupStatus() {
     scriptsReadable: scripts !== null,
     modules: MODULES.map((m) => ({
       ...m,
+      missingDoctypes: (m.doctypes || []).filter((d) => !(doctypes || []).some((x) => x.name === d.name)),
+      missingRecords: (m.records || []).filter((r) => !recordExists[`${r.doctype}:${r.name}`]),
       missingFields: m.fields.filter((f) => !have.has(`${f.dt}:${f.fieldname}`)),
       untracked: setters === null ? m.track : m.track.filter((d) => !(setters || []).some((s) => s.doc_type === d && String(s.value) === "1")),
       missingProps: (m.properties || []).filter((p) => haveProps.get(propKey(p)) !== String(p.value)),
@@ -62,6 +74,23 @@ export async function runSetup(onStep = () => {}) {
   let scriptsBlocked = false;
 
   for (const m of status.modules) {
+    for (const d of m.missingDoctypes) {
+      try {
+        await frappe.createDoc("DocType", d.doc);
+        step(`${m.label}: added - ${d.what}`);
+        for (const row of d.seed || []) await frappe.createDoc(d.name, row);
+      } catch (e) {
+        step(`${m.label}: couldn't add ${d.name}: ${why(e)}`, false);
+      }
+    }
+    for (const r of m.missingRecords) {
+      try {
+        await frappe.createDoc(r.doctype, r.doc);
+        step(`${m.label}: added - ${r.what}`);
+      } catch (e) {
+        step(`${m.label}: couldn't add ${r.what}: ${why(e)}`, false);
+      }
+    }
     for (const f of m.missingFields) {
       try {
         await frappe.createDoc("Custom Field", f);

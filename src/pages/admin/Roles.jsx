@@ -12,7 +12,7 @@ import { confirmDialog } from "../../components/ui/dialogs";
  * Custom DocPerm first - so granting one permission never wipes the others.
  */
 const PM = "frappe.core.page.permission_manager.permission_manager";
-const ROLES = ["HR Manager", "HR User", "Projects Manager", "Employee", "Interviewer", "Leave Approver", "Expense Approver"];
+const ROLES = ["HR Manager", "HR User", "Projects Manager", "Employee", "Contractor", "Interviewer", "Leave Approver", "Expense Approver"];
 const FLAGS = ["read", "write", "create", "delete", "submit", "cancel", "amend", "report", "export", "share", "print", "email"];
 
 // Everything HR needs to add an employee AND give them a login in one go. Each line below was a
@@ -117,7 +117,18 @@ const EXPENSE_APPROVER_PRESET = [
   { doctype: "File", perms: ["read"], why: "Open the attached bills" },
   { doctype: "Comment", perms: ["read", "create"], why: "Reason for a rejection" },
 ];
+const CONTRACTOR_PRESET = [
+  { doctype: "Project", perms: ["read"], why: "Their own projects (limited by a server rule)" },
+  { doctype: "Task", perms: ["read"], why: "Their role on each project" },
+  { doctype: "Timesheet", perms: ["read", "write", "create", "delete", "submit"], why: "Create and submit their own timesheet" },
+  { doctype: "Employee", perms: ["read"], why: "Their own record, which timesheets link to" },
+  { doctype: "Company", perms: ["read"], why: "Company on the timesheet" },
+  { doctype: "Holiday List", perms: ["read"], why: "Days off when filling a timesheet" },
+  { doctype: "Activity Type", perms: ["read"], why: "Timesheet details" },
+];
+
 const PRESETS = {
+  Contractor: CONTRACTOR_PRESET,
   "Leave Approver": LEAVE_APPROVER_PRESET,
   "Expense Approver": EXPENSE_APPROVER_PRESET,
   Interviewer: INTERVIEWER_PRESET,

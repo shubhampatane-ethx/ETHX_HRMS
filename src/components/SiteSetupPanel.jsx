@@ -35,6 +35,8 @@ export function SiteSetupPanel() {
             {st.modules.map((m) => (
               <div key={m.id} className="space-y-1.5">
                 <p className="font-medium">{m.label}</p>
+                {(m.records || []).map((r) => <p key={r.name} className="flex items-start gap-2"><Ok ok={!m.missingRecords.includes(r)} /><span>{r.what}</span></p>)}
+                {(m.doctypes || []).map((d) => <p key={d.name} className="flex items-start gap-2"><Ok ok={!m.missingDoctypes.includes(d)} /><span>{d.what}</span></p>)}
                 {m.fields.length > 0 && <p className="flex items-start gap-2"><Ok ok={!m.missingFields.length} /> Custom fields {m.missingFields.length ? `- ${m.missingFields.length} missing` : `- ${m.fields.length} present`}</p>}
                 {m.track.length > 0 && <p className="flex items-start gap-2"><Ok ok={!m.untracked.length} /> Change history {m.untracked.length ? `- off for ${m.untracked.join(", ")}` : "- on"}</p>}
                 {(m.properties || []).length > 0 && <p className="flex items-start gap-2"><Ok ok={!m.missingProps.length} /> Field restrictions {m.missingProps.length ? `- ${m.missingProps.length} to apply` : "- applied"}</p>}

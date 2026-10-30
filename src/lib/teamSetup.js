@@ -91,7 +91,7 @@ if clean.get("blood_group") and clean["blood_group"] not in ["A+", "A-", "B+", "
     frappe.throw("Choose a blood group from the list.")
 if clean.get("marital_status") and clean["marital_status"] not in ["Single", "Married", "Divorced", "Widowed"]:
     frappe.throw("Choose a marital status from the list.")
-if clean.get("personal_email") and not frappe.utils.validate_email_address(clean["personal_email"]):
+if clean.get("personal_email") and ("@" not in clean["personal_email"] or "." not in clean["personal_email"] or " " in clean["personal_email"]):
     frappe.throw("Enter a valid personal email address.")
 if clean:
     frappe.db.set_value("Employee", emp.name, clean)

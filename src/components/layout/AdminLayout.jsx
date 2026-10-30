@@ -23,6 +23,7 @@ const PM_WORKSPACE = {
     { to: "/pm", label: "PM Dashboard" },
     { to: "/pm/projects", label: "Projects" },
     { to: "/pm/assignments", label: "Assignments" },
+    { to: "/admin/project-roles", label: "Project Roles" },
     { to: "/pm/approvals", label: "Timesheet Approvals" },
     { to: "/pm/leave-approvals", label: "Leave Approvals" },
     { to: "/pm/resources", label: "Resources" },
@@ -53,6 +54,7 @@ const TITLES = {
   "/admin/setup": "System Setup",
   "/admin/employees": "All Employees",
   "/admin/project-managers": "Project Managers",
+  "/admin/project-roles": "Project Roles",
 };
 
 export function AdminLayout() {

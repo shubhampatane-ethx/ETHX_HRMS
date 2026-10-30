@@ -6,7 +6,6 @@ import { frappe } from "./api/frappeClient";
 import { listTry } from "./employeePortal";
 
 export const ASSIGNMENT_MARK = "[ETHX Assignment]";
-export const ROLE_SUGGESTIONS = ["Developer", "Senior Developer", "Tech Lead", "Designer", "QA / Tester", "Business Analyst", "DevOps", "Support", "Project Coordinator"];
 
 const pad = (n) => String(n).padStart(2, "0");
 const nextDay = (iso) => {

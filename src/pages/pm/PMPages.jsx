@@ -1,29 +1,37 @@
 // Project Manager pages: dashboard, projects, and assignments (who works on what, in which role, until when).
 import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Ban, Briefcase, CalendarClock, CheckCheck, ClipboardList, Pencil, Plus, Users } from "lucide-react";
+import { Ban, Briefcase, CalendarClock, CheckCheck, ClipboardList, Flag, Pencil, Plus, UserPlus, Users } from "lucide-react";
 import { frappe } from "../../lib/api/frappeClient";
 import { useAuth } from "../../context/AuthContext";
 import { Button, DateField, LinkField } from "../../components/ui/primitives";
 import { Async, chipCls, Empty, Field, Grid, inputCls, Modal, Notice, PageHeader, Panel, Stat, StatusPill } from "../../components/employee/EmployeeShell";
 import { dmy, errMsg, isoDate, listTry, useAsync } from "../../lib/employeePortal";
-import { createAssignment, listAssignments, parseAssignment, ROLE_SUGGESTIONS, setAssignmentStatus, updateAssignment, workingDays } from "../../lib/assignments";
+import { createAssignment, listAssignments, parseAssignment, setAssignmentStatus, updateAssignment, workingDays } from "../../lib/assignments";
+import { assertManagerRuleInstalled, loadProjectRoles, managerOf, managesProject, setProjectManager } from "../../lib/projectRoles";
+import { hasPermission } from "../../permissions/roles";
+import { addContractor, endProject, listContractors, previewEndProject } from "../../lib/contractors";
 import { alertDialog, confirmDialog } from "../../components/ui/dialogs";
 
-const loadProjects = () => listTry("Project", { fields: ["name", "project_name", "status", "expected_start_date", "expected_end_date", "percent_complete", "company"], orderBy: "modified desc" }, ["name", "project_name", "status", "expected_end_date", "company"]);
+const loadProjects = () => listTry("Project", { fields: ["name", "project_name", "status", "expected_start_date", "expected_end_date", "percent_complete", "company", "custom_project_manager", "owner"], orderBy: "modified desc" }, ["name", "project_name", "status", "expected_end_date", "company"]);
 const loadEmployees = () => listTry("Employee", { filters: [["status", "=", "Active"]], fields: ["name", "employee_name", "user_id", "department", "designation", "company"], orderBy: "employee_name asc" }, ["name", "employee_name", "user_id", "company"]);
 const projectLabel = (p) => (p.project_name && p.project_name !== p.name ? p.project_name : p.name);
 const ACTIVE = ["Open", "Working", "Pending Review", "Overdue"];
 const isActive = (a) => ACTIVE.includes(a.status);
 
 function useTeam() {
-  const projects = useAsync(loadProjects, []);
+  const { user } = useAuth();
+  const seesAll = hasPermission(user, "dashboard.admin") || hasPermission(user, "dashboard.hr");
+  // ERPNext also returns projects this person only works on (for their timesheet); the workspace is for the ones they manage.
+  const allProjects = useAsync(loadProjects, []);
+  const projects = useMemo(() => ({ ...allProjects, data: allProjects.data?.filter((p) => seesAll || !("owner" in p) || managerOf(p) === user.email) }), [allProjects, seesAll, user.email]);
   const employees = useAsync(loadEmployees, []);
   const assignments = useAsync(listAssignments, []);
-  const byUser = useMemo(() => Object.fromEntries((employees.data || []).filter((e) => e.user_id).map((e) => [e.user_id, e])), [employees.data]);
+  const contractors = useAsync(listContractors, []);
+  const byUser = useMemo(() => Object.fromEntries([...(employees.data || []), ...(contractors.data || [])].filter((e) => e.user_id).map((e) => [e.user_id, e])), [employees.data, contractors.data]);
   const projectMap = useMemo(() => Object.fromEntries((projects.data || []).map((p) => [p.name, p])), [projects.data]);
-  const rows = useMemo(() => (assignments.data || []).map(parseAssignment).map((a) => ({ ...a, employee: byUser[a.assignees[0]], projectName: projectMap[a.project] ? projectLabel(projectMap[a.project]) : a.project })), [assignments.data, byUser, projectMap]);
-  return { projects, employees, assignments, rows };
+  const rows = useMemo(() => (assignments.data || []).map(parseAssignment).filter((a) => projectMap[a.project]).map((a) => ({ ...a, employee: byUser[a.assignees[0]], projectName: projectMap[a.project] ? projectLabel(projectMap[a.project]) : a.project })), [assignments.data, byUser, projectMap]);
+  return { projects, employees, assignments, contractors, rows };
 }
 
 /* ------------------------------- dashboard ------------------------------- */
@@ -68,8 +76,32 @@ export function PMDashboard() {
 /* -------------------------------- projects -------------------------------- */
 
 export function PMProjects() {
-  const { projects, rows } = useTeam();
+  const { user } = useAuth();
+  const isAdmin = hasPermission(user, "dashboard.admin");
+  const { projects, employees, assignments, contractors, rows } = useTeam();
   const [open, setOpen] = useState(false);
+  const [adding, setAdding] = useState(null);
+  const ended = (p) => ["Completed", "Cancelled"].includes(p.status);
+
+  async function end(p) {
+    try {
+      const { remove, kept } = await previewEndProject(p.name);
+      const lines = [`End ${projectLabel(p)}? It is marked Completed.`];
+      if (remove.length) {
+        lines.push(`\nThese contractors' logins and details are deleted permanently. This can't be undone. Their timesheets stay, with just their name:`);
+        remove.forEach((c) => lines.push(`• ${c.name}${c.unsubmitted ? ` (${c.unsubmitted} timesheet(s) not submitted yet: they can no longer submit them)` : ""}`));
+      }
+      if (kept.length) lines.push(`\nStaying because they work on another live project: ${kept.map((c) => c.name).join(", ")}.`);
+      if (!(await confirmDialog({ title: "End Project", message: lines.join("\n"), danger: true, confirmLabel: remove.length ? "End and delete contractors" : "End project" }))) return;
+      await endProject(p.name);
+      projects.reload();
+      contractors.reload();
+      assignments.reload();
+    } catch (e) {
+      alertDialog({ tone: "error", message: errMsg(e, "Couldn't end this project.") });
+    }
+  }
+  const nameOf = (email) => (employees.data || []).find((e) => e.user_id === email)?.employee_name || email;
   const team = (id) => new Set(rows.filter((a) => a.project === id && isActive(a)).flatMap((a) => a.assignees)).size;
 
   return (
@@ -79,16 +111,84 @@ export function PMProjects() {
         <Async state={projects}>
           {(list) => <Grid rows={list} empty="No projects yet." columns={[
             { key: "name", label: "Project", render: (p) => <span>{projectLabel(p)}{p.project_name && p.project_name !== p.name && <span className="ml-2 text-[11px] text-[var(--color-text-faint)]">{p.name}</span>}</span> },
+            { key: "manager", label: "Project Manager", render: (p) => (managerOf(p) ? nameOf(managerOf(p)) : "—") },
             { key: "status", label: "Status", render: (p) => <StatusPill status={p.status} /> },
             { key: "expected_end_date", label: "ETA", render: (p) => dmy(p.expected_end_date) || "—" },
             { key: "percent_complete", label: "Progress", render: (p) => (p.percent_complete != null ? `${Math.round(p.percent_complete)}%` : "—") },
             { key: "team", label: "Team", render: (p) => team(p.name) },
-            { key: "_a", label: "", render: (p) => <Link to={`/pm/assignments?assign=${encodeURIComponent(p.name)}`} className="text-[11px] text-[var(--color-red-hover)] hover:underline">Assign</Link> },
+            { key: "_a", label: "", render: (p) => (ended(p) ? null : (
+              <div className="flex items-center justify-end gap-3 whitespace-nowrap text-[11px]">
+                <Link to={`/pm/assignments?assign=${encodeURIComponent(p.name)}`} className="text-[var(--color-red-hover)] hover:underline">Assign</Link>
+                <button type="button" onClick={() => setAdding(p)} className="flex items-center gap-1 text-[var(--color-red-hover)] hover:underline"><UserPlus size={12} /> Add Contractor</button>
+                {isAdmin && <button type="button" onClick={() => end(p)} className="flex items-center gap-1 text-[var(--color-text-muted)] hover:text-[var(--color-red-hover)]"><Flag size={12} /> End Project</button>}
+              </div>
+            )) },
           ]} />}
         </Async>
       </Panel>
+      <Panel title="Contractors" hint="People who exist only for a project. They see their projects and their own timesheet, and are removed when the Administrator ends their last project.">
+        <Async state={contractors}>
+          {(list) => <Grid rows={list} empty="No contractors yet." columns={[
+            { key: "employee_name", label: "Contractor", render: (c) => <span>{c.employee_name}<span className="block text-[11px] text-[var(--color-text-faint)]">{c.user_id}</span></span> },
+            { key: "projects", label: "Projects and Roles", render: (c) => rows.filter((a) => isActive(a) && a.assignees.includes(c.user_id)).map((a) => `${a.projectName}: ${a.role}`).join(", ") || "—" },
+          ]} />}
+        </Async>
+      </Panel>
+      {adding && <ContractorModal project={adding} onClose={() => setAdding(null)} onSaved={() => { setAdding(null); contractors.reload(); assignments.reload(); }} />}
       {open && <ProjectModal onClose={() => setOpen(false)} onSaved={() => { setOpen(false); projects.reload(); }} />}
     </>
+  );
+}
+
+/** New contractor on a project, or an existing one (same email) joining another project. */
+function ContractorModal({ project, onClose, onSaved }) {
+  const roleList = useAsync(loadProjectRoles, []);
+  const roles = (roleList.data?.roles || []).filter((r) => !Number(r.disabled) && !Number(r.manages_project));
+  const [f, setF] = useState({ name: "", email: "", password: "", role: "", start: project.expected_start_date || isoDate(), eta: project.expected_end_date || "", hours: "8", notes: "" });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const hours = Number(f.hours) || 0;
+
+  async function submit(e) {
+    e.preventDefault();
+    if (!f.eta) return setErr("Enter the end date.");
+    if (f.eta < f.start) return setErr("The end date can't be before the start date.");
+    if (!(hours > 0 && hours <= 24)) return setErr("Hours per day must be between 0 and 24.");
+    setBusy(true);
+    setErr("");
+    try {
+      await addContractor({ project: project.name, projectLabel: projectLabel(project), fullName: f.name.trim(), email: f.email.trim(), password: f.password, role: f.role, start: f.start, eta: f.eta, hoursPerDay: hours, notes: f.notes.trim() });
+      onSaved();
+    } catch (x) {
+      setErr(errMsg(x, "Couldn't add the contractor."));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title={`Add Contractor · ${projectLabel(project)}`} onClose={onClose} wide>
+      <form onSubmit={submit} className="space-y-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Field label="Full name"><input required className={inputCls} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
+          <Field label="Email (their login)" hint="Already a contractor on another project? Use the same email and they keep their login."><input required type="email" className={inputCls} value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></Field>
+          <Field label="Temporary password" hint="They must change it at first sign-in. Not needed for an existing contractor."><input type="password" autoComplete="new-password" minLength={8} className={inputCls} value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} /></Field>
+          <Field label="Role on this project">
+            <select required className={inputCls} value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })}>
+              <option value="">Select…</option>
+              {roles.map((r) => <option key={r.name} value={r.role_name}>{r.role_name}</option>)}
+            </select>
+          </Field>
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <DateField label="Start date" value={f.start} onChange={(v) => setF({ ...f, start: v, eta: f.eta && f.eta < v ? v : f.eta })} required />
+          <DateField label="End date" value={f.eta} onChange={(v) => setF({ ...f, eta: v })} required />
+          <Field label="Hours per day"><input type="number" min="0.25" max="24" step="0.25" required className={inputCls} value={f.hours} onChange={(e) => setF({ ...f, hours: e.target.value })} /></Field>
+        </div>
+        <Field label="Notes (optional)"><textarea rows={2} className={inputCls} value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} /></Field>
+        {err && <Notice>{err}</Notice>}
+        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Adding…" : "Add contractor"}</Button></div>
+      </form>
+    </Modal>
   );
 }
 
@@ -132,6 +232,8 @@ const FILTERS = [["active", "Active"], ["completed", "Completed"], ["cancelled",
 
 export function PMAssignments() {
   const { projects, employees, assignments, rows } = useTeam();
+  const roleList = useAsync(loadProjectRoles, []);
+  const roles = roleList.data?.roles || [];
   const [params, setParams] = useSearchParams();
   const [filter, setFilter] = useState("active");
   const [projectFilter, setProjectFilter] = useState("");
@@ -144,8 +246,14 @@ export function PMAssignments() {
   async function setStatus(a, status, text) {
     if (!(await confirmDialog(text))) return;
     try {
+      // Finishing a manager's assignment ends their management of that project too.
+      const project = (projects.data || []).find((p) => p.name === a.project);
+      const endsManagement = managesProject(roles, a.role) && project?.custom_project_manager === a.assignees[0];
+      if (endsManagement) await assertManagerRuleInstalled();
       await setAssignmentStatus(a.name, status, a);
+      if (endsManagement) await setProjectManager(a.project, "");
       assignments.reload();
+      projects.reload();
     } catch (e) {
       alertDialog({ tone: "error", message: errMsg(e, "Couldn't update the assignment.") });
     }
@@ -180,12 +288,12 @@ export function PMAssignments() {
           ]} />}
         </Async>
       </Panel>
-      {modal && <AssignModal init={modal} projects={projects.data || []} employees={employees.data || []} active={rows.filter(isActive)} onClose={closeModal} onSaved={() => { closeModal(); assignments.reload(); }} />}
+      {modal && <AssignModal init={modal} projects={projects.data || []} employees={employees.data || []} roles={roles} active={rows.filter(isActive)} onClose={closeModal} onSaved={(text) => { closeModal(); assignments.reload(); projects.reload(); if (text) alertDialog({ tone: "success", title: "Project Manager Set", message: text }); }} />}
     </>
   );
 }
 
-function AssignModal({ init, projects, employees, active, onClose, onSaved }) {
+function AssignModal({ init, projects, employees, roles, active, onClose, onSaved }) {
   const edit = init.edit;
   const lastDay = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0);
   const [f, setF] = useState(() => edit
@@ -205,13 +313,26 @@ function AssignModal({ init, projects, employees, active, onClose, onSaved }) {
     e.preventDefault();
     if (f.eta < f.start) return setErr("The ETA can't be before the start date.");
     if (!(hours > 0 && hours <= 24)) return setErr("Hours per day must be between 0 and 24.");
+    const makeManager = managesProject(roles, f.role);
+    const wasManager = edit && managesProject(roles, edit.role);
+    const person = (email) => employees.find((x) => x.user_id === email)?.employee_name || email;
+    const current = project?.custom_project_manager;
+    const replacing = makeManager && current && current !== f.email && current !== "Administrator";
+    if (replacing && !(await confirmDialog({ title: "Replace Project Manager", message: `${person(current)} manages ${label} now. A project has one manager at a time: make ${person(f.email)} the manager instead?`, confirmLabel: "Replace" }))) return;
     setBusy(true);
     setErr("");
     try {
+      if (makeManager || wasManager) await assertManagerRuleInstalled();
       const data = { project: f.project, projectLabel: label, email: f.email, role: f.role.trim(), start: f.start, eta: f.eta, hoursPerDay: hours, notes: f.notes.trim() };
       if (edit) await updateAssignment(edit.name, data);
       else await createAssignment(data);
-      onSaved();
+      if (replacing) {
+        // The previous manager's assignment ends with their role; done first, while the signed-in person may still change the team.
+        for (const a of active.filter((x) => x.project === f.project && x.name !== edit?.name && x.assignees.includes(current) && managesProject(roles, x.role))) await setAssignmentStatus(a.name, "Completed", a);
+      }
+      if (makeManager) await setProjectManager(f.project, f.email);
+      else if (wasManager && current === f.email) await setProjectManager(f.project, "");
+      onSaved(makeManager && current !== f.email ? `${person(f.email)} now manages ${label}. They need to sign out and back in to get the Project Manager workspace.` : "");
     } catch (x) {
       setErr(errMsg(x, "Couldn't save the assignment."));
       setBusy(false);
@@ -229,9 +350,12 @@ function AssignModal({ init, projects, employees, active, onClose, onSaved }) {
             {edit ? <p className="py-2 text-[13px] text-[var(--color-text)]">{employees.find((x) => x.user_id === f.email)?.employee_name || f.email}</p> : <select required className={inputCls} value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })}><option value="">Select…</option>{employees.map((x) => <option key={x.name} value={x.user_id || ""} disabled={!x.user_id}>{x.employee_name}{x.designation ? ` · ${x.designation}` : ""}{x.user_id ? "" : " (no login)"}</option>)}</select>}
           </Field>
         </div>
-        <Field label="Role on this project">
-          <input required list="pm-roles" className={inputCls} value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })} placeholder="e.g. Developer" />
-          <datalist id="pm-roles">{ROLE_SUGGESTIONS.map((r) => <option key={r} value={r} />)}</datalist>
+        <Field label="Role on this project" hint={managesProject(roles, f.role) ? "This person will manage this project: assign its team and approve its timesheets, on this project only." : undefined}>
+          <select required className={inputCls} value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })}>
+            <option value="">Select…</option>
+            {edit && !roles.some((r) => r.role_name === f.role) && <option>{f.role}</option>}
+            {roles.filter((r) => !Number(r.disabled) || r.role_name === f.role).map((r) => <option key={r.name} value={r.role_name}>{r.role_name}</option>)}
+          </select>
         </Field>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <DateField label="Start date" value={f.start} onChange={(v) => setF({ ...f, start: v, eta: f.eta < v ? v : f.eta })} required />

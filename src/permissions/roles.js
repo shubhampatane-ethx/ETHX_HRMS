@@ -71,6 +71,8 @@ export const PERMISSIONS = {
     "leave.own.apply",
     "payroll.own.view",
   ],
+  // People who exist only for a project: their projects and their own timesheet, nothing else.
+  CONTRACTOR: ["dashboard.contractor"],
   PROJECT_MANAGER: [
     "dashboard.pm",
     "projects.manage",
@@ -101,6 +103,7 @@ const ROLE_MAP = {
   "HR Manager": "HR_USER",
   "HR User": "HR_USER",
   Employee: "EMPLOYEE",
+  Contractor: "CONTRACTOR",
   "Projects Manager": "PROJECT_MANAGER", // ERPNext's standard Projects Manager role
 };
 
@@ -118,6 +121,7 @@ export function primaryAppRole(erpRoles = []) {
   if (erpRoles.includes("System Manager")) return "admin";
   if (erpRoles.some((r) => ["HR Manager", "HR User"].includes(r))) return "hr";
   if (erpRoles.includes("Projects Manager")) return "pm";
+  if (erpRoles.includes("Contractor")) return "contractor";
   if (erpRoles.includes("Employee")) return "employee";
   return null;
 }
@@ -139,5 +143,5 @@ export function homePath(user) {
   const role = primaryAppRole(user?.roles);
   if (role === "admin") return "/admin";
   if (isStaffEmployee(user)) return "/employee";
-  return role === "hr" ? "/hr" : role === "pm" ? "/pm" : role === "employee" ? "/employee" : "/";
+  return role === "hr" ? "/hr" : role === "pm" ? "/pm" : role === "contractor" ? "/contractor" : role === "employee" ? "/employee" : "/";
 }

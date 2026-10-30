@@ -2,6 +2,7 @@ import { Outlet, useLocation } from "react-router-dom";
 import { PageLoading } from "../PageLoading";
 import {
   LayoutDashboard,
+  Briefcase,
   UserRound,
   Users,
   CalendarCheck,
@@ -100,6 +101,8 @@ export function hrNav(user) {
     ...(isAdmin ? [{ to: "/admin", label: "Back to Admin", icon: ArrowLeft }] : []),
     dashboardLink(user, "/hr"),
     ...(isStaffEmployee(user) ? [SELF_SERVICE] : []),
+    // HR staff made manager of a project (project-based role).
+    ...(!isAdmin && hasPermission(user, "dashboard.pm") ? [{ label: "My Projects", icon: Briefcase, children: [{ to: "/pm/projects", label: "Projects" }, { to: "/pm/assignments", label: "Assignments" }, { to: "/pm/approvals", label: "Timesheet Approvals" }, { to: "/pm/timesheets", label: "Team Timesheets" }] }] : []),
     ...rest,
     ...hrSetupGroups(isAdmin),
   ];

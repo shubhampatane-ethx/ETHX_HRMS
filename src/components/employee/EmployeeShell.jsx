@@ -2,7 +2,7 @@
 import { PageLoading } from "../PageLoading";
 import { createContext, useContext, useEffect, useState, Suspense } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
-import { AlertCircle, ArrowRight, CalendarCheck, ClipboardCheck, FileText, Inbox, LayoutDashboard, LifeBuoy, Loader2, Target, Wallet, X } from "lucide-react";
+import { AlertCircle, ArrowRight, Briefcase, CalendarCheck, ClipboardCheck, FileText, Inbox, LayoutDashboard, LifeBuoy, Loader2, Target, Timer, Wallet, X } from "lucide-react";
 import { errMsg, friendlyError, getMyEmployee, isoDate, useAsync } from "../../lib/employeePortal";
 import { frappe } from "../../lib/api/frappeClient";
 import { Brand } from "../Brand";
@@ -384,6 +384,33 @@ function Gate() {
     );
   }
   return <Suspense fallback={<PageLoading />}><Outlet /></Suspense>;
+}
+
+const CONTRACTOR_NAV = [
+  { to: "/contractor", label: "My Projects", icon: Briefcase },
+  { to: "/contractor/timesheet", label: "Timesheet", icon: Timer },
+];
+
+/** Contractors: only their projects and their own timesheet. */
+export function ContractorLayout() {
+  const { pathname } = useLocation();
+  const { user } = useAuth();
+  if (user?.mustChangePassword) return <ForcedPasswordScreen />;
+  return (
+    <EmployeeProvider>
+      <div className="flex h-screen overflow-hidden bg-[var(--color-bg)]">
+        <Sidebar title="Contractor" items={CONTRACTOR_NAV} />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <Topbar roleLabel="Contractor" pageTitle={pathname.endsWith("/timesheet") ? "Timesheet" : "My Projects"} />
+          <main className="flex-1 overflow-y-auto p-6">
+            <div className="mx-auto max-w-6xl space-y-5">
+              <Gate />
+            </div>
+          </main>
+        </div>
+      </div>
+    </EmployeeProvider>
+  );
 }
 
 export function EmployeeLayout() {

@@ -46,7 +46,7 @@ async function resolveCompany(user, selectedCompany) {
   const isAdmin = roles.includes("System Manager");
   let companyName = isAdmin ? selectedCompany || readStorage(SELECTED_COMPANY_KEY) : "";
 
-  if (!companyName && roles.includes("Employee")) {
+  if (!companyName && (roles.includes("Employee") || roles.includes("Contractor"))) {
     const employee = await getMyEmployee(user.email).catch(() => null);
     companyName = employee?.company || "";
   }

@@ -16,6 +16,7 @@ const PMAssignments = lazy(() => import("./pages/pm/PMPages").then((m) => ({ def
 const PMDashboard = lazy(() => import("./pages/pm/PMPages").then((m) => ({ default: m.PMDashboard })));
 const PMProjects = lazy(() => import("./pages/pm/PMPages").then((m) => ({ default: m.PMProjects })));
 const ProjectManagers = lazy(() => import("./pages/admin/ProjectManagers"));
+const ProjectRoles = lazy(() => import("./pages/admin/ProjectRoles"));
 const PMApprovals = lazy(() => import("./pages/pm/PMApprovals"));
 const PMLeaveApprovals = lazy(() => import("./pages/pm/PMLeaveApprovals"));
 const MyTeam = lazy(() => import("./pages/shared/MyTeam"));
@@ -29,7 +30,8 @@ const Settings = lazy(() => import("./pages/admin/Settings"));
 const AuditLogs = lazy(() => import("./pages/admin/AuditLogs"));
 const ErpSetup = lazy(() => import("./pages/admin/ErpSetup"));
 
-import { EmployeeLayout } from "./components/employee/EmployeeShell";
+import { ContractorLayout, EmployeeLayout } from "./components/employee/EmployeeShell";
+const ContractorProjects = lazy(() => import("./pages/contractor/ContractorProjects"));
 
 const EmpDashboard = lazy(() => import("./pages/employee/EmployeePages").then((m) => ({ default: m.EmpDashboard })));
 const EmpProfile = lazy(() => import("./pages/employee/EmployeePages").then((m) => ({ default: m.EmpProfile })));
@@ -95,6 +97,7 @@ export default function App() {
               <Route path="users" element={<AdminUsers />} />
               <Route path="employees" element={<Employees />} />
               <Route path="project-managers" element={<ProjectManagers />} />
+              <Route path="project-roles" element={<ProjectRoles />} />
               <Route path="organization" element={<Organization />} />
               <Route path="roles" element={<Roles />} />
               <Route path="settings" element={<Settings />} />
@@ -115,6 +118,13 @@ export default function App() {
               <Route path="resources" element={<Resources />} />
               <Route path="requisitions" element={<Requisitions mine />} />
               <Route path="interviews" element={<MyInterviews />} />
+            </Route>
+          </Route>
+
+          <Route element={<RequirePermission permission="dashboard.contractor" />}>
+            <Route path="/contractor" element={<ContractorLayout />}>
+              <Route index element={<ContractorProjects />} />
+              <Route path="timesheet" element={<EmpTimesheet />} />
             </Route>
           </Route>
 

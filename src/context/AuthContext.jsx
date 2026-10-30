@@ -31,9 +31,16 @@ async function resolveAccount(email) {
     if (erpRoles.includes("System Manager")) return { roles: ["System Manager"], mustChangePassword: false, erpRoles };
     if (erpRoles.some((r) => r === "HR Manager" || r === "HR User")) {
       // HR users also use the employee self-service portal for their own records.
-      return { roles: ["HR User", "Employee"], mustChangePassword: false, erpRoles };
+      // A project-based manager role (Projects Manager) stays with them too.
+      return { roles: ["HR User", "Employee", ...(erpRoles.includes("Projects Manager") ? ["Projects Manager"] : [])], mustChangePassword: false, erpRoles };
     }
     const isPm = erpRoles.includes("Projects Manager");
+    // A contractor gets only the contractor pages, even if ERPNext has added the Employee role to their login.
+    if (erpRoles.includes("Contractor") && !isPm) {
+      let done = false;
+      try { done = localStorage.getItem(`pwchanged:${email}`) === "1"; } catch { /* ignore */ }
+      return { roles: ["Contractor"], mustChangePassword: !doc.last_password_reset_date && !done, erpRoles };
+    }
     if (isPm || erpRoles.includes("Employee")) {
       // Admin gave them a temporary password: they must set their own first
       let flagged = false;

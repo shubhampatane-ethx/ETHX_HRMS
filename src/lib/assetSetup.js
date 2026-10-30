@@ -33,10 +33,14 @@ export const ASSET_TRACK = ["Asset"];
 
 // Permission Query: extra condition added to every Asset list for the signed-in user.
 const MY_ASSETS_ONLY = `
-see_all = {"Administrator", "System Manager", "HR Manager", "HR User", "Accounts Manager", "Accounts User", "Stock Manager", "Stock User", "Quality Manager"}
-if user != "Administrator" and not (set(frappe.get_roles(user)) & see_all):
+see_all = ["System Manager", "HR Manager", "HR User", "Accounts Manager", "Accounts User", "Stock Manager", "Stock User", "Quality Manager"]
+limited = user != "Administrator"
+for r in frappe.get_all("Has Role", filters={"parent": user, "parenttype": "User"}, pluck="role"):
+    if r in see_all:
+        limited = False
+if limited:
     emp = frappe.db.get_value("Employee", {"user_id": user}, "name")
-    conditions = "\`tabAsset\`.\`custodian\` = {0}".format(frappe.db.escape(emp)) if emp else "1=0"
+    conditions = "\`tabAsset\`.\`custodian\` = " + frappe.db.escape(emp) if emp else "1=0"
 `;
 
 export const ASSET_SCRIPTS = [

@@ -181,7 +181,9 @@ function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, on
 
   const holidays = useAsync(() => getHolidays(employee), [emp]);
   const projects = useAsync(() => getProjects(), []);
-  const leave = useAsync(() => getLeaveDays(emp, from, to), [emp, from]);
+  // Contractors have no leave; asking ERPNext would only show them a permission notice.
+  const { user } = useAuth();
+  const leave = useAsync(() => (user?.roles?.includes("Contractor") ? Promise.resolve({}) : getLeaveDays(emp, from, to)), [emp, from]);
   const existing = useAsync(async () => {
     const sheets = await frappe.getList("Timesheet", { filters: [["employee", "=", emp], ["docstatus", "<", 2], ["end_date", ">=", from], ["start_date", "<=", to]], fields: ["name"], limit: 0 });
     const names = sheets.map((s) => s.name).filter((n) => n !== savedName);

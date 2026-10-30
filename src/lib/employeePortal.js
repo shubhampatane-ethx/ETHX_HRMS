@@ -65,6 +65,7 @@ export function money(n, currency = "INR") {
 
 export function errMsg(e, fallback = "Something went wrong. Please try again.") {
   const forDisplay = (message) => String(message).replace(/\berpnext\b/gi, "HRMS");
+  if (e?.userMessage) return e.userMessage; // written for people by this app
   try {
     const raw = e?.response?.data?._server_messages;
     if (raw) {
