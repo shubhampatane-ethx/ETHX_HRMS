@@ -59,26 +59,47 @@ frappe.get_doc({"doctype": "Comment", "comment_type": "Info", "reference_doctype
 frappe.response["message"] = {"status": doc.status}
 `;
 
-// Employees may change only their own contact details (they have no write access to Employee itself).
+// Employees may change their own personal, emergency-contact and passport details (everything on their profile except
+// employment), but have no write access to Employee itself. Must match EDIT_SECTIONS in EmployeePages.jsx.
 const MY_CONTACT_API = `
-allowed = ["cell_number", "personal_email", "current_address", "person_to_be_contacted", "emergency_phone_number"]
-emp = frappe.db.get_value("Employee", {"user_id": frappe.session.user}, "name")
+allowed = ["date_of_birth", "gender", "blood_group", "marital_status", "cell_number", "personal_email", "current_address", "permanent_address", "person_to_be_contacted", "relation", "emergency_phone_number", "passport_number", "valid_upto"]
+emp = frappe.db.get_value("Employee", {"user_id": frappe.session.user}, ["name", "date_of_joining"], as_dict=True)
 if not emp:
     frappe.throw("No employee record is linked to your login.")
 values = frappe.parse_json(frappe.form_dict.get("values") or "{}")
 clean = {}
 for k in allowed:
     if k in values:
-        clean[k] = (values.get(k) or "").strip()
+        v = values.get(k)
+        clean[k] = v.strip() if isinstance(v, str) else v
+for k in ["date_of_birth", "valid_upto", "blood_group", "marital_status", "gender"]:
+    if k in clean and not clean[k]:
+        clean[k] = None
+if clean.get("date_of_birth"):
+    dob = frappe.utils.getdate(clean["date_of_birth"])
+    if dob >= frappe.utils.getdate(frappe.utils.nowdate()):
+        frappe.throw("Date of birth must be in the past.")
+    if emp.date_of_joining and dob >= frappe.utils.getdate(emp.date_of_joining):
+        frappe.throw("Date of birth must be before your date of joining.")
+if "date_of_birth" in clean and not clean["date_of_birth"]:
+    frappe.throw("Date of birth can't be empty.")
+if "gender" in clean and not clean["gender"]:
+    frappe.throw("Gender can't be empty.")
+if clean.get("gender") and not frappe.db.exists("Gender", clean["gender"]):
+    frappe.throw("Choose a gender from the list.")
+if clean.get("blood_group") and clean["blood_group"] not in ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]:
+    frappe.throw("Choose a blood group from the list.")
+if clean.get("marital_status") and clean["marital_status"] not in ["Single", "Married", "Divorced", "Widowed"]:
+    frappe.throw("Choose a marital status from the list.")
 if clean.get("personal_email") and not frappe.utils.validate_email_address(clean["personal_email"]):
     frappe.throw("Enter a valid personal email address.")
 if clean:
-    frappe.db.set_value("Employee", emp, clean)
-frappe.response["message"] = {"employee": emp, "updated": list(clean.keys())}
+    frappe.db.set_value("Employee", emp.name, clean)
+frappe.response["message"] = {"employee": emp.name, "updated": list(clean.keys())}
 `;
 
 export const TEAM_SCRIPTS = [
-  { name: "ETHX - Update my contact details", script_type: "API", api_method: "ethx_update_my_contact", script: MY_CONTACT_API, what: "Employees update their own phone, email, address and emergency contact" },
+  { name: "ETHX - Update my contact details", script_type: "API", api_method: "ethx_update_my_contact", script: MY_CONTACT_API, what: "Employees update their own personal details, emergency contact and passport" },
   { name: "ETHX - My team", script_type: "API", api_method: "ethx_my_team", script: TEAM_API, what: "Managers see their direct reports, who's in today, upcoming leave and leave waiting for them" },
   { name: "ETHX - Team leave decision", script_type: "API", api_method: "ethx_team_leave_decision", script: LEAVE_DECISION_API, what: "Managers approve / reject leave only for their own reports (or where they're the leave approver), never their own" },
 ];

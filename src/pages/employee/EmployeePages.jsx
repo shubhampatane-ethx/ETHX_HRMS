@@ -10,7 +10,7 @@ import { hasPermission } from "../../permissions/roles";
 // Workspace dashboards that HR staff / Project Managers who are also employees switch to from their one Dashboard.
 const HRDashboard = lazy(() => import("../hr/Dashboard"));
 const PMDashboard = lazy(() => import("../pm/PMPages").then((m) => ({ default: m.PMDashboard })));
-import { Button, DateField } from "../../components/ui/primitives";
+import { Button, DateField, LinkField } from "../../components/ui/primitives";
 import { ProfileAvatar } from "../../components/ProfilePhoto";
 import { frappe } from "../../lib/api/frappeClient";
 import { addBills, billCounts, createExpenseClaim, getApprovers, getRejectionReasons, pickApprover } from "../../lib/approvals";
@@ -1129,13 +1129,21 @@ function Detail({ name, onClose }) {
 }
 
 /* ===== EmpProfile.jsx ===== */
-const EDITABLE = [
-  ["cell_number", "Mobile number"],
-  ["personal_email", "Personal email"],
-  ["current_address", "Current address"],
-  ["person_to_be_contacted", "Emergency contact name"],
-  ["emergency_phone_number", "Emergency contact number"],
+// Everything on the profile except Employment (and the contract end date) is the employee's own to keep up to date.
+// Must match the server method ethx_update_my_contact (teamSetup.js).
+const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
+const MARITAL = ["Single", "Married", "Divorced", "Widowed"];
+const EDIT_SECTIONS = [
+  ["Personal details", [
+    ["date_of_birth", "Date of birth", "date"], ["gender", "Gender", "gender"],
+    ["blood_group", "Blood group", BLOOD_GROUPS], ["marital_status", "Marital status", MARITAL],
+    ["cell_number", "Mobile number", "tel"], ["personal_email", "Personal email", "email"],
+    ["current_address", "Current address", "area"], ["permanent_address", "Permanent address", "area"],
+  ]],
+  ["Emergency contact", [["person_to_be_contacted", "Name"], ["relation", "Relation"], ["emergency_phone_number", "Phone", "tel"]]],
+  ["Passport", [["passport_number", "Passport number"], ["valid_upto", "Valid until", "date"]]],
 ];
+const EDITABLE = EDIT_SECTIONS.flatMap(([, fields]) => fields);
 
 export function EmpProfile() {
   const { employee: e, reload } = useEmployee();
@@ -1166,7 +1174,7 @@ export function EmpProfile() {
       setEditing(false);
       reload();
     } catch (err) {
-      setError(errMsg(err, "Couldn't save. Ask the Administrator to run Admin › ERPNext Setup (Employee & manager self-service) so employees can update their contact details."));
+      setError(errMsg(err, "Couldn't save. Ask the Administrator to run Admin › ERPNext Setup (Employee & manager self-service) so employees can update their details."));
     } finally {
       setBusy(false);
     }
@@ -1176,7 +1184,7 @@ export function EmpProfile() {
 
   return (
     <>
-      <PageHeader icon={UserRound} avatar={<ProfileAvatar size={72} />} title={e.employee_name} subtitle={`${e.designation || "Employee"} · ${e.name}`} actions={<><Button variant="secondary" onClick={() => setPwOpen(true)}><KeyRound size={14} /> Change password</Button><Button variant="secondary" onClick={open}><Pencil size={14} /> Update contact details</Button></>} />
+      <PageHeader icon={UserRound} avatar={<ProfileAvatar size={72} />} title={e.employee_name} subtitle={`${e.designation || "Employee"} · ${e.name}`} actions={<><Button variant="secondary" onClick={() => setPwOpen(true)}><KeyRound size={14} /> Change password</Button><Button variant="secondary" onClick={open}><Pencil size={14} /> Edit my details</Button></>} />
 
       <Panel title="Employment">
         <KeyValue items={[
@@ -1202,14 +1210,29 @@ export function EmpProfile() {
       {pwOpen && <Modal title="Change password" onClose={() => setPwOpen(false)}><ChangePasswordForm onCancel={() => setPwOpen(false)} /></Modal>}
 
       {editing && (
-        <Modal title="Update contact details" onClose={() => setEditing(false)}>
+        <Modal title="Edit my details" onClose={() => setEditing(false)} wide>
           <form onSubmit={save} className="space-y-3">
-            {EDITABLE.map(([key, label]) => (
-              <Field key={key} label={label}>
-                {key === "current_address" ? <textarea rows={3} className={inputCls} value={form[key]} onChange={(ev) => setForm((f) => ({ ...f, [key]: ev.target.value }))} /> : <input className={inputCls} value={form[key]} onChange={(ev) => setForm((f) => ({ ...f, [key]: ev.target.value }))} />}
-              </Field>
+            {EDIT_SECTIONS.map(([title, fields]) => (
+              <fieldset key={title} className="space-y-3">
+                <legend className="mb-1 text-[12px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{title}</legend>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {fields.map(([key, label, type]) => {
+                    const set = (v) => setForm((f) => ({ ...f, [key]: v }));
+                    if (type === "gender") return <LinkField key={key} label={label} linkDoctype="Gender" value={form[key]} onChange={set} frappe={frappe} />;
+                    return (
+                      <div key={key} className={type === "area" ? "sm:col-span-2" : ""}>
+                        <Field label={label}>
+                          {type === "area" ? <textarea rows={2} className={inputCls} value={form[key]} onChange={(ev) => set(ev.target.value)} />
+                            : Array.isArray(type) ? <select className={inputCls} value={form[key]} onChange={(ev) => set(ev.target.value)}><option value="">—</option>{type.map((o) => <option key={o}>{o}</option>)}</select>
+                              : <input className={inputCls} type={type || "text"} max={key === "date_of_birth" ? isoDate() : undefined} value={form[key]} onChange={(ev) => set(ev.target.value)} />}
+                        </Field>
+                      </div>
+                    );
+                  })}
+                </div>
+              </fieldset>
             ))}
-            <p className="text-[11px] text-[var(--color-text-faint)]">Employment details such as designation or department are managed by HR.</p>
+            <p className="text-[11px] text-[var(--color-text-faint)]">Employment details (designation, department, manager, joining date, contract) are managed by HR.</p>
             {error && <Notice>{error}</Notice>}
             <div className="flex justify-end gap-2 pt-1"><Button type="button" variant="ghost" onClick={() => setEditing(false)}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Saving…" : "Save"}</Button></div>
           </form>
