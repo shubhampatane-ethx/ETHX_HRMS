@@ -58,7 +58,7 @@ export default function PageAccess() {
     <div className="space-y-5">
       <Notice tone="info">Every page a person's role allows is ticked by default. Untick a page to remove it from their menu and block it. To open pages outside their role (such as HR pages), give them that role. Changes apply the next time they sign in.</Notice>
       <Async state={data}>
-        {({ ready }) => (!ready ? <Notice>Page access isn't set up yet. Run <b>System Setup › Run setup</b> first.</Notice> : (
+        {({ ready }) => (!ready ? <Notice>Access Control isn't set up yet. Run <b>System Setup › Run setup</b> first.</Notice> : (
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
             <Panel title="People">
               <label className="relative mb-3 block">
@@ -104,7 +104,7 @@ function AccessEditor({ person, onSaved }) {
   };
 
   async function save() {
-    if (!(await confirmDialog({ title: "Save Page Access", message: `Block ${denied.size} page(s) for ${person.name}? This applies the next time they sign in.`, confirmLabel: "Save" }))) return;
+    if (!(await confirmDialog({ title: "Save Access", message: `Block ${denied.size} page(s) for ${person.name}? This applies the next time they sign in.`, confirmLabel: "Save" }))) return;
     setBusy(true);
     setError("");
     try {
@@ -112,7 +112,7 @@ function AccessEditor({ person, onSaved }) {
       setSaved(true);
       onSaved();
     } catch (e) {
-      setError(errMsg(e, "Couldn't save page access."));
+      setError(errMsg(e, "Couldn't save access."));
     }
     setBusy(false);
   }

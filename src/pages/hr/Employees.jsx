@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, Copy, Edit3, HardHat, KeyRound, Plus, RefreshCw, Trash2, Users, X } from "lucide-react";
 import { frappe } from "../../lib/api/frappeClient";
 import { dmy, dmyHm, errMsg, useAsync } from "../../lib/employeePortal";
@@ -6,6 +6,7 @@ import { HrRecordForm } from "../../components/hr/HrRecordForm";
 import { Button, Card, DateField, LinkField, Table } from "../../components/ui/primitives";
 import { Field, inputCls, Modal, Notice } from "../../components/employee/EmployeeShell";
 import { createContractor } from "../../lib/contractors";
+import { listAssignments, parseAssignment } from "../../lib/assignments";
 import { alertDialog, confirmDialog } from "../../components/ui/dialogs";
 
 const FIELDS = [
@@ -123,8 +124,18 @@ function loginError(e) {
   return `${where}${detail}.${hint}`;
 }
 
-export default function Employees() {
+/** Every employee, or with `contractorsOnly` just the contractors and the projects they're on. */
+export default function Employees({ contractorsOnly = false }) {
   const [employees, setEmployees] = useState([]);
+  const assignments = useAsync(() => (contractorsOnly ? listAssignments() : Promise.resolve([])), [contractorsOnly]);
+  const projectsOf = useMemo(() => {
+    const map = {};
+    for (const a of (assignments.data || []).map(parseAssignment)) {
+      if (["Completed", "Cancelled"].includes(a.status)) continue;
+      for (const email of a.assignees) (map[email] ||= []).push(a.subject || `${a.role} - ${a.project}`);
+    }
+    return map;
+  }, [assignments.data]);
   const [state, setState] = useState("loading");
   const [editing, setEditing] = useState(null);
   const [formOpen, setFormOpen] = useState(false);
@@ -136,7 +147,10 @@ export default function Employees() {
     setState("loading");
     try {
       const opts = { limit: 100, orderBy: "creation desc" };
-      const records = await frappe.getList("Employee", { ...opts, fields: LIST_FIELDS }).catch(() => frappe.getList("Employee", { ...opts, fields: LIST_FALLBACK }));
+      // Before setup has run there's no contractor field, so there are simply no contractors to list.
+      const records = contractorsOnly
+        ? await frappe.getList("Employee", { ...opts, fields: LIST_FIELDS, filters: [["custom_is_contractor", "=", 1], ["custom_contractor_removed", "=", 0]] }).catch(() => [])
+        : await frappe.getList("Employee", { ...opts, fields: LIST_FIELDS }).catch(() => frappe.getList("Employee", { ...opts, fields: LIST_FALLBACK }));
       setEmployees(records);
       setState("ready");
     } catch {
@@ -145,7 +159,7 @@ export default function Employees() {
     }
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [contractorsOnly]);
 
   async function removeEmployee(employee) {
     if (!(await confirmDialog(`Delete ${employee.employee_name || employee.name}? This cannot be undone.`))) return;
@@ -168,13 +182,13 @@ export default function Employees() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="mb-2 flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--color-red-hover)]"><Users size={14} /> People operations</div>
-            <h2 className="text-lg font-semibold text-[var(--color-text)]">Employees</h2>
-            <p className="mt-1 text-[13px] text-[var(--color-text-muted)]">Create and maintain employee records, and give each employee a sign-in for the employee portal.</p>
+            <h2 className="text-lg font-semibold text-[var(--color-text)]">{contractorsOnly ? "Contractors" : "Employees"}</h2>
+            <p className="mt-1 text-[13px] text-[var(--color-text-muted)]">{contractorsOnly ? "People who work on projects but aren't staff. Give them a role on a project under Assignments." : "Create and maintain employee records, and give each employee a sign-in for the employee portal."}</p>
           </div>
           <div className="flex gap-2">
             <Button variant="secondary" onClick={load} disabled={state === "loading"}><RefreshCw size={14} className={state === "loading" ? "animate-spin" : ""} /> Refresh</Button>
-            <Button onClick={() => { setEditing(null); setFormOpen(true); }}><Plus size={14} /> Add employee</Button>
-            <Button variant="secondary" onClick={() => setAddingContractor(true)}><HardHat size={14} /> Add Contractor</Button>
+            {!contractorsOnly && <Button onClick={() => { setEditing(null); setFormOpen(true); }}><Plus size={14} /> Add employee</Button>}
+            <Button variant={contractorsOnly ? "primary" : "secondary"} onClick={() => setAddingContractor(true)}><HardHat size={14} /> Add Contractor</Button>
           </div>
         </div>
       </section>
@@ -186,8 +200,13 @@ export default function Employees() {
         {state === "error" && <div className="p-6 text-[13px] text-[var(--color-text-muted)]">Could not load employee records. Check your permissions and connection.</div>}
         {state === "ready" && <Table columns={[
           { key: "employee_name", label: "Name", render: (row) => <button type="button" onClick={() => setDetail(row)} className="text-left text-[var(--color-text)] hover:text-[var(--color-red-hover)] hover:underline">{row.employee_name || row.name}</button> },
-          { key: "department", label: "Department" },
-          { key: "designation", label: "Designation" },
+          ...(contractorsOnly ? [
+            { key: "user_id", label: "Email" },
+            { key: "_projects", label: "Projects and Roles", render: (row) => (projectsOf[row.user_id] || []).join(", ") || "—" },
+          ] : [
+            { key: "department", label: "Department" },
+            { key: "designation", label: "Designation" },
+          ]),
           { key: "company", label: "Company" },
           { key: "status", label: "Status", render: (row) => <span className={row.status === "Active" ? "text-[var(--color-green)]" : "text-[var(--color-text-muted)]"}>{row.status || "-"}{Number(row.custom_is_contractor) ? " · Contractor" : ""}</span> },
           { key: "user_id", label: "Portal Login", render: (row) => row.user_id
@@ -198,7 +217,7 @@ export default function Employees() {
             <button type="button" title="Edit employee" onClick={() => { setEditing(row.name); setFormOpen(true); }} className="rounded p-1.5 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]"><Edit3 size={14} /></button>
             <button type="button" title="Delete employee" onClick={() => removeEmployee(row)} className="rounded p-1.5 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-red-hover)]"><Trash2 size={14} /></button>
           </div> },
-        ]} rows={employees} emptyLabel="No employees found." />}
+        ]} rows={employees} emptyLabel={contractorsOnly ? "No contractors yet." : "No employees found."} />}
       </Card>
 
       {detail && <EmployeeDetail employee={detail} onClose={() => setDetail(null)} onEdit={() => { setEditing(detail.name); setFormOpen(true); setDetail(null); window.scrollTo?.({ top: 0 }); }} onLogin={() => { setLoginFor(detail); setDetail(null); }} />}

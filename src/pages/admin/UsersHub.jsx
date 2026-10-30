@@ -8,11 +8,12 @@ import PageAccess from "./PageAccess";
 const TABS = [
   { id: "hr", label: "HR Users" },
   { id: "employees", label: "All Employees" },
+  { id: "contractors", label: "Contractors" },
   { id: "project-managers", label: "Project Managers" },
-  { id: "page-access", label: "Page Access" },
+  { id: "access-control", label: "Access Control" },
 ];
 
-/** One "Users" page: HR users, every employee, and Project Managers as tabs (?tab=employees etc.). */
+/** One "Users" page: HR users, every employee, contractors, Project Managers and access control as tabs (?tab=employees etc.). */
 export default function UsersHub() {
   const [params, setParams] = useSearchParams();
   const tab = TABS.some((t) => t.id === params.get("tab")) ? params.get("tab") : "hr";
@@ -22,8 +23,9 @@ export default function UsersHub() {
       <Tabs tabs={TABS} value={tab} onChange={(id) => setParams(id === "hr" ? {} : { tab: id })} />
       {tab === "hr" && <AdminUsers />}
       {tab === "employees" && <Employees />}
+      {tab === "contractors" && <Employees key="contractors" contractorsOnly />}
       {tab === "project-managers" && <ProjectManagers />}
-      {tab === "page-access" && <PageAccess />}
+      {tab === "access-control" && <PageAccess />}
     </div>
   );
 }
