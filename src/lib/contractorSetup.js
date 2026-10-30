@@ -14,6 +14,20 @@ export const CONTRACTOR_RECORDS = [
   { doctype: "Role", name: CONTRACTOR_ROLE, what: "Contractor role", doc: { role_name: CONTRACTOR_ROLE, desk_access: 1 } },
 ];
 
+// Everything a contractor reads or writes. System Setup grants these itself; Roles & Permissions shows them too.
+export const CONTRACTOR_PRESET = [
+  { doctype: "Project", perms: ["read"], why: "Their own projects (limited by a server rule)" },
+  { doctype: "Task", perms: ["read"], why: "Their role on each project" },
+  { doctype: "Timesheet", perms: ["read", "write", "create", "delete", "submit"], why: "Create and submit their own timesheet" },
+  { doctype: "Employee", perms: ["read"], why: "Their own record, which timesheets link to" },
+  { doctype: "Company", perms: ["read"], why: "Company on the timesheet" },
+  { doctype: "Holiday List", perms: ["read"], why: "Days off when filling a timesheet" },
+  { doctype: "Activity Type", perms: ["read"], why: "Timesheet details" },
+  { doctype: "Comment", perms: ["read"], why: "Why a timesheet was returned" },
+];
+
+export const CONTRACTOR_PERMISSIONS = [{ role: CONTRACTOR_ROLE, what: "Contractor permissions", preset: CONTRACTOR_PRESET }];
+
 export const CONTRACTOR_FIELDS = [
   { dt: "Employee", fieldname: "custom_is_contractor", label: "Project Contractor", fieldtype: "Check", read_only: 1, no_copy: 1, insert_after: "status" },
   { dt: "Employee", fieldname: "custom_contractor_removed", label: "Contractor Removed", fieldtype: "Check", read_only: 1, no_copy: 1, insert_after: "custom_is_contractor" },

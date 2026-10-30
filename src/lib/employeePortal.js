@@ -84,7 +84,7 @@ export function errMsg(e, fallback = "Something went wrong. Please try again.") 
 export function friendlyError(e) {
   const status = e?.response?.status;
   const type = e?.response?.data?.exc_type;
-  if (type === "PermissionError" || status === 403) return "Your account doesn't have access to this yet. Ask your administrator to enable it for the Employee role.";
+  if (type === "PermissionError" || status === 403) return "Your account doesn't have access to this yet. Ask your administrator to enable it for your role.";
   if (status === 404 || type === "DoesNotExistError") return "This feature isn't set up yet. Contact your administrator.";
   if (!e?.response) return "Can't reach the server. Check your connection and try again.";
   return errMsg(e, "Couldn't load this section.");

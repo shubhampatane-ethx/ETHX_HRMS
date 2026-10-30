@@ -10,7 +10,7 @@ import { APPROVAL_FIELDS, APPROVAL_SCRIPTS, APPROVAL_TRACK } from "./approvalSet
 import { ASSET_FIELDS, ASSET_SCRIPTS, ASSET_TRACK } from "./assetSetup";
 import { OFFICE_FIELDS, OFFICE_SCRIPTS, OFFICE_TRACK } from "./officeSetup";
 import { ATTENDANCE_SCRIPTS } from "./attendanceSetup";
-import { CONTRACTOR_FIELDS, CONTRACTOR_RECORDS, CONTRACTOR_SCRIPTS } from "./contractorSetup";
+import { CONTRACTOR_FIELDS, CONTRACTOR_PERMISSIONS, CONTRACTOR_RECORDS, CONTRACTOR_SCRIPTS } from "./contractorSetup";
 import { PROJECT_ROLE_DOCTYPES, PROJECT_ROLE_FIELDS, PROJECT_ROLE_SCRIPTS, PROJECT_ROLE_TRACK } from "./projectRoleSetup";
 
 export const MODULES = [
@@ -23,13 +23,27 @@ export const MODULES = [
   { id: "offices", label: "Office locations & holidays", fields: OFFICE_FIELDS, scripts: OFFICE_SCRIPTS, track: OFFICE_TRACK },
   { id: "attendance", label: "Attendance from punches", fields: [], scripts: ATTENDANCE_SCRIPTS, track: [] },
   { id: "projectRoles", label: "Project roles", doctypes: PROJECT_ROLE_DOCTYPES, fields: PROJECT_ROLE_FIELDS, scripts: PROJECT_ROLE_SCRIPTS, track: PROJECT_ROLE_TRACK },
-  { id: "contractors", label: "Contractors", records: CONTRACTOR_RECORDS, fields: CONTRACTOR_FIELDS, scripts: CONTRACTOR_SCRIPTS, track: [] },
+  { id: "contractors", label: "Contractors", records: CONTRACTOR_RECORDS, permissions: CONTRACTOR_PERMISSIONS, fields: CONTRACTOR_FIELDS, scripts: CONTRACTOR_SCRIPTS, track: [] },
 ];
 
 const ALL_FIELDS = MODULES.flatMap((m) => m.fields);
 const ALL_SCRIPTS = MODULES.flatMap((m) => m.scripts);
 const ALL_TRACK = [...new Set(MODULES.flatMap((m) => m.track))];
 const ALL_PROPS = MODULES.flatMap((m) => m.properties || []);
+const PERM_API = "frappe.core.page.permission_manager.permission_manager";
+
+/** What a role still lacks from its preset: [{ doctype, hasRow, missing }]. */
+async function missingRolePerms(role, preset) {
+  const out = [];
+  for (const p of preset) {
+    const rows = await frappe.callMethod(`${PERM_API}.get_permissions`, { doctype: p.doctype }).catch(() => null);
+    const mine = (rows || []).filter((r) => r.role === role && Number(r.permlevel) === 0 && !Number(r.if_owner));
+    const missing = p.perms.filter((ptype) => !mine.some((r) => Number(r[ptype]) === 1));
+    if (missing.length) out.push({ doctype: p.doctype, hasRow: mine.length > 0, missing });
+  }
+  return out;
+}
+
 const propKey = (p) => `${p.doc_type}:${p.field_name || ""}:${p.property}`;
 
 export async function setupStatus() {
@@ -46,6 +60,8 @@ export async function setupStatus() {
   for (const r of MODULES.flatMap((m) => m.records || [])) {
     recordExists[`${r.doctype}:${r.name}`] = await frappe.getList(r.doctype, { filters: [["name", "=", r.name]], fields: ["name"], limit: 1 }).then((x) => x.length > 0).catch(() => false);
   }
+  const permGaps = {};
+  for (const g of MODULES.flatMap((m) => m.permissions || [])) permGaps[g.role] = await missingRolePerms(g.role, g.preset);
   const have = new Set((fields || []).map((f) => `${f.dt}:${f.fieldname}`));
   const haveProps = new Map((props || []).map((p) => [propKey(p), String(p.value)]));
   const scriptOk = (s) => Boolean((scripts || []).find((x) => x.name === s.name && !Number(x.disabled) && String(x.script || "").trim() === s.script.trim()));
@@ -55,6 +71,7 @@ export async function setupStatus() {
     modules: MODULES.map((m) => ({
       ...m,
       missingDoctypes: (m.doctypes || []).filter((d) => !(doctypes || []).some((x) => x.name === d.name)),
+      missingPermissions: (m.permissions || []).filter((g) => permGaps[g.role].length),
       missingRecords: (m.records || []).filter((r) => !recordExists[`${r.doctype}:${r.name}`]),
       missingFields: m.fields.filter((f) => !have.has(`${f.dt}:${f.fieldname}`)),
       untracked: setters === null ? m.track : m.track.filter((d) => !(setters || []).some((s) => s.doc_type === d && String(s.value) === "1")),
@@ -89,6 +106,17 @@ export async function runSetup(onStep = () => {}) {
         step(`${m.label}: added - ${r.what}`);
       } catch (e) {
         step(`${m.label}: couldn't add ${r.what}: ${why(e)}`, false);
+      }
+    }
+    for (const g of m.missingPermissions) {
+      try {
+        for (const gap of await missingRolePerms(g.role, g.preset)) {
+          if (!gap.hasRow) await frappe.callMethod(`${PERM_API}.add`, { parent: gap.doctype, role: g.role, permlevel: 0 });
+          for (const ptype of gap.missing) await frappe.callMethod(`${PERM_API}.update`, { doctype: gap.doctype, role: g.role, permlevel: 0, ptype, value: 1 });
+        }
+        step(`${m.label}: ${g.what} granted`);
+      } catch (e) {
+        step(`${m.label}: couldn't grant ${g.what}: ${why(e)}`, false);
       }
     }
     for (const f of m.missingFields) {

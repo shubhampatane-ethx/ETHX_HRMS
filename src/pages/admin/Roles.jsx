@@ -5,6 +5,7 @@ import { errMsg } from "../../lib/employeePortal";
 import { serverLoginsReady } from "../../lib/securitySetup";
 import { Button, Card } from "../../components/ui/primitives";
 import { confirmDialog } from "../../components/ui/dialogs";
+import { CONTRACTOR_PRESET } from "../../lib/contractorSetup";
 
 /**
  * Admin-only editor for the role permissions that the HR and Employee workspaces rely on.
@@ -117,16 +118,6 @@ const EXPENSE_APPROVER_PRESET = [
   { doctype: "File", perms: ["read"], why: "Open the attached bills" },
   { doctype: "Comment", perms: ["read", "create"], why: "Reason for a rejection" },
 ];
-const CONTRACTOR_PRESET = [
-  { doctype: "Project", perms: ["read"], why: "Their own projects (limited by a server rule)" },
-  { doctype: "Task", perms: ["read"], why: "Their role on each project" },
-  { doctype: "Timesheet", perms: ["read", "write", "create", "delete", "submit"], why: "Create and submit their own timesheet" },
-  { doctype: "Employee", perms: ["read"], why: "Their own record, which timesheets link to" },
-  { doctype: "Company", perms: ["read"], why: "Company on the timesheet" },
-  { doctype: "Holiday List", perms: ["read"], why: "Days off when filling a timesheet" },
-  { doctype: "Activity Type", perms: ["read"], why: "Timesheet details" },
-];
-
 const PRESETS = {
   Contractor: CONTRACTOR_PRESET,
   "Leave Approver": LEAVE_APPROVER_PRESET,
@@ -217,7 +208,7 @@ function ApplyEverything() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
   async function run() {
-    if (!(await confirmDialog({ title: "Apply permissions", message: "Add every missing permission for HR Manager, HR User, Projects Manager, Employee and Interviewer? Existing permissions are not removed.", confirmLabel: "Apply everything" }))) return;
+    if (!(await confirmDialog({ title: "Apply permissions", message: "Add every missing permission for HR Manager, HR User, Projects Manager, Employee, Contractor and Interviewer? Existing permissions are not removed.", confirmLabel: "Apply everything" }))) return;
     setBusy(true);
     setMsg(null);
     let applied = 0;
@@ -236,7 +227,7 @@ function ApplyEverything() {
   }
   return (
     <div className="mt-4 flex flex-wrap items-center gap-3">
-      <Button onClick={run} disabled={busy}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />} Apply everything for HR, Projects Manager, Employee, Interviewer and approver roles</Button>
+      <Button onClick={run} disabled={busy}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />} Apply everything for HR, Projects Manager, Employee, Contractor, Interviewer and approver roles</Button>
       {msg && <span className={`text-[12px] ${msg.ok ? "text-[var(--color-green)]" : "text-[var(--color-red-hover)]"}`}>{msg.text}</span>}
     </div>
   );
