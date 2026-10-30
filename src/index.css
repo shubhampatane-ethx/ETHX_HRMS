@@ -67,21 +67,21 @@
 
 :root[data-theme="pink"] {
   color-scheme: light;
-  --color-bg: #fff5fa;
-  --color-surface: #fffafd;
-  --color-surface-2: #f8e9f1;
-  --color-border: #edd5e1;
-  --color-border-strong: #dcb9cb;
-  --color-text: #26131e;
-  --color-text-muted: #705563;
-  --color-text-faint: #927b88;
-  --color-red: #c0165b;
-  --color-red-hover: #970f46;
-  --color-red-deep: #690b31;
-  --color-red-wash: #c0165b2b;
-  --color-green: #28765c;
-  --color-amber: #936000;
-  --color-pattern: rgba(66, 27, 49, 0.3);
+  --color-bg: #ffc2c6;
+  --color-surface: #ffe3e5;
+  --color-surface-2: #ffd2d5;
+  --color-border: #f5aab0;
+  --color-border-strong: #b9626b;
+  --color-text: #2e0d12;
+  --color-text-muted: #5e242d;
+  --color-text-faint: #713640;
+  --color-red: #ad1038;
+  --color-red-hover: #8a0c2c;
+  --color-red-deep: #5f081e;
+  --color-red-wash: #ad103833;
+  --color-green: #0f5339;
+  --color-amber: #654000;
+  --color-pattern: rgba(95, 8, 30, 0.3);
   --color-on-accent: #ffffff;
 }
 

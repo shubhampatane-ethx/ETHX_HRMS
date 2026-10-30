@@ -20,8 +20,8 @@ export const THEME_OPTIONS = [
   {
     id: "pink",
     name: "Pink",
-    detail: "Soft rose surfaces with a confident pink accent",
-    swatches: ["#fff5fa", "#c0165b", "#26131e"],
+    detail: "Baby pink surfaces with a deep rose accent",
+    swatches: ["#ffc2c6", "#ad1038", "#2e0d12"],
   },
 ];
 
