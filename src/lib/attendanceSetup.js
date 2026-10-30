@@ -31,7 +31,7 @@ for back in range(1, 8):
             hours = frappe.utils.time_diff_in_hours(max(outs), min(ins))
             if hours < ${HALF_DAY_HOURS}:
                 status = "Half Day"
-        att = frappe.get_doc({"doctype": "Attendance", "employee": emp, "attendance_date": day, "status": status, "company": info.company, "working_hours": hours})
+        att = frappe.get_doc({"doctype": "Attendance", "employee": emp, "attendance_date": day, "status": status, "company": info.company, "working_hours": hours, "in_time": min(ins) if ins else None, "out_time": max(outs) if outs else None})
         att.insert(ignore_permissions=True)
         att.submit()
 `;

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, Copy, Edit3, HardHat, KeyRound, Plus, RefreshCw, Trash2, Users, X } from "lucide-react";
 import { frappe } from "../../lib/api/frappeClient";
-import { dmy, dmyHm, errMsg, useAsync } from "../../lib/employeePortal";
+import { dmy, dmyHm, errMsg, getMyDocuments, useAsync } from "../../lib/employeePortal";
 import { HrRecordForm } from "../../components/hr/HrRecordForm";
 import { Button, Card, DateField, LinkField, Table } from "../../components/ui/primitives";
 import { Field, inputCls, Modal, Notice } from "../../components/employee/EmployeeShell";
@@ -26,6 +26,8 @@ const FIELDS = [
   { name: "designation", label: "Designation", type: "link", linkDoctype: "Designation" },
   { name: "employment_type", label: "Employment Type", type: "link", linkDoctype: "Employment Type" },
   { name: "user_id", label: "User Account", type: "link", linkDoctype: "User" },
+  { name: "health_insurance_provider", label: "Health Insurance Provider", type: "link", linkDoctype: "Employee Health Insurance" },
+  { name: "health_insurance_no", label: "Health Insurance Number" },
 ];
 
 const LIST_FIELDS = ["name", "employee_name", "first_name", "last_name", "department", "designation", "status", "company", "date_of_joining", "user_id", "company_email", "personal_email", "custom_is_contractor"];
@@ -402,6 +404,7 @@ function EmployeeDetail({ employee, onClose, onEdit, onLogin }) {
           </div>
         )}
 
+        <EmployeeFiles employee={employee} />
         <div className="mt-5 flex justify-end gap-2">
           <Button variant="secondary" onClick={onLogin}><KeyRound size={14} /> {employee.user_id ? "Reset Password" : "Create Login"}</Button>
           <Button onClick={onEdit}><Edit3 size={14} /> Edit Employee</Button>
@@ -444,5 +447,24 @@ function ContractorModal({ onClose, onSaved }) {
         <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Creating…" : "Create Contractor"}</Button></div>
       </form>
     </Modal>
+  );
+}
+
+/** Documents on the employee's record: what they uploaded (PAN, Aadhaar, bank) and what HR attached. */
+function EmployeeFiles({ employee }) {
+  const files = useAsync(() => getMyDocuments(employee.name), [employee.name]);
+  if (!files.data?.length) return null;
+  return (
+    <section className="mt-4">
+      <h3 className="mb-2 text-[13px] font-semibold text-[var(--color-text)]">Documents</h3>
+      <ul className="divide-y divide-[var(--color-border)] rounded-lg border border-[var(--color-border)]">
+        {files.data.map((d) => (
+          <li key={d.name} className="flex items-center justify-between gap-3 px-3 py-2 text-[12.5px]">
+            <span className="min-w-0 truncate text-[var(--color-text)]">{d.file_name}</span>
+            <a href={d.file_url} target="_blank" rel="noreferrer" className="shrink-0 text-[var(--color-red-hover)] hover:underline">Open</a>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

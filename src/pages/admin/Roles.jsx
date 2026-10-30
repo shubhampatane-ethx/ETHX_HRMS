@@ -82,6 +82,8 @@ const HR_PRESET = [
   { doctype: "Attendance", perms: ["read"], why: "Attendance report" },
   { doctype: "Holiday List", perms: ["read", "write", "create"], why: "Each office's yearly holiday list (Office Locations); expected hours" },
   { doctype: "Branch", perms: ["read", "write", "create"], why: "Office locations" },
+  { doctype: "Employee Checkin", perms: ["read"], why: "In and out times on the Attendance page" },
+  { doctype: "Employee Health Insurance", perms: ["read", "create"], why: "Insurance provider on an employee" },
   { doctype: "Country", perms: ["read"], why: "Office country (for its public holidays)" },
 ];
 // Everything the employee portal reads or writes as a signed-in employee.
@@ -137,6 +139,7 @@ const PRESETS = {
     { doctype: "Leave Allocation", perms: ["read"], why: "Leave balance" },
     { doctype: "Leave Type", perms: ["read"], why: "Choose a leave type" },
     { doctype: "Holiday List", perms: ["read"], why: "Holidays and weekly offs" },
+    { doctype: "Branch", perms: ["read"], why: "Holiday list of their office" },
     { doctype: "Shift Assignment", perms: ["read"], why: "Their shifts" },
     { doctype: "Event", perms: ["read"], why: "Company events" },
     { doctype: "Timesheet", perms: ["read", "write", "create", "delete", "submit"], why: "Log, correct, delete drafts and submit hours" },

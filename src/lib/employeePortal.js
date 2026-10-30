@@ -299,6 +299,15 @@ export const getNotifications = (user, limit = 50) =>
 
 export async function getHolidays(employee) {
   let listName = employee.holiday_list;
+  // No list of their own: their office's list, then the company's.
+  if (!listName && employee.branch) {
+    try {
+      const b = await frappe.getList("Branch", { filters: [["name", "=", employee.branch]], fields: ["custom_holiday_list"], limit: 1 });
+      listName = b[0]?.custom_holiday_list;
+    } catch {
+      /* office list not available yet */
+    }
+  }
   if (!listName) {
     try {
       const c = await frappe.getList("Company", { filters: [["name", "=", employee.company]], fields: ["default_holiday_list"], limit: 1 });
@@ -365,7 +374,7 @@ export const getPolicies = () =>
   frappe.getList("File", { filters: [["is_private", "=", 0], ["folder", "=", POLICY_FOLDER], ["is_folder", "=", 0]], fields: ["name", "file_name", "file_url", "creation"], orderBy: "creation desc", limit: 0 });
 
 export const getMyDocuments = (emp) =>
-  frappe.getList("File", { filters: [["attached_to_doctype", "=", "Employee"], ["attached_to_name", "=", emp]], fields: ["name", "file_name", "file_url", "creation", "is_private"], orderBy: "creation desc", limit: 0 });
+  frappe.getList("File", { filters: [["attached_to_doctype", "=", "Employee"], ["attached_to_name", "=", emp]], fields: ["name", "file_name", "file_url", "creation", "is_private", "owner"], orderBy: "creation desc", limit: 0 });
 
 /** Names of File records this user has acknowledged. */
 export async function getAcknowledged(user) {
@@ -385,8 +394,47 @@ export const getMyAssets = (emp) =>
 export const createRequest = ({ category, subject, description, user }) =>
   frappe.createDoc("Issue", { subject: `[${category}] ${subject}`, description: description || subject, raised_by: user, priority: "Medium" });
 
+/** "[HR Support] Laptop slow" -> { category: "HR Support", title: "Laptop slow" } */
+export function splitRequest(subject = "") {
+  const m = /^\[([^\]]+)\]\s*(.*)$/.exec(subject);
+  return m ? { category: m[1], title: m[2] } : { category: "", title: subject };
+}
+
+/** Only requests nobody has picked up yet can be changed or withdrawn by the person who raised them. */
+export const updateRequest = (name, { category, subject, description }) => frappe.updateDoc("Issue", name, { subject: `[${category}] ${subject}`, description });
+export const withdrawRequest = (name) => frappe.updateDoc("Issue", name, { status: "Closed" });
+
+/** Birthdays in the next 30 days: [{ name, date, days_away }]. Empty until ERPNext Setup has run. */
+export const getUpcomingBirthdays = () => frappe.callMethod("ethx_upcoming_birthdays").catch(() => []);
+
+const DOCS_NOT_READY = /Failed to get method|not whitelisted|has no attribute|No module named/i;
+const docsError = (e) => {
+  const d = e?.response?.data || {};
+  if (e?.response?.status === 404 || DOCS_NOT_READY.test(String(d.exception || d.exc || d._server_messages || ""))) {
+    const err = new Error("Document rules not installed");
+    err.userMessage = "Document upload isn't set up on the server yet. Ask the Administrator to run System Setup › Run setup.";
+    return err;
+  }
+  return e;
+};
+
+/** Upload privately, then attach to the signed-in employee's own record. The type goes in the file name. */
+export async function uploadMyDocument(file, type) {
+  const named = new File([file], `${type} - ${file.name}`, { type: file.type });
+  const saved = await frappe.uploadFile(named, { isPrivate: true });
+  try {
+    await frappe.callMethod("ethx_attach_my_document", { file: saved.name });
+  } catch (e) {
+    await frappe.deleteDoc("File", saved.name).catch(() => {});
+    throw docsError(e);
+  }
+  return saved;
+}
+
+export const removeMyDocument = (name) => frappe.callMethod("ethx_remove_my_document", { file: name }).catch((e) => { throw docsError(e); });
+
 export const getRequests = (user, prefix) =>
-  frappe.getList("Issue", { filters: [["raised_by", "=", user], ...(prefix ? [["subject", "like", `[${prefix}%`]] : [])], fields: ["name", "subject", "status", "priority", "creation"], orderBy: "creation desc", limit: 50 });
+  frappe.getList("Issue", { filters: [["raised_by", "=", user], ...(prefix ? [["subject", "like", `[${prefix}%`]] : [])], fields: ["name", "subject", "description", "status", "priority", "creation"], orderBy: "creation desc", limit: 50 });
 
 /* ------------------------------ growth & benefits ------------------------------ */
 

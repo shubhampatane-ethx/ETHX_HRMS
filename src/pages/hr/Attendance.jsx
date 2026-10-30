@@ -6,6 +6,16 @@ import { HrRecordForm } from "../../components/hr/HrRecordForm";
 import { Button, Card } from "../../components/ui/primitives";
 import { alertDialog, confirmDialog } from "../../components/ui/dialogs";
 
+/** Saved attendance often has no times of its own (marked by HR, or confirmed from punches): take them from the punches. */
+function withPunchTimes(att, punches) {
+  const byDay = new Map(punches.map((p) => [`${p.employee}|${p.attendance_date}`, p]));
+  return att.map((r) => {
+    if (r.in_time) return r;
+    const p = byDay.get(`${r.employee}|${r.attendance_date}`);
+    return p ? { ...r, in_time: p.in_time, out_time: p.stillIn ? null : p.out_time, stillIn: p.stillIn } : r;
+  });
+}
+
 const FIELDS = [
   { name: "employee", label: "Employee", type: "link", linkDoctype: "Employee", required: true },
   { name: "attendance_date", label: "Attendance Date", type: "date", required: true },
@@ -51,10 +61,11 @@ export default function Attendance() {
     setState("loading");
     try {
       // limit: 0 -> fetch ALL attendance records so every month/year is complete
-      const att = await frappe.getList("Attendance", { filters: [["docstatus", "<", 2]], fields: ["name", "employee_name", "employee", "attendance_date", "status", "company", "docstatus"], limit: 0, orderBy: "attendance_date desc" });
+      const att = await frappe.getList("Attendance", { filters: [["docstatus", "<", 2]], fields: ["name", "employee_name", "employee", "attendance_date", "status", "company", "docstatus", "in_time", "out_time", "working_hours"], limit: 0, orderBy: "attendance_date desc" });
       // Employees punch in/out via Employee Checkin; ERPNext doesn't turn that into Attendance by itself,
       // so show punched-in days that have no attendance record yet (HR can confirm them with one click).
       let derived = [];
+      let punches = [];
       try {
         const since = new Date(Date.now() - 400 * 86400000);
         const [logs, visible] = await Promise.all([
@@ -63,11 +74,12 @@ export default function Attendance() {
         ]);
         const known = new Map(visible.map((e) => [e.name, e]));
         const have = new Set(att.map((r) => `${r.employee}|${r.attendance_date}`));
+        punches = summariseCheckins(logs);
         derived = summariseCheckins(logs.filter((l) => known.has(l.employee)))
           .filter((d) => !have.has(`${d.employee}|${d.attendance_date}`))
-          .map((d) => ({ ...d, name: `punch-${d.employee}-${d.attendance_date}`, employee_name: known.get(d.employee).employee_name, company: known.get(d.employee).company, status: "Present", derived: true }));
+          .map((d) => ({ ...d, name: `punch-${d.employee}-${d.attendance_date}`, employee_name: known.get(d.employee).employee_name, company: known.get(d.employee).company, status: "Present", derived: true, in_time: d.in_time, out_time: d.stillIn ? null : d.out_time, working_hours: d.working_hours, stillIn: d.stillIn }));
       } catch { /* checkins not readable - show saved attendance only */ }
-      setRows([...att, ...derived].sort((a, b) => b.attendance_date.localeCompare(a.attendance_date)));
+      setRows([...withPunchTimes(att, punches), ...derived].sort((a, b) => b.attendance_date.localeCompare(a.attendance_date)));
       setState("ready");
     } catch { setRows([]); setState("error"); }
   }
@@ -114,7 +126,7 @@ export default function Attendance() {
     let last = "";
     for (const r of list) {
       try {
-        const doc = await frappe.createDoc("Attendance", { employee: r.employee, attendance_date: r.attendance_date, status: "Present", company: r.company });
+        const doc = await frappe.createDoc("Attendance", { employee: r.employee, attendance_date: r.attendance_date, status: "Present", company: r.company, in_time: r.in_time || undefined, out_time: r.out_time || undefined, working_hours: r.working_hours || undefined });
         await frappe.submitDoc(await frappe.getDoc("Attendance", doc.name));
       } catch (e) { failed += 1; last = e?.response?.data?.exception || e.message || ""; }
     }

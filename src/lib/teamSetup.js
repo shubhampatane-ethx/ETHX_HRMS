@@ -98,7 +98,54 @@ if clean:
 frappe.response["message"] = {"employee": emp.name, "updated": list(clean.keys())}
 `;
 
+// Everyone's upcoming birthdays in the caller's company: name and day only, never the year of birth.
+const BIRTHDAYS_API = `
+me = frappe.db.get_value("Employee", {"user_id": frappe.session.user}, "company")
+filters = {"status": "Active", "date_of_birth": ["is", "set"]}
+if me:
+    filters["company"] = me
+if frappe.get_meta("Employee").has_field("custom_is_contractor"):
+    filters["custom_is_contractor"] = 0
+by_day = {}
+for e in frappe.get_all("Employee", filters=filters, fields=["employee_name", "date_of_birth"], order_by="employee_name asc"):
+    day = str(e.date_of_birth)[5:10]
+    by_day.setdefault(day, []).append(e.employee_name)
+today = frappe.utils.getdate(frappe.utils.nowdate())
+out = []
+for i in range(0, 31):
+    d = str(frappe.utils.add_days(today, i))[:10]
+    for name in by_day.get(d[5:10], []):
+        out.append({"name": name, "date": d, "days_away": i})
+frappe.response["message"] = out
+`;
+
+// Employees can't edit their Employee record, so their own documents are uploaded privately first, then attached here.
+const ATTACH_DOCUMENT_API = `
+user = frappe.session.user
+emp = frappe.db.get_value("Employee", {"user_id": user}, "name")
+if not emp:
+    frappe.throw("No employee record is linked to your login.")
+name = frappe.form_dict.get("file")
+if not name or frappe.db.get_value("File", name, "owner") != user:
+    frappe.throw("You can only attach a file you uploaded yourself.")
+frappe.db.set_value("File", name, {"attached_to_doctype": "Employee", "attached_to_name": emp, "is_private": 1})
+frappe.response["message"] = {"file": name}
+`;
+
+const REMOVE_DOCUMENT_API = `
+user = frappe.session.user
+emp = frappe.db.get_value("Employee", {"user_id": user}, "name")
+row = frappe.db.get_value("File", frappe.form_dict.get("file") or "__none__", ["name", "owner", "attached_to_doctype", "attached_to_name"], as_dict=True)
+if not emp or not row or row.owner != user or row.attached_to_doctype != "Employee" or row.attached_to_name != emp:
+    frappe.throw("You can only remove documents you uploaded yourself.")
+frappe.delete_doc("File", row.name, ignore_permissions=True)
+frappe.response["message"] = {"file": row.name}
+`;
+
 export const TEAM_SCRIPTS = [
+  { name: "ETHX - Upcoming birthdays", script_type: "API", api_method: "ethx_upcoming_birthdays", script: BIRTHDAYS_API, what: "Birthday reminders on the calendar and dashboard" },
+  { name: "ETHX - Attach my document", script_type: "API", api_method: "ethx_attach_my_document", script: ATTACH_DOCUMENT_API, what: "Employees upload their own documents (PAN, Aadhaar, bank)" },
+  { name: "ETHX - Remove my document", script_type: "API", api_method: "ethx_remove_my_document", script: REMOVE_DOCUMENT_API, what: "Employees remove documents they uploaded" },
   { name: "ETHX - Update my contact details", script_type: "API", api_method: "ethx_update_my_contact", script: MY_CONTACT_API, what: "Employees update their own personal details, emergency contact and passport" },
   { name: "ETHX - My team", script_type: "API", api_method: "ethx_my_team", script: TEAM_API, what: "Managers see their direct reports, who's in today, upcoming leave and leave waiting for them" },
   { name: "ETHX - Team leave decision", script_type: "API", api_method: "ethx_team_leave_decision", script: LEAVE_DECISION_API, what: "Managers approve / reject leave only for their own reports (or where they're the leave approver), never their own" },

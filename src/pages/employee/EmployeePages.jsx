@@ -1,9 +1,9 @@
 // Employee portal: all employee pages in one file.
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowRight, BadgeCheck, Briefcase, Bell, CalendarCheck, CalendarClock, CalendarDays, CheckCheck, ChevronLeft, ChevronRight, ClipboardCheck, Download, ExternalLink, FileText, GraduationCap, HeartPulse, KeyRound, Laptop, LifeBuoy, LogIn, LogOut, Mail, Megaphone, Paperclip, Pencil, Phone, Plus, Receipt, Search, ShieldAlert, Target, Undo2, UserRound, Users, Wallet } from "lucide-react";
+import { ArrowRight, BadgeCheck, Briefcase, Bell, Cake, CalendarCheck, CalendarClock, CalendarDays, CheckCheck, ChevronLeft, ChevronRight, ClipboardCheck, Download, ExternalLink, FileText, GraduationCap, HeartPulse, KeyRound, Laptop, LifeBuoy, LogIn, LogOut, Mail, Megaphone, Paperclip, Pencil, Phone, Plus, Receipt, Search, ShieldAlert, Target, Trash2, Undo2, Upload, UserRound, Users, Wallet } from "lucide-react";
 import { Async, ChangePasswordForm, chipCls, Empty, ErrorState, Field, Grid, inputCls, KeyValue, Loading, Modal, Notice, PageHeader, Panel, Skeleton, Stat, StatusPill, Tabs, useEmployee } from "../../components/employee/EmployeeShell";
-import { CONTACTS, createRequest, daysBetween, daysUntil, dmy, dmyHm, errMsg, EXPIRY_WARN_DAYS, getAcknowledged, getAnnouncements, getAppraisals, getApprovals, getAttendanceHistory, getAttendanceRequests, getBenefitClaims, getCheckinsBetween, getEvents, getExpenseClaims, getFeedback, getGoals, getHelpArticles, getHolidays, getLeaveApplications, getLeaveBalance, getLeaveTypes, getMyAssets, getMyDocuments, getMyLeavesBetween, getMyTraining, getNotifications, getPayslips, getPolicies, getRequests, getShiftAssignments, getTeamAvailability, getTodayAttendance, hm, hoursLabel, isoDate, LETTER_TYPES, money, MONTHS, MONTHS_LONG, nowStamp, pad, REQUEST_CATEGORIES, stripHtml, summariseCheckins, useAsync, WEEKDAYS } from "../../lib/employeePortal";
+import { CONTACTS, createRequest, daysBetween, daysUntil, dmy, dmyHm, errMsg, EXPIRY_WARN_DAYS, getAcknowledged, getAnnouncements, getAppraisals, getApprovals, getAttendanceHistory, getAttendanceRequests, getBenefitClaims, getCheckinsBetween, getEvents, getExpenseClaims, getFeedback, getGoals, getHelpArticles, getHolidays, getLeaveApplications, getLeaveBalance, getLeaveTypes, getMyAssets, getMyDocuments, getMyLeavesBetween, getMyTraining, getNotifications, getPayslips, getPolicies, getRequests, getShiftAssignments, getTeamAvailability, getTodayAttendance, getUpcomingBirthdays, hm, hoursLabel, isoDate, LETTER_TYPES, money, MONTHS, MONTHS_LONG, nowStamp, pad, removeMyDocument, REQUEST_CATEGORIES, splitRequest, stripHtml, updateRequest, uploadMyDocument, withdrawRequest, summariseCheckins, useAsync, WEEKDAYS } from "../../lib/employeePortal";
 import { useAuth } from "../../context/AuthContext";
 import { hasPermission } from "../../permissions/roles";
 import { isPageBlocked } from "../../permissions/pageAccess";
@@ -131,8 +131,10 @@ export function EmpAttendance() {
     const [att, logs] = await Promise.all([getAttendanceHistory(emp, from, to), getCheckinsBetween(emp, from, to).catch(() => [])]);
     const have = new Set(att.map((r) => r.attendance_date));
     // Days with punches but no attendance record yet still count - HR confirms them.
+    const punches = new Map(summariseCheckins(logs).map((d) => [d.attendance_date, d]));
+    const saved = att.map((r) => { const p = !r.in_time && punches.get(r.attendance_date); return p ? { ...r, in_time: p.in_time, out_time: p.stillIn ? null : p.out_time } : r; });
     const derived = summariseCheckins(logs).filter((d) => !have.has(d.attendance_date)).map((d) => ({ name: `punch-${d.attendance_date}`, attendance_date: d.attendance_date, status: "Present", in_time: d.in_time, out_time: d.stillIn ? null : d.out_time, working_hours: d.working_hours, derived: true }));
-    return [...att, ...derived].sort((a, b) => b.attendance_date.localeCompare(a.attendance_date));
+    return [...saved, ...derived].sort((a, b) => b.attendance_date.localeCompare(a.attendance_date));
   }, [emp, from]);
   const requests = useAsync(() => getAttendanceRequests(emp), [emp]);
 
@@ -297,10 +299,26 @@ export function EmpCalendar() {
   );
 }
 
+/** Next 30 days. Names and dates only: the year of birth is never sent to the browser. */
+function BirthdayList({ rows, limit = 6 }) {
+  if (!rows?.length) return <p className="text-[13px] text-[var(--color-text-muted)]">No birthdays in the next 30 days.</p>;
+  return (
+    <ul className="space-y-2.5">
+      {rows.slice(0, limit).map((b) => (
+        <li key={`${b.name}-${b.date}`} className="flex items-center justify-between gap-3 text-[13px]">
+          <span className="flex min-w-0 items-center gap-2 text-[var(--color-text)]"><Cake size={14} className="shrink-0 text-[var(--color-red-hover)]" /><span className="truncate">{b.name}</span></span>
+          <span className="shrink-0 text-[12px] text-[var(--color-text-muted)]">{b.days_away === 0 ? "Today" : b.days_away === 1 ? "Tomorrow" : dmy(b.date).slice(0, 5)}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function CalendarTab({ employee }) {
   const t = new Date();
   const [cursor, setCursor] = useState({ y: t.getFullYear(), m: t.getMonth() });
   const holidays = useAsync(() => getHolidays(employee), [employee.name]);
+  const birthdays = useAsync(getUpcomingBirthdays, []);
   const start = `${cursor.y}-${pad(cursor.m + 1)}-01`;
   const end = `${cursor.y}-${pad(cursor.m + 1)}-${pad(new Date(cursor.y, cursor.m + 1, 0).getDate())}`;
   const leaves = useAsync(() => getMyLeavesBetween(employee.name, start, end), [employee.name, start]);
@@ -327,6 +345,7 @@ function CalendarTab({ employee }) {
                   const iso = `${cursor.y}-${pad(cursor.m + 1)}-${pad(d)}`;
                   const h = byDate[iso];
                   const l = leaveOn(iso);
+                  const born = (birthdays.data || []).filter((b) => b.date === iso);
                   const isToday = iso === isoDate();
                   const bg = l ? "color-mix(in srgb, var(--color-amber) 22%, transparent)" : h && !h.weeklyOff ? "var(--color-red-wash)" : h?.weeklyOff ? "var(--color-surface-2)" : "transparent";
                   return (
@@ -334,6 +353,7 @@ function CalendarTab({ employee }) {
                       <span className={h?.weeklyOff ? "text-[var(--color-text-faint)]" : "text-[var(--color-text)]"}>{d}</span>
                       {h && !h.weeklyOff && <span className="mt-auto truncate text-[10px] text-[var(--color-red-hover)]">{h.description}</span>}
                       {l && !h && <span className="mt-auto truncate text-[10px] text-[var(--color-amber)]">Leave</span>}
+                      {born.length > 0 && <span title={born.map((b) => b.name).join(", ")} className="mt-auto flex items-center gap-0.5 truncate text-[10px] text-[var(--color-text-muted)]"><Cake size={10} className="shrink-0" /> {born.length > 1 ? `${born.length} birthdays` : born[0].name.split(" ")[0]}</span>}
                     </div>
                   );
                 })}
@@ -346,9 +366,10 @@ function CalendarTab({ employee }) {
         </Async>
       </Panel>
       <Panel title="Upcoming Holidays">
-        {holidays.data && !holidays.data.name && <Empty text="No holiday list is assigned to you yet." />}
+        {holidays.data && !holidays.data.name && <Empty text="No holiday list is assigned to you yet. Ask HR to set your Office Location." />}
         {upcoming.length > 0 && <ul className="space-y-3">{upcoming.map((h) => <li key={h.date} className="flex items-center justify-between text-[13px]"><span className="text-[var(--color-text)]">{h.description}</span><span className="text-[var(--color-text-muted)]">{dmy(h.date)}</span></li>)}</ul>}
-        {holidays.data?.name && upcoming.length === 0 && <Empty text="No more holidays this year." />}
+        {holidays.data?.name && upcoming.length === 0 && <Empty text={(holidays.data.holidays || []).some((h) => !h.weeklyOff) ? "No more holidays this year." : "No holidays have been added to this list yet. HR adds them under Office Locations."} />}
+        <div className="mt-5 border-t border-[var(--color-border)] pt-4"><p className="mb-3 text-[13px] font-semibold text-[var(--color-text)]">Upcoming Birthdays</p><BirthdayList rows={birthdays.data} /></div>
       </Panel>
     </div>
   );
@@ -441,6 +462,7 @@ function SelfDashboard() {
   const notifs = useAsync(() => getNotifications(user.email, 30), [user.email]);
   const news = useAsync(() => getAnnouncements(4), []);
   const team = useAsync(() => getTeamAvailability(employee, 7), [emp]);
+  const birthdays = useAsync(getUpcomingBirthdays, []);
 
   const att = today.data;
   const lastLog = att?.logs?.[att.logs.length - 1];
@@ -553,6 +575,7 @@ function SelfDashboard() {
         </div>
       </div>
 
+      {(birthdays.data || []).some((b) => b.days_away <= 7) && <Panel title="Upcoming Birthdays" hint="In the next 7 days"><BirthdayList rows={birthdays.data.filter((b) => b.days_away <= 7)} /></Panel>}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {[["/employee/attendance", "Punch in / out", CalendarCheck], ["/employee/leave", "Apply for leave", CalendarClock], ["/employee/payslips", "View payslips", Wallet], ["/employee/help", "Raise a request", LifeBuoy]].map(([to, label, Icon]) => (
           <Link key={to} to={to} className="group flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3.5 transition-colors hover:border-[var(--color-red-deep)] hover:bg-[var(--color-surface-2)]">
@@ -801,6 +824,22 @@ export function EmpHelp() {
   const requests = useAsync(() => getRequests(user.email), [user.email]);
   const isLetter = (r) => r.subject.startsWith("[Letter");
 
+  async function withdraw(r) {
+    if (!(await confirmDialog({ title: "Withdraw Request", message: `Withdraw "${splitRequest(r.subject).title}"? HR will no longer act on it.`, danger: true, confirmLabel: "Withdraw", cancelLabel: "Keep It" }))) return;
+    try {
+      await withdrawRequest(r.name);
+      requests.reload();
+    } catch (e) {
+      alertDialog({ tone: "error", message: errMsg(e, "Couldn't withdraw this request.") });
+    }
+  }
+  const requestActions = (r) => (r.status === "Open" ? (
+    <div className="flex justify-end gap-3 whitespace-nowrap text-[12px]">
+      <button type="button" onClick={() => setModal({ edit: r, ...splitRequest(r.subject), letter: isLetter(r) })} className="flex items-center gap-1 text-[var(--color-text-muted)] hover:text-[var(--color-text)]"><Pencil size={13} /> Edit</button>
+      <button type="button" onClick={() => withdraw(r)} className="flex items-center gap-1 text-[var(--color-text-muted)] hover:text-[var(--color-red-hover)]"><Undo2 size={13} /> Withdraw</button>
+    </div>
+  ) : null);
+
   return (
     <>
       <PageHeader icon={LifeBuoy} title="Help & Requests" subtitle="HR and IT support, document requests, letters and who to contact" actions={<Button onClick={() => setModal({ category: "HR Support" })}><Plus size={14} /> New Request</Button>} />
@@ -808,7 +847,7 @@ export function EmpHelp() {
 
       {tab === "requests" && (
         <Panel title="My Requests">
-          <Async state={requests}>{(rows) => <Grid rows={rows.filter((r) => !isLetter(r))} empty="You haven't raised any requests." columns={[{ key: "name", label: "Ref" }, { key: "subject", label: "Subject" }, { key: "creation", label: "Raised", render: (r) => dmy(r.creation) }, { key: "status", label: "Status", render: (r) => <StatusPill status={r.status} /> }]} />}</Async>
+          <Async state={requests}>{(rows) => <Grid rows={rows} empty="You haven't raised any requests." columns={[{ key: "name", label: "Ref" }, { key: "category", label: "Type", render: (r) => splitRequest(r.subject).category || "—" }, { key: "subject", label: "Subject", render: (r) => splitRequest(r.subject).title }, { key: "creation", label: "Raised", render: (r) => dmy(r.creation) }, { key: "status", label: "Status", render: (r) => <StatusPill status={r.status} /> }, { key: "_a", label: "", render: requestActions }]} />}</Async>
         </Panel>
       )}
 
@@ -823,7 +862,7 @@ export function EmpHelp() {
             ))}
           </div>
           <Panel title="My Letter Requests" hint="Issued letters appear under Policies & Documents > My documents">
-            <Async state={requests}>{(rows) => <Grid rows={rows.filter(isLetter)} empty="No letter requests yet." columns={[{ key: "subject", label: "Letter", render: (r) => r.subject.replace(/^\[Letter\]\s*/, "") }, { key: "creation", label: "Requested", render: (r) => dmy(r.creation) }, { key: "status", label: "Status", render: (r) => <StatusPill status={r.status} /> }]} />}</Async>
+            <Async state={requests}>{(rows) => <Grid rows={rows.filter(isLetter)} empty="No letter requests yet." columns={[{ key: "subject", label: "Letter", render: (r) => r.subject.replace(/^\[Letter\]\s*/, "") }, { key: "creation", label: "Requested", render: (r) => dmy(r.creation) }, { key: "status", label: "Status", render: (r) => <StatusPill status={r.status} /> }, { key: "_a", label: "", render: requestActions }]} />}</Async>
           </Panel>
         </>
       )}
@@ -851,7 +890,7 @@ export function EmpHelp() {
 }
 
 function RequestModal({ init, user, onClose, onSaved }) {
-  const [f, setF] = useState({ category: init.category, subject: init.subject || "", description: "" });
+  const [f, setF] = useState({ category: init.category, subject: init.title || init.subject || "", description: init.edit ? stripHtml(init.edit.description || "") : "" });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   async function submit(e) {
@@ -859,7 +898,8 @@ function RequestModal({ init, user, onClose, onSaved }) {
     setBusy(true);
     setErr("");
     try {
-      await createRequest({ ...f, user });
+      if (init.edit) await updateRequest(init.edit.name, f);
+      else await createRequest({ ...f, user });
       onSaved();
     } catch (x) {
       setErr(errMsg(x, "Couldn't send the request."));
@@ -868,7 +908,7 @@ function RequestModal({ init, user, onClose, onSaved }) {
     }
   }
   return (
-    <Modal title={init.letter ? `Request: ${init.subject}` : "New request"} onClose={onClose}>
+    <Modal title={init.edit ? "Edit Request" : init.letter ? `Request: ${init.subject}` : "New Request"} onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
         {!init.letter && (
           <>
@@ -878,7 +918,7 @@ function RequestModal({ init, user, onClose, onSaved }) {
         )}
         <Field label={init.letter ? "Purpose (e.g. bank loan, visa) and any details" : "Details"}><textarea required rows={4} className={inputCls} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} /></Field>
         {err && <Notice>{err}</Notice>}
-        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Sending…" : "Send"}</Button></div>
+        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Saving…" : init.edit ? "Save" : "Send"}</Button></div>
       </form>
     </Modal>
   );
@@ -1147,6 +1187,73 @@ const EDIT_SECTIONS = [
 ];
 const EDITABLE = EDIT_SECTIONS.flatMap(([, fields]) => fields);
 
+const DOCUMENT_TYPES = ["PAN Card", "Aadhaar Card", "Bank Details", "Passport", "Education Certificate", "Other"];
+const MAX_DOCUMENT_MB = 5;
+
+/** Upload identity and bank documents. Stored privately on the employee's own record, for them and HR. */
+function MyDocumentsPanel({ employee }) {
+  const { user } = useAuth();
+  const docs = useAsync(() => getMyDocuments(employee.name), [employee.name]);
+  const input = useRef(null);
+  const [type, setType] = useState(DOCUMENT_TYPES[0]);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function upload(file) {
+    if (input.current) input.current.value = "";
+    if (!file) return;
+    setErr("");
+    if (!/\.(pdf|png|jpe?g|webp)$/i.test(file.name)) return setErr("Upload a PDF or an image (PNG, JPG, WebP).");
+    if (file.size > MAX_DOCUMENT_MB * 1024 * 1024) return setErr(`Documents must be ${MAX_DOCUMENT_MB} MB or smaller.`);
+    if (!(await confirmDialog({ title: `Upload ${type}`, message: `Upload "${file.name}" as your ${type}? It's stored privately on your record for HR to see.`, confirmLabel: "Upload" }))) return;
+    setBusy(true);
+    try {
+      await uploadMyDocument(file, type);
+      docs.reload();
+    } catch (x) {
+      setErr(errMsg(x, "Couldn't upload this document."));
+    }
+    setBusy(false);
+  }
+
+  async function remove(d) {
+    if (!(await confirmDialog({ message: `Remove "${d.file_name}"?`, danger: true, confirmLabel: "Remove" }))) return;
+    setErr("");
+    try {
+      await removeMyDocument(d.name);
+      docs.reload();
+    } catch (x) {
+      setErr(errMsg(x, "Couldn't remove this document."));
+    }
+  }
+
+  return (
+    <Panel title="My Documents" hint="PAN, Aadhaar, bank details and other documents for HR. Private to you and HR.">
+      <div className="mb-4 flex flex-wrap items-end gap-2">
+        <div className="w-56"><Field label="Document Type"><select className={inputCls} value={type} onChange={(ev) => setType(ev.target.value)}>{DOCUMENT_TYPES.map((t) => <option key={t}>{t}</option>)}</select></Field></div>
+        <input ref={input} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" className="hidden" onChange={(ev) => upload(ev.target.files?.[0])} />
+        <Button type="button" onClick={() => input.current?.click()} disabled={busy}><Upload size={14} /> {busy ? "Uploading…" : "Upload Document"}</Button>
+      </div>
+      {err && <div className="mb-3"><Notice>{err}</Notice></div>}
+      <Async state={docs}>
+        {(rows) => (rows.length === 0 ? <Empty text="No documents uploaded yet." /> : (
+          <ul className="divide-y divide-[var(--color-border)]">
+            {rows.map((d) => (
+              <li key={d.name} className="flex flex-wrap items-center justify-between gap-3 py-2.5 text-[13px]">
+                <span className="flex min-w-0 items-center gap-2 text-[var(--color-text)]"><FileText size={15} className="shrink-0 text-[var(--color-text-muted)]" /><span className="truncate">{d.file_name}</span><span className="shrink-0 text-[11px] text-[var(--color-text-faint)]">{dmy(d.creation)}</span></span>
+                <span className="flex shrink-0 items-center gap-3 text-[12px]">
+                  <a href={d.file_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-[var(--color-text-muted)] hover:text-[var(--color-text)]"><ExternalLink size={13} /> Open</a>
+                  {d.owner === user.email && <button type="button" onClick={() => remove(d)} className="flex items-center gap-1 text-[var(--color-text-muted)] hover:text-[var(--color-red-hover)]"><Trash2 size={13} /> Remove</button>}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ))}
+      </Async>
+    </Panel>
+  );
+}
+
 export function EmpProfile() {
   const { employee: e, reload } = useEmployee();
   const [editing, setEditing] = useState(false);
@@ -1208,6 +1315,8 @@ export function EmpProfile() {
         <Panel title="Emergency Contact"><KeyValue items={[["Name", e.person_to_be_contacted], ["Relation", e.relation], ["Phone", e.emergency_phone_number]]} /></Panel>
         <Panel title="Document Validity"><KeyValue items={[validity("Passport valid until", e.valid_upto), validity("Contract ends", e.contract_end_date), e.passport_number && ["Passport number", e.passport_number]].filter(Boolean)} />{!e.valid_upto && !e.contract_end_date && <p className="text-[13px] text-[var(--color-text-muted)]">No expiry dates on file.</p>}</Panel>
       </div>
+
+      <MyDocumentsPanel employee={e} />
 
       {pwOpen && <Modal title="Change Password" onClose={() => setPwOpen(false)}><ChangePasswordForm onCancel={() => setPwOpen(false)} /></Modal>}
 
