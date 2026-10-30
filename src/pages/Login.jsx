@@ -3,13 +3,14 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { AlertCircle, CalendarCheck, Eye, EyeOff, Loader2, Lock, Users, UserRound, Wallet, CalendarClock, ArrowRight } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { homePath } from "../permissions/roles";
+import { Brand } from "../components/Brand";
 
-/** Logo + a clearly visible HRMS tag (the shared Brand's label is too faint on this page). */
+/** The company's logo and name (same component as the sidebar), with a clearly visible HRMS tag. */
 function LoginBrand() {
   return (
-    <div className="flex items-center gap-4">
-      <img src="/ethx-logo.svg" alt="ETHX Softcon" className="h-14 w-auto" />
-      <span className="rounded-md border border-[var(--color-red-deep)] bg-[var(--color-red-wash)] px-3 py-1.5 text-[14px] font-semibold uppercase tracking-[0.22em] text-[var(--color-text)]">
+    <div className="flex flex-col items-start gap-3">
+      <Brand size="page" />
+      <span className="rounded-md border border-[var(--color-red-deep)] bg-[var(--color-red-wash)] px-3 py-1 text-[12px] font-semibold uppercase tracking-[0.22em] text-[var(--color-text)]">
         HRMS
       </span>
     </div>

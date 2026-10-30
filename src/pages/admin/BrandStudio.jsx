@@ -5,7 +5,7 @@ import { Button, Card } from "../../components/ui/primitives";
 import { errMsg, useAsync } from "../../lib/employeePortal";
 import { frappe } from "../../lib/api/frappeClient";
 import { getSavedTheme, saveTheme, THEME_OPTIONS } from "../../lib/theme";
-import { AdaptiveLogo } from "../../components/AdaptiveLogo";
+import { Brand } from "../../components/Brand";
 import { confirmDialog } from "../../components/ui/dialogs";
 
 async function loadCompanies() {
@@ -190,16 +190,29 @@ export default function BrandStudio() {
         </section>
 
         <section className="space-y-3">
-          <div><h2 className="text-[14px] font-semibold text-[var(--color-text)]">Company Logo</h2><p className="mt-0.5 text-[12px] text-[var(--color-text-muted)]">A clear, horizontal image works best in navigation.</p></div>
+          <div><h2 className="text-[14px] font-semibold text-[var(--color-text)]">Company Logo</h2><p className="mt-0.5 text-[12px] text-[var(--color-text-muted)]">Any shape works: empty margins and solid backgrounds are removed so it fits and matches every theme.</p></div>
           <Card className="overflow-hidden">
-            <div className="flex min-h-40 items-center justify-center bg-[var(--color-surface-2)] p-6">
-              {companyQuery.loading && !currentCompany ? <Loader2 size={18} className="animate-spin text-[var(--color-text-muted)]" /> : (
-                <div className="flex max-w-full items-center gap-4">
-                  <AdaptiveLogo src={currentCompany?.company_logo || "/ethx-logo.svg"} alt="Company logo preview" className="max-h-16 max-w-44 object-contain" />
-                  <span className="min-w-0 border-l border-[var(--color-border-strong)] pl-4"><span className="block truncate text-[14px] font-semibold text-[var(--color-text)]">{currentCompany?.company_name || currentCompany?.name || "Your company"}</span><span className="mt-0.5 block text-[10px] font-medium uppercase tracking-[0.14em] text-[var(--color-text-muted)]">People platform</span></span>
+            {companyQuery.loading && !currentCompany ? <div className="flex min-h-40 items-center justify-center bg-[var(--color-surface-2)]"><Loader2 size={18} className="animate-spin text-[var(--color-text-muted)]" /></div> : (
+              <div className="space-y-4 bg-[var(--color-surface-2)] p-4">
+                {/* The logo alone, as it appears in navigation, on a dark and a light theme. */}
+                <div>
+                  <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">Logo</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[["dark", "#0f0f12", "Dark themes"], ["light", "#ffffff", "Light themes"]].map(([mode, bg, label]) => (
+                      <div key={mode} className="rounded-lg border border-[var(--color-border)] p-3" style={{ background: bg }}>
+                        <Brand size="compact" showName={false} logo={currentCompany?.company_logo || "/ethx-logo.svg"} mode={mode} />
+                        <p className="mt-2 text-[10px]" style={{ color: mode === "dark" ? "#9a9aa3" : "#6b6b75" }}>{label}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              )}
-            </div>
+                {/* The company name is separate text from the Company record - never part of the logo image. */}
+                <div>
+                  <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">Company Name</p>
+                  <p className="break-words text-[15px] font-bold text-[var(--color-text)]">{currentCompany?.company_name || currentCompany?.name || "Your company"}</p>
+                </div>
+              </div>
+            )}
             <div className="space-y-3 p-4">
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(event) => uploadLogo(event.target.files?.[0])} />
               <Button type="button" className="w-full" disabled={!companyName || Boolean(busy)} onClick={() => fileRef.current?.click()}>{busy === "logo" ? <Loader2 size={14} className="animate-spin" /> : <ImagePlus size={14} />}{busy === "logo" ? "Uploading logo…" : "Upload company logo"}</Button>

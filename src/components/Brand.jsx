@@ -1,22 +1,42 @@
-import { useBranding } from "../context/BrandingContext";
+import { getCachedBrandLogo, getCachedBrandName, useBranding } from "../context/BrandingContext";
 import { AdaptiveLogo } from "./AdaptiveLogo";
 
-export function Brand({ compact = false, className = "" }) {
-  const { company } = useBranding();
-  const logo = company?.company_logo || "/ethx-logo.svg";
-  const companyName = company?.company_name || "ETHX Softcon";
+const DEFAULT_LOGO = "/ethx-logo.svg";
+const DEFAULT_NAME = "ETHX Softcon";
 
+/** The company's logo and name - from the Company record, or the last one seen on this browser (sign-in page). */
+export function useCompanyBrand() {
+  const { company } = useBranding();
+  return {
+    logo: company?.company_logo || getCachedBrandLogo() || DEFAULT_LOGO,
+    name: company?.company_name || getCachedBrandName() || DEFAULT_NAME,
+  };
+}
+
+// Every logo gets the same frame: a fixed height and the available width. AdaptiveLogo trims the logo's empty
+// margins, so square, wide and padded logos all fill the frame the same way.
+const SIZES = {
+  sidebar: { frame: "h-14", name: "text-[15px]" },
+  page: { frame: "h-16", name: "text-[17px]" },
+  compact: { frame: "h-10", name: "text-[13px]" },
+};
+
+/**
+ * Logo with the company name as its own line underneath - never squeezed into one row with it.
+ * `align`: "start" (sidebar) or "center" (sign-in screens). `mode` forces a light / dark rendering (previews).
+ */
+export function Brand({ size = "sidebar", align = "start", showName = true, logo, name, mode, className = "" }) {
+  const brand = useCompanyBrand();
+  const src = logo || brand.logo;
+  const title = name || brand.name;
+  const s = SIZES[size] || SIZES.sidebar;
+  const center = align === "center";
   return (
-    <div className={`flex items-center ${compact ? "gap-2" : "gap-3"} ${className}`}>
-      <AdaptiveLogo
-        src={logo}
-        alt={`${companyName} logo`}
-        className={`${compact ? "h-10 max-w-24" : "h-16 max-w-40"} w-auto object-contain`}
-      />
-      <span className={`min-w-0 ${compact ? "border-l border-[var(--color-border)] pl-2" : "border-l border-[var(--color-border-strong)] pl-3"}`}>
-        <span className={`block max-w-36 truncate font-semibold text-[var(--color-text)] ${compact ? "text-[12px]" : "text-[13px]"}`}>{companyName}</span>
-        <span className={`block font-medium uppercase tracking-[0.14em] text-[var(--color-text-muted)] ${compact ? "text-[9px]" : "text-[10px]"}`}>People platform</span>
-      </span>
+    <div className={`flex min-w-0 flex-col ${center ? "items-center text-center" : "items-start"} ${className}`}>
+      <div className={`flex w-full ${s.frame} ${center ? "justify-center" : "justify-start"}`}>
+        <AdaptiveLogo src={src} alt={`${title} logo`} mode={mode} className={`h-full w-auto max-w-full object-contain ${center ? "object-center" : "object-left"}`} />
+      </div>
+      {showName && <p className={`mt-2.5 max-w-full break-words font-bold leading-tight tracking-tight text-[var(--color-text)] ${s.name}`}>{title}</p>}
     </div>
   );
 }
