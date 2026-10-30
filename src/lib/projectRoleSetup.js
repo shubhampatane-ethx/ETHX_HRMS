@@ -134,7 +134,53 @@ frappe.get_doc({"doctype": "Comment", "comment_type": "Info", "reference_doctype
 frappe.response["message"] = {"manager": new, "granted": granted, "revoked": revoked}
 `;
 
+// The live projects the signed-in person manages or works on, with who is on each: name, role and dates.
+// Hours and notes aren't returned: teammates don't need them, and the manager has them under Assignments.
+const MY_PROJECT_TEAMS_API = `
+user = frappe.session.user
+fields = ["name", "project_name", "status", "custom_project_manager", "owner"]
+found = {}
+for p in frappe.get_all("Project", filters={"custom_project_manager": user}, fields=fields):
+    found[p.name] = p
+for p in frappe.get_all("Project", filters={"owner": user, "custom_project_manager": ["is", "not set"]}, fields=fields):
+    found[p.name] = p
+mine = frappe.get_all("ToDo", filters={"reference_type": "Task", "allocated_to": user, "status": "Open"}, pluck="reference_name")
+if mine:
+    ids = frappe.get_all("Task", filters={"name": ["in", mine], "status": ["not in", ["Completed", "Cancelled"]]}, pluck="project")
+    if ids:
+        for p in frappe.get_all("Project", filters={"name": ["in", ids]}, fields=fields):
+            found[p.name] = p
+emp_fields = ["name", "employee_name", "designation", "user_id", "custom_is_contractor"]
+out = []
+for pname in found:
+    p = found[pname]
+    if p.status in ("Completed", "Cancelled"):
+        continue
+    manager = p.custom_project_manager or p.owner
+    members = []
+    seen = []
+    tasks = frappe.get_all("Task", filters={"project": pname, "status": ["not in", ["Completed", "Cancelled"]], "description": ["like", "%[ETHX Assignment]%"]}, fields=["name", "description", "exp_start_date", "exp_end_date"], order_by="exp_start_date asc")
+    for t in tasks:
+        text = t.description or ""
+        for tag in ["<br>", "<br/>", "<br />", "</p>", "</div>", "</li>"]:
+            text = text.replace(tag, "\\n")
+        role = ""
+        for line in frappe.utils.strip_html(text).split("\\n"):
+            if line.strip().startswith("Role:"):
+                role = line.strip()[5:].strip()
+        for email in frappe.get_all("ToDo", filters={"reference_type": "Task", "reference_name": t.name, "status": "Open"}, pluck="allocated_to"):
+            e = frappe.db.get_value("Employee", {"user_id": email}, emp_fields, as_dict=True)
+            seen.append(email)
+            members.append({"key": t.name + email, "name": e.employee_name if e else email, "designation": e.designation if e else "", "role": role, "start": str(t.exp_start_date or ""), "eta": str(t.exp_end_date or ""), "is_manager": email == manager, "is_contractor": bool(e and e.custom_is_contractor)})
+    if manager and manager != "Administrator" and manager not in seen:
+        e = frappe.db.get_value("Employee", {"user_id": manager}, emp_fields, as_dict=True)
+        members.insert(0, {"key": manager, "name": e.employee_name if e else manager, "designation": e.designation if e else "", "role": "Project Manager", "start": "", "eta": "", "is_manager": True, "is_contractor": False})
+    out.append({"project": pname, "label": p.project_name or pname, "can_manage": manager == user, "members": members})
+frappe.response["message"] = out
+`;
+
 export const PROJECT_ROLE_SCRIPTS = [
+  { name: "ETHX - My project teams", script_type: "API", api_method: "ethx_my_project_teams", script: MY_PROJECT_TEAMS_API, what: "My Team shows the team of each project you manage or work on" },
   { name: "ETHX - Set project manager", script_type: "API", api_method: "ethx_set_project_manager", script: SET_MANAGER_API, what: "Any employee can be made manager of a project, with access to that project only" },
   { name: "ETHX - Projects: own only", script_type: "Permission Query", reference_doctype: "Project", script: PROJECT_QUERY, what: "Project managers see only their own projects" },
   { name: "ETHX - Tasks: own projects only", script_type: "Permission Query", reference_doctype: "Task", script: TASK_QUERY, what: "Project managers see tasks of their own projects and their own tasks" },

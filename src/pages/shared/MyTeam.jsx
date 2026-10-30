@@ -1,7 +1,11 @@
-// My Team: a line manager's direct reports - who's in today, who's away soon, and leave waiting for their decision.
+// My Team: the team of each project you manage or work on, then a line manager's direct reports - who's in today,
+// who's away soon, and leave waiting for their decision.
 // Runs through server methods (ERPNext Setup) because employee logins can only read their own records.
 import { useState } from "react";
-import { Check, Users, X } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Check, UserPlus, Users, X } from "lucide-react";
+import { useAuth } from "../../context/AuthContext";
+import { hasPermission } from "../../permissions/roles";
 import { frappe } from "../../lib/api/frappeClient";
 import { Button } from "../../components/ui/primitives";
 import { Async, Empty, Field, Grid, inputCls, Modal, Notice, PageHeader, Panel, StatusPill } from "../../components/employee/EmployeeShell";
@@ -16,13 +20,38 @@ async function loadTeam() {
   }
 }
 
+const period = (m) => (m.start ? `${dmy(m.start)}${m.eta ? ` – ${dmy(m.eta)}` : ""}` : "—");
+
+/** One panel per live project: who is on it, in which role, until when. */
+function ProjectTeams() {
+  const { user } = useAuth();
+  const teams = useAsync(() => frappe.callMethod("ethx_my_project_teams"), []);
+  const missing = /Failed to get method|not whitelisted|has no attribute|No module named/i.test(String(teams.error?.response?.data?.exception || teams.error?.response?.data?.exc || ""));
+  if (missing || teams.error?.response?.status === 404) return <Notice tone="info">Project teams aren't set up yet - ask the Administrator to run Admin › System Setup.</Notice>;
+  return (
+    <Async state={teams}>
+      {(list) => (list.length === 0 ? <Panel title="Project Teams"><Empty text="You aren't on any live project yet." /></Panel> : list.map((t) => (
+        <Panel key={t.project} title={`${t.label} (${t.members.length})`} hint="Project team" action={t.can_manage && hasPermission(user, "dashboard.pm") ? <Link to={`/pm/assignments?assign=${encodeURIComponent(t.project)}`} className="flex items-center gap-1 text-[12px] text-[var(--color-red-hover)] hover:underline"><UserPlus size={13} /> Add Member</Link> : null}>
+          <Grid rows={t.members} rowKey={(m) => m.key} empty="No one is on this project yet." columns={[
+            { key: "name", label: "Name", render: (m) => <span>{m.name}{m.designation && <span className="block text-[11px] text-[var(--color-text-faint)]">{m.designation}</span>}</span> },
+            { key: "role", label: "Role on Project", render: (m) => m.role || "—" },
+            { key: "type", label: "Type", render: (m) => <StatusPill status={m.is_manager ? "Manager" : m.is_contractor ? "Contractor" : "Employee"} /> },
+            { key: "period", label: "Period", render: period },
+          ]} />
+        </Panel>
+      )))}
+    </Async>
+  );
+}
+
 export default function MyTeam() {
   const q = useAsync(loadTeam, []);
   const [decide, setDecide] = useState(null);
   const d = q.data;
   return (
     <>
-      <PageHeader icon={Users} title="My Team" subtitle="Your direct reports, today's attendance, upcoming leave and leave requests waiting for you" />
+      <PageHeader icon={Users} title="My Team" subtitle="Your project teams, direct reports, today's attendance, upcoming leave and leave requests waiting for you" />
+      <ProjectTeams />
       {d && !d.ready && <Notice>Manager self-service isn't set up yet - ask the Administrator to run Admin › System Setup.</Notice>}
       <Async state={q}>
         {() => (
