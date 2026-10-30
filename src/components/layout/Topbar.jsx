@@ -99,15 +99,15 @@ function accountMenu(user, roleLabel) {
   } else if (roleLabel === "HR") {
     // Their own self-service pages are in the HR sidebar ("My Self-Service"); only the profile lives here.
     if (hasPermission(user, "dashboard.employee")) {
-      items.push({ to: "/employee/profile", label: "My profile & password", icon: UserRound });
+      items.push({ to: "/employee/profile", label: "My Profile", icon: UserRound });
     }
     items.push({ to: "/hr/setup/hr-settings", label: "HR Settings", icon: Settings });
   } else if (roleLabel === "Employee") {
-    items.push({ to: "/employee/profile", label: "Profile & password", icon: UserRound });
+    items.push({ to: "/employee/profile", label: "My Profile", icon: UserRound });
     if (hasPermission(user, "dashboard.hr")) items.push({ to: "/hr", label: "HR Workspace", icon: Briefcase });
-    if (hasPermission(user, "dashboard.pm")) items.push({ to: "/pm", label: "Project Manager workspace", icon: Briefcase });
+    if (hasPermission(user, "dashboard.pm")) items.push({ to: "/pm", label: "Project Manager Workspace", icon: Briefcase });
   } else if (roleLabel === "Project Manager" && hasPermission(user, "dashboard.employee")) {
-    items.push({ to: "/employee/profile", label: "My profile & password", icon: UserRound });
+    items.push({ to: "/employee/profile", label: "My Profile", icon: UserRound });
   }
   return items;
 }
@@ -164,7 +164,7 @@ export function Topbar({ roleLabel, pageTitle }) {
                 <ThemeSection />
                 <button type="button" role="menuitem" onClick={logout} className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-2)] hover:text-[var(--color-red-hover)]">
                   <LogOut size={15} strokeWidth={1.75} />
-                  Sign out
+                  Sign Out
                 </button>
               </div>
             </div>

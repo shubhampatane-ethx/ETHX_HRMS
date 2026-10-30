@@ -35,7 +35,7 @@ export default function MyInterviews() {
     <div className="space-y-5">
       <PageHeader icon={ClipboardCheck} title="My interviews" subtitle="Interviews you're on the panel for - give your scorecard after each one" />
       <Panel>
-        <div className="mb-4 flex gap-2">{[["todo", "Feedback due"], ["done", "Done"], ["all", "All"]].map(([v, l]) => <button key={v} type="button" onClick={() => setFilter(v)} className={chipCls(filter === v)}>{l}</button>)}</div>
+        <div className="mb-4 flex gap-2">{[["todo", "Feedback Due"], ["done", "Done"], ["all", "All"]].map(([v, l]) => <button key={v} type="button" onClick={() => setFilter(v)} className={chipCls(filter === v)}>{l}</button>)}</div>
         <Async state={data}>
           {() => rows.length === 0 ? <Empty icon={CalendarCheck} text={(data.data || []).length === 0 ? "You're not on any interview panel yet." : filter === "todo" ? "No feedback due." : "Nothing here."} /> : <Grid rows={rows} columns={[
             { key: "when", label: "When", render: (i) => <span className={i.scheduled_on === today ? "font-medium text-[var(--color-red-hover)]" : ""}>{dmy(i.scheduled_on)} {fmtTime(i.from_time)}–{fmtTime(i.to_time)}</span> },

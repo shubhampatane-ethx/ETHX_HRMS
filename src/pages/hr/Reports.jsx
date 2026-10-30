@@ -17,7 +17,7 @@ export default function Reports() {
   return (
     <div className="space-y-5">
       <PageHeader icon={FileBarChart} title="Reports" subtitle="Headcount, joiners and leavers, leave, attendance and timesheet utilisation" />
-      <Tabs value={tab} onChange={setTab} tabs={[{ id: "headcount", label: "Headcount" }, { id: "movement", label: "Joiners & leavers" }, { id: "leave", label: "Leave" }, { id: "attendance", label: "Attendance" }, { id: "utilisation", label: "Utilisation" }]} />
+      <Tabs value={tab} onChange={setTab} tabs={[{ id: "headcount", label: "Headcount" }, { id: "movement", label: "Joiners & Leavers" }, { id: "leave", label: "Leave" }, { id: "attendance", label: "Attendance" }, { id: "utilisation", label: "Utilisation" }]} />
       {tab === "headcount" && <Headcount />}
       {tab === "movement" && <Movement />}
       {tab === "leave" && <LeaveReport />}
@@ -41,7 +41,7 @@ function Headcount() {
   const max = Math.max(1, ...groups.map((g) => g.n));
   return (
     <Panel title={`Active headcount: ${active.length}`} action={<Button variant="secondary" disabled={!groups.length} onClick={() => downloadCsv(`headcount-by-${by}-${isoDate()}.csv`, [by, "Employees"], groups.map((g) => [g.k, g.n]))}><Download size={14} /> CSV</Button>}>
-      <div className="mb-4 flex flex-wrap gap-2">{[["department", "Department"], ["designation", "Designation"], ["company", "Company"], ["branch", "Branch"], ["employment_type", "Employment type"], ["gender", "Gender"]].map(([v, l]) => <button key={v} type="button" onClick={() => setBy(v)} className={chipCls(by === v)}>{l}</button>)}</div>
+      <div className="mb-4 flex flex-wrap gap-2">{[["department", "Department"], ["designation", "Designation"], ["company", "Company"], ["branch", "Branch"], ["employment_type", "Employment Type"], ["gender", "Gender"]].map(([v, l]) => <button key={v} type="button" onClick={() => setBy(v)} className={chipCls(by === v)}>{l}</button>)}</div>
       <Async state={emps}>
         {() => <div className="space-y-1.5">{groups.map((g) => (
           <div key={g.k} className="flex items-center gap-3 text-[12.5px]"><span className="w-56 shrink-0 truncate text-[var(--color-text)]">{g.k}</span><span className="h-2 flex-1 overflow-hidden rounded-full bg-[var(--color-surface-2)]"><span className="block h-full rounded-full bg-[var(--color-red)]" style={{ width: `${(g.n / max) * 100}%` }} /></span><span className="w-10 text-right text-[var(--color-text)]">{g.n}</span></div>

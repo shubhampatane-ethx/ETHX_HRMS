@@ -55,7 +55,7 @@ export default function Onboarding() {
       <PageHeader icon={ClipboardList} title="Onboarding" subtitle="New joiners from accepted offers - pre-joining documents, laptop / email and buddy tasks" actions={<Link to="/hr/recruitment/offers"><Button variant="secondary">Accepted offers</Button></Link>} />
       {msg && <Notice>{msg}</Notice>}
       <Panel>
-        <div className="mb-4 flex gap-2">{[["open", "In progress"], ["done", "Completed"], ["all", "All"]].map(([v, l]) => <button key={v} type="button" onClick={() => setFilter(v)} className={chipCls(filter === v)}>{l}</button>)}</div>
+        <div className="mb-4 flex gap-2">{[["open", "In Progress"], ["done", "Completed"], ["all", "All"]].map(([v, l]) => <button key={v} type="button" onClick={() => setFilter(v)} className={chipCls(filter === v)}>{l}</button>)}</div>
         <Async state={data}>
           {() => <Grid rows={rows} empty="No onboarding in progress. Start one from an accepted offer (Offers › Hire)." columns={[
             { key: "employee_name", label: "New joiner", render: (r) => <span><Link to={candidateUrl(r.job_applicant)} className="font-medium hover:underline">{r.employee_name}</Link><span className="block text-[11px] text-[var(--color-text-faint)]">{[r.designation, r.department].filter(Boolean).join(" · ")}</span></span> },

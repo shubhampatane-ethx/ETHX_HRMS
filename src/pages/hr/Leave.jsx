@@ -20,7 +20,7 @@ export default function Leave() {
   return (
     <div className="space-y-5">
       <PageHeader icon={CalendarDays} title="Leave" subtitle="Approve or reject applications, apply for an employee, and manage balances and allocations" />
-      <Tabs value={tab} onChange={setTab} tabs={[{ id: "applications", label: "Applications" }, { id: "balances", label: "Balances & allocations" }]} />
+      <Tabs value={tab} onChange={setTab} tabs={[{ id: "applications", label: "Applications" }, { id: "balances", label: "Balances & Allocations" }]} />
       {tab === "applications" ? <Applications /> : <Balances />}
     </div>
   );
@@ -70,7 +70,7 @@ function Applications() {
   return (
     <Panel action={<div className="flex flex-wrap gap-2">{flagged.length > 0 && <Button variant="secondary" onClick={reroute} disabled={rerouting}><UserCog size={14} /> {rerouting ? "Reassigning…" : `Reassign ${flagged.length} with approver on leave`}</Button>}<Button onClick={() => setModal({ kind: "apply" })}><Plus size={14} /> Apply for an employee</Button></div>}>
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        {[["Open", `Awaiting decision (${count("Open")})`], ["Approved", "Approved"], ["Rejected", "Rejected"], ["all", "All"]].map(([v, l]) => <button key={v} type="button" onClick={() => setFilter(v)} className={chipCls(filter === v)}>{l}</button>)}
+        {[["Open", `Awaiting Decision (${count("Open")})`], ["Approved", "Approved"], ["Rejected", "Rejected"], ["all", "All"]].map(([v, l]) => <button key={v} type="button" onClick={() => setFilter(v)} className={chipCls(filter === v)}>{l}</button>)}
         <input className={`${inputCls} !w-56 !py-1`} placeholder="Search employee or type…" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
       <Async state={apps}>

@@ -10,8 +10,8 @@ import { ExpenseAccounting, ExpenseApproversByType, LeaveApproversByBU } from ".
  */
 const TABS = [
   { id: "companies", label: "Companies" },
-  { id: "leave", label: "Leave approvers (business units)" },
-  { id: "expense", label: "Expense approvers (expense types)" },
+  { id: "leave", label: "Leave Approvers (Business Units)" },
+  { id: "expense", label: "Expense Approvers (Expense Types)" },
 ];
 
 export default function Organization() {

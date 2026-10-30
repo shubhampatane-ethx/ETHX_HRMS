@@ -55,9 +55,9 @@ export default function Interviews() {
       <SetupHint />
       <Tabs value={tab} onChange={(t) => setParams({ tab: t })} tabs={[
         { id: "upcoming", label: "Upcoming", count: groups.upcoming.length },
-        { id: "decide", label: "Awaiting decision", count: groups.decide.length },
+        { id: "decide", label: "Awaiting Decision", count: groups.decide.length },
         { id: "done", label: "Completed", count: groups.done.length },
-        { id: "rounds", label: "Rounds & scorecards" },
+        { id: "rounds", label: "Rounds & Scorecards" },
       ]} />
       {tab === "rounds" ? <Rounds /> : (
         <Panel>

@@ -32,7 +32,7 @@ export function EmpApprovals() {
   return (
     <>
       <PageHeader icon={ClipboardCheck} title="My Approvals" subtitle="Every request of yours in one place - and the ones waiting for your decision" />
-      <Tabs value={tab} onChange={setTab} tabs={[{ id: "mine", label: "My requests" }, { id: "waiting", label: "Waiting for my approval", count: waitingCount }]} />
+      <Tabs value={tab} onChange={setTab} tabs={[{ id: "mine", label: "My Requests" }, { id: "waiting", label: "Waiting for My Approval", count: waitingCount }]} />
       {tab === "waiting" && <ApprovalQueue state={waiting} />}
       {tab === "mine" && <Async state={q}>
         {(d) => {
@@ -287,7 +287,7 @@ export function EmpCalendar() {
   return (
     <>
       <PageHeader icon={CalendarDays} title="Calendar & Holidays" subtitle="Company holidays, weekly offs, your shifts and events" />
-      <Tabs value={tab} onChange={setTab} tabs={[{ id: "calendar", label: "Calendar" }, { id: "shifts", label: "Shifts & events" }, { id: "team", label: "Team availability" }]} />
+      <Tabs value={tab} onChange={setTab} tabs={[{ id: "calendar", label: "Calendar" }, { id: "shifts", label: "Shifts & Events" }, { id: "team", label: "Team Availability" }]} />
       {tab === "calendar" && <CalendarTab employee={employee} />}
       {tab === "shifts" && <ShiftsTab employee={employee} />}
       {tab === "team" && <TeamTab employee={employee} />}
@@ -399,8 +399,8 @@ const VIEW_KEY = "ethx.dashboard.view";
 export function EmpDashboard() {
   const { user } = useAuth();
   const [params, setParams] = useSearchParams();
-  const work = hasPermission(user, "dashboard.hr") ? { id: "hr", label: "HR dashboard", Page: HRDashboard }
-    : hasPermission(user, "dashboard.pm") ? { id: "pm", label: "Projects dashboard", Page: PMDashboard } : null;
+  const work = hasPermission(user, "dashboard.hr") ? { id: "hr", label: "HR Dashboard", Page: HRDashboard }
+    : hasPermission(user, "dashboard.pm") ? { id: "pm", label: "Projects Dashboard", Page: PMDashboard } : null;
   if (!work) return <SelfDashboard />;
 
   let saved = null;
@@ -414,7 +414,7 @@ export function EmpDashboard() {
   return (
     <>
       <div role="tablist" aria-label="Dashboard" className="inline-flex rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-1">
-        {[{ id: "self", label: "My dashboard", icon: UserRound }, { id: work.id, label: work.label, icon: Briefcase }].map(({ id, label, icon: Icon }) => (
+        {[{ id: "self", label: "My Dashboard", icon: UserRound }, { id: work.id, label: work.label, icon: Briefcase }].map(({ id, label, icon: Icon }) => (
           <button key={id} type="button" role="tab" aria-selected={view === id} onClick={() => choose(id)}
             className={`flex items-center gap-2 rounded-md px-3.5 py-1.5 text-[13px] font-medium transition-colors ${view === id ? "bg-[var(--color-red)] text-[var(--color-on-accent)]" : "text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]"}`}>
             <Icon size={14} /> {label}
@@ -580,7 +580,7 @@ export function EmpDocuments() {
   return (
     <>
       <PageHeader icon={FileText} title="Policies & Documents" subtitle="Employee handbook, company policies and your employment documents" />
-      <Tabs value={tab} onChange={setTab} tabs={[{ id: "policies", label: "Policies & handbook", count: policies.data ? required : undefined }, { id: "mine", label: "My documents" }]} />
+      <Tabs value={tab} onChange={setTab} tabs={[{ id: "policies", label: "Policies & Handbook", count: policies.data ? required : undefined }, { id: "mine", label: "My Documents" }]} />
 
       {tab === "policies" && (
         <Panel title="Company policies" hint={required ? `${required} awaiting acknowledgement` : "You've acknowledged everything"}>
@@ -802,7 +802,7 @@ export function EmpHelp() {
   return (
     <>
       <PageHeader icon={LifeBuoy} title="Help & Requests" subtitle="HR and IT support, document requests, letters and who to contact" actions={<Button onClick={() => setModal({ category: "HR Support" })}><Plus size={14} /> New request</Button>} />
-      <Tabs value={tab} onChange={setTab} tabs={[{ id: "requests", label: "My requests" }, { id: "letters", label: "Employee letters" }, { id: "contacts", label: "HR & IT contacts" }]} />
+      <Tabs value={tab} onChange={setTab} tabs={[{ id: "requests", label: "My Requests" }, { id: "letters", label: "Employee Letters" }, { id: "contacts", label: "HR & IT Contacts" }]} />
 
       {tab === "requests" && (
         <Panel title="My requests">

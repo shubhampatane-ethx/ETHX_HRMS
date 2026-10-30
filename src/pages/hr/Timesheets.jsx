@@ -9,11 +9,11 @@ import { Button, Card } from "../../components/ui/primitives";
 
 const SORTS = [
   ["employee", "Employee (A-Z)"],
-  ["date", "Date (newest first)"],
-  ["hours", "Hours (most first)"],
+  ["date", "Date (Newest First)"],
+  ["hours", "Hours (Most First)"],
 ];
 // Default view is what employees actually sent in; drafts are still being edited by the employee.
-const STATUS_FILTERS = [["submitted", "Submitted"], ["pending", "Awaiting review"], ["approved", "Approved"], ["finalized", "Finalized"], ["draft", "Draft / returned"], ["all", "All"]];
+const STATUS_FILTERS = [["submitted", "Submitted"], ["pending", "Awaiting Review"], ["approved", "Approved"], ["finalized", "Finalized"], ["draft", "Draft / Returned"], ["all", "All"]];
 const GROUPS = { submitted: ["pending", "partial", "approved", "finalized"], pending: ["pending", "partial"], approved: ["approved", "finalized"], finalized: ["finalized"], draft: ["draft", "returned"] };
 const matchStatus = (filter, key) => filter === "all" || (GROUPS[filter] || [filter]).includes(key);
 

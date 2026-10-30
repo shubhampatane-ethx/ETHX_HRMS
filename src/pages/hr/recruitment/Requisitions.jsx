@@ -11,7 +11,7 @@ import { canApprove, listOpenings, listRequisitions, openingFromRequisition } fr
 import { useAuth } from "../../../context/AuthContext";
 import { SetupHint } from "./shared";
 
-const FILTERS = [["active", "Active"], ["Pending", "Awaiting decision"], ["Open & Approved", "Approved"], ["closed", "Closed"], ["all", "All"]];
+const FILTERS = [["active", "Active"], ["Pending", "Awaiting Decision"], ["Open & Approved", "Approved"], ["closed", "Closed"], ["all", "All"]];
 const ACTIVE = ["Pending", "Open & Approved", "On Hold"];
 
 export default function Requisitions({ mine = false }) {

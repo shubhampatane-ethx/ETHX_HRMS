@@ -66,7 +66,7 @@ export default function AuditLogs() {
   return (
     <div className="space-y-5">
       <PageHeader icon={ScrollText} title="Audit logs" subtitle="Who changed what, and when - from change history, the app's action log and sign-in records" actions={<Button variant="secondary" onClick={exportCsv} disabled={!(state.data || []).length}><Download size={14} /> CSV</Button>} />
-      <Tabs value={tab} onChange={(t) => { setTab(t); setLimit(PAGE); }} tabs={[{ id: "changes", label: "Record changes" }, { id: "actions", label: "App actions" }, { id: "signins", label: "Sign-ins", count: failed || undefined }]} />
+      <Tabs value={tab} onChange={(t) => { setTab(t); setLimit(PAGE); }} tabs={[{ id: "changes", label: "Record Changes" }, { id: "actions", label: "App Actions" }, { id: "signins", label: "Sign-Ins", count: failed || undefined }]} />
       <Panel>
         <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-5">
           <DateField label="From" value={from} onChange={(v) => v && setFrom(v)} />

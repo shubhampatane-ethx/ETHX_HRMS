@@ -46,7 +46,7 @@ export default function Candidates() {
       <SetupHint />
       <Panel>
         <div className="mb-4 flex flex-wrap items-center gap-2">
-          {[["active", "In process"], ["all", "All"], ...ALL_STAGES.map((s) => [s.id, s.id])].map(([v, l]) => <button key={v} type="button" onClick={() => setStage(v)} className={chipCls(stage === v)}>{l}</button>)}
+          {[["active", "In Process"], ["all", "All"], ...ALL_STAGES.map((s) => [s.id, s.id])].map(([v, l]) => <button key={v} type="button" onClick={() => setStage(v)} className={chipCls(stage === v)}>{l}</button>)}
         </div>
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, email, phone, skills…" className={`${inputCls} !w-64 !py-1`} />

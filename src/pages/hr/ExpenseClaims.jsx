@@ -30,7 +30,7 @@ async function loadClaims() {
   }));
 }
 
-const FILTERS = [["Draft", "Awaiting approval"], ["Approved", "Approved"], ["Rejected", "Rejected"], ["all", "All"]];
+const FILTERS = [["Draft", "Awaiting Approval"], ["Approved", "Approved"], ["Rejected", "Rejected"], ["all", "All"]];
 
 export default function ExpenseClaims() {
   const q = useAsync(loadClaims, []);

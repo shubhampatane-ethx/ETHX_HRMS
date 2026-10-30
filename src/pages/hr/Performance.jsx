@@ -190,7 +190,7 @@ function Goals() {
   }
   return (
     <Panel action={<Button onClick={() => setModal({})}><Plus size={14} /> New goal</Button>}>
-      <div className="mb-4 flex gap-2">{[["open", "Open"], ["done", "Completed / closed"], ["all", "All"]].map(([v, l]) => <button key={v} type="button" onClick={() => setStatus(v)} className={chipCls(status === v)}>{l}</button>)}</div>
+      <div className="mb-4 flex gap-2">{[["open", "Open"], ["done", "Completed / Closed"], ["all", "All"]].map(([v, l]) => <button key={v} type="button" onClick={() => setStatus(v)} className={chipCls(status === v)}>{l}</button>)}</div>
       <Async state={goals}>
         {() => <Grid rows={rows} empty="No goals here." columns={[
           { key: "goal_name", label: "Goal", render: (g) => <span><Target size={12} className="mr-1 inline text-[var(--color-text-faint)]" />{g.goal_name}{g.kra && <span className="block text-[11px] text-[var(--color-text-faint)]">KRA: {g.kra}</span>}</span> },

@@ -45,7 +45,7 @@ export default function PMApprovals() {
       <PageHeader icon={CheckCheck} title="Timesheet approvals" subtitle="Hours logged on your projects. Approve your part; HR sees the whole timesheet." />
       {q.data && !q.data.ready && <Notice>Per-project timesheet approval isn't enabled yet. Ask an Administrator to enable server-side rules and run Admin › System Setup › Run setup.</Notice>}
       <Panel>
-        <div className="mb-4 flex gap-2">{[["pending", `Awaiting you${pendingCount ? ` (${pendingCount})` : ""}`], ["approved", "Approved by you"], ["all", "All"]].map(([v, l]) => <button key={v} type="button" onClick={() => setFilter(v)} className={chipCls(filter === v)}>{l}</button>)}</div>
+        <div className="mb-4 flex gap-2">{[["pending", `Awaiting You${pendingCount ? ` (${pendingCount})` : ""}`], ["approved", "Approved by You"], ["all", "All"]].map(([v, l]) => <button key={v} type="button" onClick={() => setFilter(v)} className={chipCls(filter === v)}>{l}</button>)}</div>
         <Async state={q}>
           {() => shown.length === 0 ? <Empty text={filter === "pending" ? "Nothing waiting for your approval." : "Nothing here."} /> : <Grid rows={shown} columns={[
             { key: "employee_name", label: "Employee", render: (s) => <button type="button" onClick={() => setOpen(s)} className="text-left hover:underline">{s.employee_name || s.employee}<span className="block text-[11px] text-[var(--color-text-faint)]">{s.name}</span></button> },

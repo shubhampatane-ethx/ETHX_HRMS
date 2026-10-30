@@ -11,7 +11,7 @@ import { useAuth } from "../../../context/AuthContext";
 import { candidateUrl, HireModal, NoShowModal, OfferModal, ResponseModal, SetupHint } from "./shared";
 import { alertDialog, confirmDialog } from "../../../components/ui/dialogs";
 
-const FILTERS = [["open", "In progress"], ["approval", "Needs approval"], ["Sent", "Sent"], ["Accepted", "Accepted"], ["done", "Joined / closed"], ["all", "All"]];
+const FILTERS = [["open", "In Progress"], ["approval", "Needs Approval"], ["Sent", "Sent"], ["Accepted", "Accepted"], ["done", "Joined / Closed"], ["all", "All"]];
 const pdfUrl = (o) => `/api/method/frappe.utils.print_format.download_pdf?doctype=Job%20Offer&name=${encodeURIComponent(o.name)}&format=Standard&no_letterhead=0`;
 
 export default function Offers() {

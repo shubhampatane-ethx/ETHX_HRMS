@@ -14,7 +14,7 @@ const TEMPLATE = "S/N,Emp. Code,Employee Name,Asset Type,Manufacturer Serial Num
 const FILTERS = [
   { id: "all", label: "All" },
   { id: "assigned", label: "Assigned" },
-  { id: "office", label: "In office" },
+  { id: "office", label: "In Office" },
   { id: "returned", label: "Returned" },
 ];
 
@@ -147,7 +147,7 @@ export default function Assets() {
 
 const STATUS_TABS = [
   { id: "all", label: "All" },
-  { id: "attention", label: "Needs attention" },
+  { id: "attention", label: "Needs Attention" },
   { id: "new", label: "New" },
   { id: "update", label: "Changes" },
   { id: "same", label: "Unchanged" },
