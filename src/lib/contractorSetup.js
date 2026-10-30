@@ -1,7 +1,7 @@
-// Contractors (installed from Admin › ERPNext Setup): people who exist only for a project.
-//  - A contractor is an Employee record marked custom_is_contractor (timesheets must link to one) with a login that holds
-//    only the "Contractor" role. The record is hidden from every staff list, so headcount, leave and attendance ignore it.
-//  - They see only the projects they are assigned to, and log time only on those.
+// Contractors (installed from Admin › ERPNext Setup): people who work on projects but aren't staff.
+//  - HR creates them from the Employees page. A contractor is an Employee record marked custom_is_contractor, so the
+//    Administrator and Project Managers assign them a role on a project exactly as they do for employees.
+//  - Their login holds only the "Contractor" role: they see only the projects they are assigned to, and log time only on those.
 //  - When the Administrator ends a project, contractors with no other live project are removed: their login and personal
 //    details are deleted; their timesheets stay, with just their name. Removal happens only through that explicit
 //    action: ERPNext can mark a project Completed by itself when all its tasks finish, and that must never delete people.
@@ -41,72 +41,54 @@ sees_all = is_admin or "HR Manager" in held or "HR User" in held
 `;
 
 const ADD_API = `${HELD.trim()}
+if not sees_all:
+    frappe.throw("Only HR or the Administrator can create contractors.")
 args = frappe.form_dict
-project = args.get("project")
 email = (args.get("email") or "").strip().lower()
 full_name = (args.get("full_name") or "").strip()
 password = args.get("password") or ""
-if not project:
-    frappe.throw("Choose a project.")
-row = frappe.db.get_value("Project", project, ["custom_project_manager", "owner", "company", "status"], as_dict=True)
-if not row:
-    frappe.throw("Project not found.")
-if not sees_all and (row.custom_project_manager or row.owner) != user:
-    frappe.throw("Only the manager of this project, HR or the Administrator can add contractors to it.")
-if row.status in ("Completed", "Cancelled"):
-    frappe.throw("This project has ended.")
+company = args.get("company")
+joining = args.get("joining") or frappe.utils.nowdate()
+branch = args.get("branch") or None
+if not full_name:
+    frappe.throw("Enter the contractor's name.")
+if not company or not frappe.db.exists("Company", company):
+    frappe.throw("Choose a company.")
 if "@" not in email or "." not in email or " " in email:
     frappe.throw("Enter a valid email address.")
-existing = frappe.db.get_value("Employee", {"user_id": email}, ["name", "employee_name", "custom_is_contractor"], as_dict=True)
-if existing:
-    if not existing.custom_is_contractor:
-        frappe.throw("That email belongs to an employee. Assign them to the project under Assignments instead.")
-    frappe.response["message"] = {"employee": existing.name, "name": existing.employee_name, "email": email, "created": False}
-else:
-    if frappe.db.exists("User", email):
-        frappe.throw("That email already has a login. Use a different email for this contractor.")
-    if not full_name:
-        frappe.throw("Enter the contractor's name.")
-    if len(password) < 8:
-        frappe.throw("The temporary password must be at least 8 characters.")
-    if not row.company:
-        frappe.throw("This project has no company.")
-    parts = full_name.split(" ")
-    gender = "Prefer not to say"
-    if not frappe.db.exists("Gender", gender):
-        genders = frappe.get_all("Gender", pluck="name", limit=1)
-        gender = genders[0] if genders else None
-    # ERPNext requires gender and date of birth on Employee. Contractors keep only project information, so these are placeholders.
-    emp = frappe.get_doc({"doctype": "Employee", "first_name": parts[0], "last_name": " ".join(parts[1:]) or None, "gender": gender, "date_of_birth": "1990-01-01", "date_of_joining": frappe.utils.nowdate(), "company": row.company, "status": "Active", "custom_is_contractor": 1})
-    emp.insert(ignore_permissions=True)
-    u = frappe.get_doc({"doctype": "User", "email": email, "first_name": parts[0], "last_name": " ".join(parts[1:]) or None, "user_type": "System User", "send_welcome_email": 0, "new_password": password, "roles": [{"role": "${CONTRACTOR_ROLE}"}]})
-    u.flags.ignore_permissions = True
-    u.insert()
-    # Set directly: saving the Employee would make ERPNext add the Employee role to the login.
-    frappe.db.set_value("Employee", emp.name, "user_id", email)
-    frappe.db.set_value("User", email, "last_password_reset_date", None)
-    for allow, value in (("Employee", emp.name), ("Company", row.company)):
-        frappe.get_doc({"doctype": "User Permission", "user": email, "allow": allow, "for_value": value, "apply_to_all_doctypes": 1}).insert(ignore_permissions=True)
-    frappe.response["message"] = {"employee": emp.name, "name": emp.employee_name, "email": email, "created": True}
+if len(password) < 8:
+    frappe.throw("The temporary password must be at least 8 characters.")
+if frappe.db.exists("User", email) or frappe.db.get_value("Employee", {"user_id": email}, "name"):
+    frappe.throw("That email already has a login. Use a different email for this contractor.")
+parts = full_name.split(" ")
+gender = "Prefer not to say"
+if not frappe.db.exists("Gender", gender):
+    genders = frappe.get_all("Gender", pluck="name", limit=1)
+    gender = genders[0] if genders else None
+# ERPNext requires gender and date of birth on Employee. Contractors keep only work information, so these are placeholders.
+emp = frappe.get_doc({"doctype": "Employee", "first_name": parts[0], "last_name": " ".join(parts[1:]) or None, "gender": gender, "date_of_birth": "1990-01-01", "date_of_joining": joining, "company": company, "branch": branch, "status": "Active", "employment_type": "Contract" if frappe.db.exists("Employment Type", "Contract") else None, "custom_is_contractor": 1})
+emp.insert(ignore_permissions=True)
+u = frappe.get_doc({"doctype": "User", "email": email, "first_name": parts[0], "last_name": " ".join(parts[1:]) or None, "user_type": "System User", "send_welcome_email": 0, "new_password": password, "roles": [{"role": "${CONTRACTOR_ROLE}"}]})
+u.flags.ignore_permissions = True
+u.insert()
+# Set directly: saving the Employee would make ERPNext add the Employee role to the login.
+frappe.db.set_value("Employee", emp.name, "user_id", email)
+frappe.db.set_value("User", email, "last_password_reset_date", None)
+for allow, value in (("Employee", emp.name), ("Company", company)):
+    frappe.get_doc({"doctype": "User Permission", "user": email, "allow": allow, "for_value": value, "apply_to_all_doctypes": 1}).insert(ignore_permissions=True)
+frappe.response["message"] = {"employee": emp.name, "name": emp.employee_name, "email": email}
 `;
 
-const LIST_API = `${HELD.trim()}
-if not sees_all and "Projects Manager" not in held:
-    frappe.throw("Not permitted.")
-allowed = None
-if not sees_all:
-    allowed = []
-    managed = frappe.get_all("Project", filters={"custom_project_manager": user}, pluck="name")
-    for p in frappe.get_all("Project", filters={"owner": user, "custom_project_manager": ["is", "not set"]}, pluck="name"):
-        managed.append(p)
-    tasks = frappe.get_all("Task", filters={"project": ["in", managed]}, pluck="name") if managed else []
-    if tasks:
-        allowed = frappe.get_all("ToDo", filters={"reference_type": "Task", "reference_name": ["in", tasks]}, pluck="allocated_to")
-out = []
-for e in frappe.get_all("Employee", filters={"custom_is_contractor": 1, "custom_contractor_removed": 0}, fields=["name", "employee_name", "user_id", "company"], order_by="employee_name asc"):
-    if allowed is None or e.user_id in allowed:
-        out.append(e)
-frappe.response["message"] = out
+// HR can now edit contractors like employees, and ERPNext adds the Employee role to the login whenever an
+// Employee record is saved. This keeps a contractor's login limited to the Contractor role.
+const STAYS_CONTRACTOR = `
+if doc.get("custom_is_contractor") and doc.user_id:
+    held = frappe.get_all("Has Role", filters={"parent": doc.user_id, "parenttype": "User"}, pluck="role")
+    if "Employee" in held and "${CONTRACTOR_ROLE}" in held:
+        u = frappe.get_doc("User", doc.user_id)
+        u.roles = [r for r in u.roles if r.role != "Employee"]
+        u.flags.ignore_permissions = True
+        u.save()
 `;
 
 const END_PROJECT_API = `${HELD.trim()}
@@ -172,13 +154,6 @@ if not preview:
 frappe.response["message"] = {"remove": remove, "kept": kept}
 `;
 
-// Permission Query on Employee: contractors never appear in staff lists, for anyone. They can still read their own record.
-const HIDE_FROM_STAFF = `
-held = frappe.get_all("Has Role", filters={"parent": user, "parenttype": "User"}, pluck="role")
-if "${CONTRACTOR_ROLE}" not in held and frappe.get_meta("Employee").has_field("custom_is_contractor"):
-    conditions = "IFNULL(\`tabEmployee\`.\`custom_is_contractor\`, 0) = 0"
-`;
-
 // A contractor logs time only on projects they are assigned to.
 const TIMESHEET_GUARD = `
 user = frappe.session.user
@@ -192,9 +167,11 @@ if "${CONTRACTOR_ROLE}" in held and "Projects Manager" not in held and "HR Manag
 `;
 
 export const CONTRACTOR_SCRIPTS = [
-  { name: "ETHX - Add contractor", script_type: "API", api_method: "ethx_add_contractor", script: ADD_API, what: "Project managers, HR and the Administrator add contractors to a project" },
-  { name: "ETHX - List contractors", script_type: "API", api_method: "ethx_contractors", script: LIST_API, what: "Lists contractors for the people who manage them" },
+  { name: "ETHX - Add contractor", script_type: "API", api_method: "ethx_add_contractor", script: ADD_API, what: "HR and the Administrator create contractors" },
+  { name: "ETHX - Contractor stays contractor", script_type: "DocType Event", reference_doctype: "Employee", doctype_event: "After Save", script: STAYS_CONTRACTOR, what: "Editing a contractor keeps their login limited to the Contractor role" },
   { name: "ETHX - End project", script_type: "API", api_method: "ethx_end_project", script: END_PROJECT_API, what: "The Administrator ends a project; its contractors' logins and details are deleted" },
-  { name: "ETHX - Hide contractors from staff", script_type: "Permission Query", reference_doctype: "Employee", script: HIDE_FROM_STAFF, what: "Contractors stay out of every staff list" },
   { name: "ETHX - Contractor timesheets", script_type: "DocType Event", reference_doctype: "Timesheet", doctype_event: "Before Validate", script: TIMESHEET_GUARD, what: "Contractors log time only on their own projects" },
 ];
+
+// Rules from the earlier design, removed from the site by System Setup: contractors now show up like employees.
+export const CONTRACTOR_RETIRED_SCRIPTS = ["ETHX - Hide contractors from staff", "ETHX - List contractors"];

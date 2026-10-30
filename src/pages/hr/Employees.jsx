@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
-import { Check, Copy, Edit3, KeyRound, Plus, RefreshCw, Trash2, Users, X } from "lucide-react";
+import { Check, Copy, Edit3, HardHat, KeyRound, Plus, RefreshCw, Trash2, Users, X } from "lucide-react";
 import { frappe } from "../../lib/api/frappeClient";
 import { dmy, dmyHm, errMsg, useAsync } from "../../lib/employeePortal";
 import { HrRecordForm } from "../../components/hr/HrRecordForm";
-import { Button, Card, Table } from "../../components/ui/primitives";
+import { Button, Card, DateField, LinkField, Table } from "../../components/ui/primitives";
+import { Field, inputCls, Modal, Notice } from "../../components/employee/EmployeeShell";
+import { createContractor } from "../../lib/contractors";
 import { alertDialog, confirmDialog } from "../../components/ui/dialogs";
 
 const FIELDS = [
@@ -25,7 +27,7 @@ const FIELDS = [
   { name: "user_id", label: "User account", type: "link", linkDoctype: "User" },
 ];
 
-const LIST_FIELDS = ["name", "employee_name", "first_name", "last_name", "department", "designation", "status", "company", "date_of_joining", "user_id", "company_email", "personal_email"];
+const LIST_FIELDS = ["name", "employee_name", "first_name", "last_name", "department", "designation", "status", "company", "date_of_joining", "user_id", "company_email", "personal_email", "custom_is_contractor"];
 const LIST_FALLBACK = ["name", "employee_name", "department", "designation", "status", "company", "date_of_joining", "user_id"];
 const PASSWORD_KEY = "hrms:defaultEmployeePassword";
 
@@ -127,6 +129,7 @@ export default function Employees() {
   const [editing, setEditing] = useState(null);
   const [formOpen, setFormOpen] = useState(false);
   const [loginFor, setLoginFor] = useState(null);
+  const [addingContractor, setAddingContractor] = useState(false);
   const [detail, setDetail] = useState(null);
 
   async function load() {
@@ -171,6 +174,7 @@ export default function Employees() {
           <div className="flex gap-2">
             <Button variant="secondary" onClick={load} disabled={state === "loading"}><RefreshCw size={14} className={state === "loading" ? "animate-spin" : ""} /> Refresh</Button>
             <Button onClick={() => { setEditing(null); setFormOpen(true); }}><Plus size={14} /> Add employee</Button>
+            <Button variant="secondary" onClick={() => setAddingContractor(true)}><HardHat size={14} /> Add Contractor</Button>
           </div>
         </div>
       </section>
@@ -185,7 +189,7 @@ export default function Employees() {
           { key: "department", label: "Department" },
           { key: "designation", label: "Designation" },
           { key: "company", label: "Company" },
-          { key: "status", label: "Status", render: (row) => <span className={row.status === "Active" ? "text-[var(--color-green)]" : "text-[var(--color-text-muted)]"}>{row.status || "-"}</span> },
+          { key: "status", label: "Status", render: (row) => <span className={row.status === "Active" ? "text-[var(--color-green)]" : "text-[var(--color-text-muted)]"}>{row.status || "-"}{Number(row.custom_is_contractor) ? " · Contractor" : ""}</span> },
           { key: "user_id", label: "Portal Login", render: (row) => row.user_id
             ? <span className="text-[var(--color-green)]" title={row.user_id}>Active</span>
             : <span className="text-[var(--color-amber)]">No login</span> },
@@ -199,6 +203,7 @@ export default function Employees() {
 
       {detail && <EmployeeDetail employee={detail} onClose={() => setDetail(null)} onEdit={() => { setEditing(detail.name); setFormOpen(true); setDetail(null); window.scrollTo?.({ top: 0 }); }} onLogin={() => { setLoginFor(detail); setDetail(null); }} />}
       {loginFor && <LoginModal employee={loginFor} onClose={() => setLoginFor(null)} onDone={load} />}
+      {addingContractor && <ContractorModal onClose={() => setAddingContractor(false)} onSaved={() => { setAddingContractor(false); load(); }} />}
     </div>
   );
 }
@@ -384,5 +389,41 @@ function EmployeeDetail({ employee, onClose, onEdit, onLogin }) {
         </div>
       </div>
     </div>
+  );
+}
+
+/** A contractor is created here by HR, then the Administrator or a Project Manager assigns them a role under Assignments. */
+function ContractorModal({ onClose, onSaved }) {
+  const [f, setF] = useState({ name: "", email: "", password: "", company: "", branch: "", joining: new Date().toISOString().slice(0, 10) });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function submit(e) {
+    e.preventDefault();
+    setBusy(true);
+    setErr("");
+    try {
+      await createContractor({ fullName: f.name.trim(), email: f.email.trim(), password: f.password, company: f.company, branch: f.branch, joining: f.joining });
+      onSaved();
+    } catch (x) {
+      setErr(errMsg(x, "Couldn't create the contractor."));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title="Add Contractor" onClose={onClose}>
+      <form onSubmit={submit} className="space-y-3">
+        <Field label="Full name"><input required className={inputCls} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
+        <Field label="Email (their login)"><input required type="email" className={inputCls} value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></Field>
+        <Field label="Temporary password" hint="They must change it at first sign-in."><input required type="password" autoComplete="new-password" minLength={8} className={inputCls} value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} /></Field>
+        <LinkField label="Company" linkDoctype="Company" value={f.company} onChange={(v) => setF({ ...f, company: v })} required frappe={frappe} />
+        <LinkField label="Office location (optional)" linkDoctype="Branch" value={f.branch} onChange={(v) => setF({ ...f, branch: v })} frappe={frappe} />
+        <DateField label="Start date" value={f.joining} onChange={(v) => setF({ ...f, joining: v })} required />
+        <p className="text-[11px] text-[var(--color-text-faint)]">Next, the Administrator or a Project Manager gives them a role on a project under Assignments. They sign in to see only their projects and timesheet.</p>
+        {err && <Notice>{err}</Notice>}
+        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Creating…" : "Create contractor"}</Button></div>
+      </form>
+    </Modal>
   );
 }

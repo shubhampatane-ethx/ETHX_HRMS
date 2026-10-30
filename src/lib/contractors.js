@@ -1,6 +1,5 @@
-// Contractors: people who exist only for a project. See contractorSetup.js for the server side.
+// Contractors: created by HR, assigned to projects like employees. See contractorSetup.js for the server side.
 import { frappe } from "./api/frappeClient";
-import { createAssignment } from "./assignments";
 
 const NOT_INSTALLED = /Failed to get method|not whitelisted|has no attribute|No module named/i;
 
@@ -15,19 +14,12 @@ function friendly(e) {
   return e;
 }
 
-/** Contractors the signed-in person may see. Empty until setup has run. */
-export const listContractors = () => frappe.callMethod("ethx_contractors").catch(() => []);
-
-/** Create the contractor (or reuse them, by email, when they join another project) and give them their role on the project. */
-export async function addContractor({ project, projectLabel, fullName, email, password, role, start, eta, hoursPerDay, notes }) {
-  let added;
+export async function createContractor({ fullName, email, password, company, branch, joining }) {
   try {
-    added = await frappe.callMethod("ethx_add_contractor", { project, email, full_name: fullName, password });
+    return await frappe.callMethod("ethx_add_contractor", { full_name: fullName, email, password, company, branch: branch || undefined, joining });
   } catch (e) {
     throw friendly(e);
   }
-  await createAssignment({ project, projectLabel, email: added.email, role, start, eta, hoursPerDay, notes });
-  return added;
 }
 
 /** Who ending this project would remove, without changing anything: { remove: [...], kept: [...] }. */

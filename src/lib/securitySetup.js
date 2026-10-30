@@ -24,7 +24,7 @@ employee = args.get("employee")
 email = (args.get("email") or "").strip().lower()
 password = args.get("password") or ""
 mode = args.get("mode") or "create"
-safe_roles = ["Employee", "Interviewer", "Desk User", "All", "Guest", "Employee Self Service"]
+safe_roles = ["Employee", "Interviewer", "Desk User", "All", "Guest", "Employee Self Service", "Contractor"]
 if len(password) < 8:
     frappe.throw("The temporary password must be at least 8 characters.")
 emp = frappe.get_doc("Employee", employee)
@@ -62,7 +62,8 @@ if emp.user_id != email:
 u = frappe.get_doc("User", email)
 has_emp = False
 for r in u.roles:
-    if r.role == "Employee":
+    # A contractor's login stays limited to the Contractor role.
+    if r.role == "Employee" or r.role == "Contractor":
         has_emp = True
 if not has_emp:
     u.append("roles", {"role": "Employee"})
@@ -85,7 +86,7 @@ if not email:
     frappe.throw("This employee has no login.")
 held = frappe.get_all("Has Role", filters={"parent": email, "parenttype": "User"}, pluck="role")
 for r in held:
-    if r not in ["Employee", "Interviewer", "Desk User", "All", "Guest", "Employee Self Service"]:
+    if r not in ["Employee", "Interviewer", "Desk User", "All", "Guest", "Employee Self Service", "Contractor"]:
         frappe.throw("This login has the " + r + " role - only the Administrator can change it.")
 frappe.db.set_value("User", email, "enabled", enable)
 frappe.get_doc({"doctype": "Comment", "comment_type": "Info", "reference_doctype": "Employee", "reference_name": employee, "content": ("Portal login enabled" if enable else "Portal login disabled") + " by " + frappe.session.user}).insert(ignore_permissions=True)
