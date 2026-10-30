@@ -32,7 +32,7 @@ export default function Offices() {
   return (
     <div className="space-y-5">
       <PageHeader icon={MapPin} title="Office Locations" subtitle="Each office has its own holiday list - employees follow the holidays of the office they work at" actions={
-        <Button type="button" onClick={() => setModal({ kind: "office" })} disabled={!data.data}><Plus size={14} /> Add office</Button>
+        <Button type="button" onClick={() => setModal({ kind: "office" })} disabled={!data.data}><Plus size={14} /> Add Office</Button>
       } />
       {data.data && !data.data.ready && (
         <Notice tone="info">Ask the Administrator to run <b>Admin › ERPNext Setup › Run setup</b> once (module "Office locations &amp; holidays"). It adds the office fields and the rules that keep each employee on their office's holiday list.</Notice>
@@ -140,22 +140,22 @@ function OfficeModal({ office, countries, onClose, onDone }) {
   return (
     <Modal title={editing ? `Edit ${office.name}` : "Add office"} onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
-        {!editing && <Field label="Office name" hint="Shown to employees, e.g. Pune, Tokyo, New York"><input className={inputCls} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} required /></Field>}
+        {!editing && <Field label="Office Name" hint="Shown to employees, e.g. Pune, Tokyo, New York"><input className={inputCls} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} required /></Field>}
         <div className="grid grid-cols-2 gap-3">
           <Field label="City"><input className={inputCls} value={f.city} onChange={(e) => setF({ ...f, city: e.target.value })} /></Field>
           <LinkField label="Country" linkDoctype="Country" value={f.country} onChange={(v) => setF({ ...f, country: v })} required frappe={frappe} />
         </div>
-        <Field label="State / region code (optional)" hint="Adds regional public holidays too, e.g. MH for Maharashtra, CA for California"><input className={inputCls} value={f.region} onChange={(e) => setF({ ...f, region: e.target.value })} /></Field>
-        <Field label="Weekly off"><WeekdayPicker value={f.weekly} onChange={(weekly) => setF({ ...f, weekly })} /></Field>
-        <Field label="Address (optional)"><textarea rows={2} className={inputCls} value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} /></Field>
+        <Field label="State / Region Code (Optional)" hint="Adds regional public holidays too, e.g. MH for Maharashtra, CA for California"><input className={inputCls} value={f.region} onChange={(e) => setF({ ...f, region: e.target.value })} /></Field>
+        <Field label="Weekly Off"><WeekdayPicker value={f.weekly} onChange={(weekly) => setF({ ...f, weekly })} /></Field>
+        <Field label="Address (Optional)"><textarea rows={2} className={inputCls} value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} /></Field>
         {!editing && (
           <div className="grid grid-cols-2 items-end gap-3 rounded-lg border border-[var(--color-border)] p-3">
-            <Field label="Holiday list for year"><input className={inputCls} type="number" min="2000" max="2100" value={f.year} onChange={(e) => setF({ ...f, year: e.target.value })} required /></Field>
+            <Field label="Holiday List for Year"><input className={inputCls} type="number" min="2000" max="2100" value={f.year} onChange={(e) => setF({ ...f, year: e.target.value })} required /></Field>
             <label className="flex items-center gap-2 pb-2 text-[12.5px] text-[var(--color-text)]"><input type="checkbox" checked={f.publicHolidays} onChange={(e) => setF({ ...f, publicHolidays: e.target.checked })} /> Add the country's public holidays</label>
           </div>
         )}
         {err && <Notice>{err}</Notice>}
-        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Saving…" : editing ? "Save office" : "Add office"}</Button></div>
+        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Saving…" : editing ? "Save Office" : "Add Office"}</Button></div>
       </form>
     </Modal>
   );
@@ -273,7 +273,7 @@ function HolidaysModal({ office, listName, lists, onClose, onSwitch, onDone }) {
             {err && <Notice>{err}</Notice>}
             <div className="flex justify-end gap-2">
               <Button type="button" variant="ghost" onClick={onClose}>{dirty ? "Discard" : "Close"}</Button>
-              <Button type="button" onClick={save} disabled={busy || !dirty}>{busy ? "Saving…" : "Save holidays"}</Button>
+              <Button type="button" onClick={save} disabled={busy || !dirty}>{busy ? "Saving…" : "Save Holidays"}</Button>
             </div>
           </div>
         )}

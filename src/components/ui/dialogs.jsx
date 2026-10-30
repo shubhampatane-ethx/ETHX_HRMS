@@ -99,7 +99,7 @@ function headingFor(form) {
 }
 
 /**
- * Every form submit is held back and shown as a review first; "Confirm & submit" lets it through.
+ * Every form submit is held back and shown as a review first; "Confirm & Submit" lets it through.
  * Opt a form out (sign-in, search boxes) with data-no-preview.
  */
 function useFormReview() {
@@ -176,7 +176,7 @@ function Dialog({ d }) {
   const Icon = tone.icon;
   const title = d.kind === "preview"
     ? `Review before submitting${d.title ? ` · ${d.title}` : ""}`
-    : d.title || (d.kind === "alert" ? (d.tone === "error" ? "Something went wrong" : "Notice") : "Please confirm");
+    : d.title || (d.kind === "alert" ? (d.tone === "error" ? "Something Went Wrong" : "Notice") : "Please Confirm");
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 px-4" onMouseDown={(e) => e.target === e.currentTarget && close(cancelValue)}>
@@ -225,11 +225,11 @@ function Dialog({ d }) {
         <div className="mt-5 flex justify-end gap-2">
           {d.kind !== "alert" && (
             <button type="button" onClick={() => close(cancelValue)} className={secondary}>
-              {d.cancelLabel || (d.kind === "preview" ? "Back to edit" : "Cancel")}
+              {d.cancelLabel || (d.kind === "preview" ? "Back to Edit" : "Cancel")}
             </button>
           )}
           <button ref={d.kind === "prompt" ? undefined : focusRef} type="submit" className={primary}>
-            {d.confirmLabel || (d.kind === "alert" ? "OK" : d.kind === "preview" ? "Confirm & submit" : "Confirm")}
+            {d.confirmLabel || (d.kind === "alert" ? "OK" : d.kind === "preview" ? "Confirm & Submit" : "Confirm")}
           </button>
         </div>
       </form>

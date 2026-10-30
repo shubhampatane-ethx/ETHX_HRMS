@@ -71,7 +71,7 @@ export default function AuditLogs() {
         <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-5">
           <DateField label="From" value={from} onChange={(v) => v && setFrom(v)} />
           <DateField label="To" value={to} onChange={(v) => v && setTo(v)} />
-          {tab !== "signins" && <Field label="Record type"><select className={inputCls} value={doctype} onChange={(e) => setDoctype(e.target.value)}><option value="">All tracked</option>{DOCTYPES.map((d) => <option key={d}>{d}</option>)}</select></Field>}
+          {tab !== "signins" && <Field label="Record Type"><select className={inputCls} value={doctype} onChange={(e) => setDoctype(e.target.value)}><option value="">All tracked</option>{DOCTYPES.map((d) => <option key={d}>{d}</option>)}</select></Field>}
           <Field label="User"><input className={inputCls} value={user} onChange={(e) => setUser(e.target.value)} placeholder="email contains…" /></Field>
           {tab !== "signins" && <Field label={tab === "changes" ? "Record ID" : "Text"}><input className={inputCls} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="contains…" /></Field>}
         </div>
@@ -97,7 +97,7 @@ export default function AuditLogs() {
                 { key: "status", label: "Status", render: (s) => <span className={s.status === "Failed" ? "text-[var(--color-red-hover)]" : "text-[var(--color-green)]"}>{s.status}</span> },
                 { key: "ip_address", label: "IP Address", render: (s) => s.ip_address || "—" },
               ]} />}
-              {rows.length >= limit && <div className="mt-3 flex justify-center"><Button variant="secondary" onClick={() => setLimit((l) => l + PAGE)}>Load more</Button></div>}
+              {rows.length >= limit && <div className="mt-3 flex justify-center"><Button variant="secondary" onClick={() => setLimit((l) => l + PAGE)}>Load More</Button></div>}
             </>
           )}
         </Async>

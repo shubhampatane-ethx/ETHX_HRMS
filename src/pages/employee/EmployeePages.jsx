@@ -7,6 +7,7 @@ import { CONTACTS, createRequest, daysBetween, daysUntil, dmy, dmyHm, errMsg, EX
 import { useAuth } from "../../context/AuthContext";
 import { hasPermission } from "../../permissions/roles";
 import { isPageBlocked } from "../../permissions/pageAccess";
+import { greetingName } from "../../lib/names";
 
 // Workspace dashboards that HR staff / Project Managers who are also employees switch to from their one Dashboard.
 const HRDashboard = lazy(() => import("../hr/Dashboard"));
@@ -79,7 +80,7 @@ export function EmpAssets() {
           {(rows) => <Grid rows={rows} empty="No equipment is assigned to you." columns={[
             { key: "custom_asset_code", label: "Asset Code", render: (r) => <span className="font-medium">{r.custom_asset_code || r.name}</span> },
             { key: "asset_name", label: "Asset", render: (r) => <span>{r.asset_name}<span className="block text-[11px] text-[var(--color-text-faint)]">{r.asset_category}{r.custom_serial_number ? ` · S/N ${r.custom_serial_number}` : ""}</span></span> },
-            { key: "custom_assigned_on", label: "Assigned on", render: (r) => dmy(r.custom_assigned_on || r.purchase_date) },
+            { key: "custom_assigned_on", label: "Assigned On", render: (r) => dmy(r.custom_assigned_on || r.purchase_date) },
             { key: "custom_other_assets", label: "Also Given", render: (r) => r.custom_other_assets || "—" },
             { key: "status", label: "Condition", render: (r) => <StatusPill status={r.custom_condition || r.status} /> },
           ]} />}
@@ -162,7 +163,7 @@ export function EmpAttendance() {
 
   return (
     <>
-      <PageHeader icon={CalendarCheck} title="Attendance" subtitle="Punch in and out, review your history and request corrections" actions={<Button variant="secondary" onClick={() => setRequest({ from_date: isoDate(), to_date: isoDate() })}><Plus size={14} /> Request correction</Button>} />
+      <PageHeader icon={CalendarCheck} title="Attendance" subtitle="Punch in and out, review your history and request corrections" actions={<Button variant="secondary" onClick={() => setRequest({ from_date: isoDate(), to_date: isoDate() })}><Plus size={14} /> Request Correction</Button>} />
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         <Panel title="Today" className="lg:col-span-1">
@@ -249,7 +250,7 @@ function CorrectionModal({ employee, initial, onClose, onSaved }) {
         <Field label="Reason"><select className={inputCls} value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })}><option>Work From Home</option><option>On Duty</option></select></Field>
         <Field label="Explanation"><textarea rows={3} required className={inputCls} value={f.explanation} onChange={(e) => setF({ ...f, explanation: e.target.value })} placeholder="e.g. Forgot to punch out, worked at client site" /></Field>
         {err && <Notice>{err}</Notice>}
-        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy || !f.from_date || !f.to_date}>{busy ? "Sending…" : "Send request"}</Button></div>
+        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy || !f.from_date || !f.to_date}>{busy ? "Sending…" : "Send Request"}</Button></div>
       </form>
     </Modal>
   );
@@ -389,7 +390,7 @@ function TeamTab({ employee }) {
 }
 
 /* ===== EmpDashboard.jsx ===== */
-const greeting = (h) => (h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening");
+const greeting = (h) => (h < 12 ? "Good Morning" : h < 17 ? "Good Afternoon" : "Good Evening");
 
 const VIEW_KEY = "ethx.dashboard.view";
 
@@ -453,7 +454,7 @@ function SelfDashboard() {
   // Document expiry reminders from the employee record
   const expiries = [
     { label: "Passport", date: employee.valid_upto },
-    { label: "Employment contract", date: employee.contract_end_date },
+    { label: "Employment Contract", date: employee.contract_end_date },
   ].filter((d) => d.date).map((d) => ({ ...d, days: daysUntil(d.date) })).filter((d) => d.days <= EXPIRY_WARN_DAYS);
 
   const onLeaveToday = (team.data?.onLeave || []).filter((l) => l.from_date <= isoDate() && l.to_date >= isoDate());
@@ -465,7 +466,7 @@ function SelfDashboard() {
         <div className="relative flex flex-wrap items-center justify-between gap-5">
           <div>
             <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-[var(--color-red-hover)]">{WEEKDAYS[now.getDay()]}, {String(now.getDate()).padStart(2, "0")} {MONTHS[now.getMonth()]} {now.getFullYear()}</p>
-            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-[var(--color-text)]">{greeting(now.getHours())}, {(employee.first_name || employee.employee_name || "").split(" ")[0]}</h2>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-[var(--color-text)]">{greeting(now.getHours())}, {greetingName(employee.first_name || employee.employee_name, employee.user_id)}</h2>
           </div>
           <form data-no-preview onSubmit={(e) => { e.preventDefault(); const q = new FormData(e.currentTarget).get("q"); navigate(`/employee/search?q=${encodeURIComponent(q || "")}`); }} className="relative w-full max-w-xs">
             <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-faint)]" />
@@ -628,7 +629,7 @@ export function EmpExpenses() {
 
   return (
     <>
-      <PageHeader icon={Receipt} title="Expense Claims" subtitle="Upload bills and track reimbursement" actions={<Button onClick={() => setOpen(true)}><Plus size={14} /> New claim</Button>} />
+      <PageHeader icon={Receipt} title="Expense Claims" subtitle="Upload bills and track reimbursement" actions={<Button onClick={() => setOpen(true)}><Plus size={14} /> New Claim</Button>} />
       <Async state={q}>
         {(rows) => {
           const sum = (pred, k) => rows.filter(pred).reduce((s, r) => s + (Number(r[k]) || 0), 0);
@@ -651,7 +652,7 @@ export function EmpExpenses() {
                     return (
                       <span className="flex items-center gap-2">
                         {n == null ? "—" : n ? <span className="flex items-center gap-1"><Paperclip size={12} /> {n}</span> : <span className="text-[var(--color-amber)]">none</span>}
-                        {r.docstatus === 0 && <button type="button" onClick={() => setAdding(r.name)} className="text-[11px] text-[var(--color-red-hover)] hover:underline">Add bill</button>}
+                        {r.docstatus === 0 && <button type="button" onClick={() => setAdding(r.name)} className="text-[11px] text-[var(--color-red-hover)] hover:underline">Add Bill</button>}
                       </span>
                     );
                   } },
@@ -722,7 +723,7 @@ function ClaimModal({ employee, onClose, onSaved }) {
     setErr("");
     try {
       const { failed } = await createExpenseClaim({ employee, approver: approver?.email, files, lines: [{ expense_date: f.date, expense_type: f.type, description: f.description, amount: f.amount }] });
-      if (failed) alertDialog({ tone: "error", title: "Some bills weren't uploaded", message: `${failed} of the bills couldn't be uploaded - the claim was created with the rest. Use "Add bill" to retry.` });
+      if (failed) alertDialog({ tone: "error", title: "Some Bills Weren't Uploaded", message: `${failed} of the bills couldn't be uploaded - the claim was created with the rest. Use "Add bill" to retry.` });
       onSaved();
     } catch (x) {
       setErr(x?.response ? errMsg(x, "Couldn't create the claim.") : x?.message || "Couldn't create the claim.");
@@ -736,14 +737,14 @@ function ClaimModal({ employee, onClose, onSaved }) {
   return (
     <Modal title="New Expense Claim" onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
-        <DateField label="Expense date" value={f.date} onChange={(v) => setF({ ...f, date: v })} required />
-        <Field label="Expense type" hint={hint}><select required className={inputCls} value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })}><option value="">Select…</option>{(types.data || []).map((t) => <option key={t.name}>{t.name}</option>)}</select></Field>
+        <DateField label="Expense Date" value={f.date} onChange={(v) => setF({ ...f, date: v })} required />
+        <Field label="Expense Type" hint={hint}><select required className={inputCls} value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })}><option value="">Select…</option>{(types.data || []).map((t) => <option key={t.name}>{t.name}</option>)}</select></Field>
         {skipped && <Notice tone="info">{list[0].name} is on leave, so {approver.name} will approve this claim.</Notice>}
         <Field label="Amount"><input type="number" min="0.01" step="0.01" required className={inputCls} value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} /></Field>
         <Field label="Description"><textarea rows={2} className={inputCls} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} /></Field>
         <BillPicker files={files} setFiles={setFiles} />
         {err && <Notice>{err}</Notice>}
-        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy || !files.length || !f.type}>{busy ? "Submitting…" : "Submit claim"}</Button></div>
+        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy || !files.length || !f.type}>{busy ? "Submitting…" : "Submit Claim"}</Button></div>
       </form>
     </Modal>
   );
@@ -778,7 +779,7 @@ export function EmpGoals() {
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <Panel title="Reviews" hint="Appraisal cycles and review dates">
-          <Async state={reviews}>{(rows) => <Grid rows={rows} empty="No reviews scheduled." columns={[{ key: "appraisal_cycle", label: "Cycle" }, { key: "end_date", label: "Review by", render: (r) => dmy(r.end_date) || "—" }, { key: "status", label: "Status", render: (r) => <StatusPill status={r.status} /> }, { key: "final_score", label: "Score", render: (r) => r.final_score ?? "—" }]} />}</Async>
+          <Async state={reviews}>{(rows) => <Grid rows={rows} empty="No reviews scheduled." columns={[{ key: "appraisal_cycle", label: "Cycle" }, { key: "end_date", label: "Review By", render: (r) => dmy(r.end_date) || "—" }, { key: "status", label: "Status", render: (r) => <StatusPill status={r.status} /> }, { key: "final_score", label: "Score", render: (r) => r.final_score ?? "—" }]} />}</Async>
         </Panel>
         <Panel title="Feedback from Your Manager">
           <Async state={feedback}>
@@ -802,7 +803,7 @@ export function EmpHelp() {
 
   return (
     <>
-      <PageHeader icon={LifeBuoy} title="Help & Requests" subtitle="HR and IT support, document requests, letters and who to contact" actions={<Button onClick={() => setModal({ category: "HR Support" })}><Plus size={14} /> New request</Button>} />
+      <PageHeader icon={LifeBuoy} title="Help & Requests" subtitle="HR and IT support, document requests, letters and who to contact" actions={<Button onClick={() => setModal({ category: "HR Support" })}><Plus size={14} /> New Request</Button>} />
       <Tabs value={tab} onChange={setTab} tabs={[{ id: "requests", label: "My Requests" }, { id: "letters", label: "Employee Letters" }, { id: "contacts", label: "HR & IT Contacts" }]} />
 
       {tab === "requests" && (
@@ -904,7 +905,7 @@ export function EmpLeave() {
 
   return (
     <>
-      <PageHeader icon={CalendarClock} title="Leave" subtitle="Your balance, applications and approval status" actions={<Button onClick={() => setOpen(true)}><Plus size={14} /> Apply for leave</Button>} />
+      <PageHeader icon={CalendarClock} title="Leave" subtitle="Your balance, applications and approval status" actions={<Button onClick={() => setOpen(true)}><Plus size={14} /> Apply for Leave</Button>} />
 
       <Async state={balance}>
         {(rows) => rows.length === 0 ? <Notice tone="info">No leave has been allocated to you yet.</Notice> : (
@@ -974,12 +975,12 @@ function ApplyModal({ employee, balance, onClose, onSaved }) {
   return (
     <Modal title="Apply for Leave" onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
-        <Field label="Leave type" hint={left != null ? `${left} day(s) available` : undefined}>
+        <Field label="Leave Type" hint={left != null ? `${left} day(s) available` : undefined}>
           <select required className={inputCls} value={f.leave_type} onChange={(e) => setF({ ...f, leave_type: e.target.value })}><option value="">Select…</option>{(types.data || []).map((t) => <option key={t}>{t}</option>)}</select>
         </Field>
         <div className="grid grid-cols-2 gap-3"><DateField label="From" value={f.from_date} onChange={(v) => setF({ ...f, from_date: v, to_date: f.to_date < v ? v : f.to_date })} required /><DateField label="To" value={f.to_date} onChange={(v) => setF({ ...f, to_date: v })} required /></div>
         <label className="flex items-center gap-2 text-[13px] text-[var(--color-text-muted)]"><input type="checkbox" checked={f.half_day} onChange={(e) => setF({ ...f, half_day: e.target.checked })} /> Half day (on the first date)</label>
-        <Field label="Leave approver" hint={list.length ? "From your business unit (department). If an approver is on leave, the next one is used." : undefined}>
+        <Field label="Leave Approver" hint={list.length ? "From your business unit (department). If an approver is on leave, the next one is used." : undefined}>
           {approvers.loading && !approvers.data ? <p className="py-2 text-[13px] text-[var(--color-text-muted)]">Finding your approver…</p> : list.length === 0 ? <p className="py-2 text-[13px] text-[var(--color-amber)]">No approver is set for your business unit yet - HR will assign one.</p> : (
             <select className={inputCls} value={approver} onChange={(e) => setChosen(e.target.value)}>{list.map((a) => <option key={a.email} value={a.email} disabled={a.on_leave}>{a.name}{a.on_leave ? " (on leave)" : ""}</option>)}</select>
           )}
@@ -1023,7 +1024,7 @@ export function EmpNotifications() {
 
   return (
     <>
-      <PageHeader icon={Bell} title="Notifications" subtitle="Approval updates, reminders and company announcements" actions={unread > 0 && tab === "all" ? <Button variant="secondary" onClick={markAll}><CheckCheck size={14} /> Mark all read</Button> : null} />
+      <PageHeader icon={Bell} title="Notifications" subtitle="Approval updates, reminders and company announcements" actions={unread > 0 && tab === "all" ? <Button variant="secondary" onClick={markAll}><CheckCheck size={14} /> Mark All Read</Button> : null} />
       <Tabs value={tab} onChange={setTab} tabs={[{ id: "all", label: "Updates", count: notifs.data ? unread : undefined }, { id: "news", label: "Announcements" }]} />
 
       {tab === "all" && (
@@ -1185,7 +1186,7 @@ export function EmpProfile() {
 
   return (
     <>
-      <PageHeader icon={UserRound} avatar={<ProfileAvatar size={72} />} title={e.employee_name} subtitle={`${e.designation || "Employee"} · ${e.name}`} actions={<><Button variant="secondary" onClick={() => setPwOpen(true)}><KeyRound size={14} /> Change password</Button><Button variant="secondary" onClick={open}><Pencil size={14} /> Edit my details</Button></>} />
+      <PageHeader icon={UserRound} avatar={<ProfileAvatar size={72} />} title={e.employee_name} subtitle={`${e.designation || "Employee"} · ${e.name}`} actions={<><Button variant="secondary" onClick={() => setPwOpen(true)}><KeyRound size={14} /> Change Password</Button><Button variant="secondary" onClick={open}><Pencil size={14} /> Edit My Details</Button></>} />
 
       <Panel title="Employment">
         <KeyValue items={[

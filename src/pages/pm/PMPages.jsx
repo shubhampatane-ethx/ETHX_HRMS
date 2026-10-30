@@ -48,14 +48,14 @@ export function PMDashboard() {
 
   return (
     <>
-      <PageHeader icon={Briefcase} title="Project Manager" subtitle="Assign people to projects with a role and ETA - their timesheets fill in automatically" actions={<Link to="/pm/assignments?assign=1"><Button><Plus size={14} /> Assign employee</Button></Link>} />
+      <PageHeader icon={Briefcase} title="Project Manager" subtitle="Assign people to projects with a role and ETA - their timesheets fill in automatically" actions={<Link to="/pm/assignments?assign=1"><Button><Plus size={14} /> Assign Employee</Button></Link>} />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat to="/pm/projects" icon={Briefcase} label="Open Projects" value={projects.data ? openProjects.length : projects.error ? "—" : undefined} sub="Not completed or cancelled" accent="#4f8cff" />
         <Stat to="/pm/assignments" icon={ClipboardList} label="Active Assignments" value={assignments.data ? active.length : assignments.error ? "—" : undefined} sub="People on projects" accent="var(--color-green)" />
         <Stat to="/pm/assignments" icon={Users} label="Free Today" value={employees.data && assignments.data ? free : undefined} sub="Employees with a login, not assigned today" accent="var(--color-amber)" />
         <Stat to="/pm/assignments" icon={CalendarClock} label="ETA Within 7 Days" value={assignments.data ? ending.length : undefined} sub="Assignments ending soon" accent="var(--color-red-hover)" />
       </div>
-      <Panel title="Upcoming ETAs" hint="Active assignments by end date" action={<Link to="/pm/assignments" className="text-[12px] text-[var(--color-red-hover)] hover:underline">View all</Link>}>
+      <Panel title="Upcoming ETAs" hint="Active assignments by end date" action={<Link to="/pm/assignments" className="text-[12px] text-[var(--color-red-hover)] hover:underline">View All</Link>}>
         <Async state={assignments}>
           {() => active.length === 0 ? <Empty text="No active assignments yet." /> : (
             <Grid rows={active.slice(0, 8)} columns={[
@@ -103,7 +103,7 @@ export function PMProjects() {
 
   return (
     <>
-      <PageHeader icon={Briefcase} title="Projects" subtitle="Your company's projects and how many people are assigned" actions={<Button onClick={() => setOpen(true)}><Plus size={14} /> New project</Button>} />
+      <PageHeader icon={Briefcase} title="Projects" subtitle="Your company's projects and how many people are assigned" actions={<Button onClick={() => setOpen(true)}><Plus size={14} /> New Project</Button>} />
       <Panel>
         <Async state={projects}>
           {(list) => <Grid rows={list} empty="No projects yet." columns={[
@@ -151,11 +151,11 @@ function ProjectModal({ onClose, onSaved }) {
   return (
     <Modal title="New Project" onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
-        <Field label="Project name"><input required className={inputCls} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
+        <Field label="Project Name"><input required className={inputCls} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
         <LinkField label="Company" linkDoctype="Company" value={f.company} onChange={(v) => setF({ ...f, company: v })} required frappe={frappe} />
-        <div className="grid grid-cols-2 gap-3"><DateField label="Start" value={f.start} onChange={(v) => setF({ ...f, start: v })} /><DateField label="ETA (end)" value={f.end} onChange={(v) => setF({ ...f, end: v })} /></div>
+        <div className="grid grid-cols-2 gap-3"><DateField label="Start" value={f.start} onChange={(v) => setF({ ...f, start: v })} /><DateField label="ETA (End)" value={f.end} onChange={(v) => setF({ ...f, end: v })} /></div>
         {err && <Notice>{err}</Notice>}
-        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Creating…" : "Create project"}</Button></div>
+        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Creating…" : "Create Project"}</Button></div>
       </form>
     </Modal>
   );
@@ -197,7 +197,7 @@ export function PMAssignments() {
 
   return (
     <>
-      <PageHeader icon={ClipboardList} title="Assignments" subtitle="Who works on which project, in what role, until when" actions={<Button onClick={() => setModal({ project: projectFilter })}><Plus size={14} /> Assign employee</Button>} />
+      <PageHeader icon={ClipboardList} title="Assignments" subtitle="Who works on which project, in what role, until when" actions={<Button onClick={() => setModal({ project: projectFilter })}><Plus size={14} /> Assign Employee</Button>} />
       <Notice tone="info">Employees see these days pre-filled in their monthly timesheet: every working day from the start date to the ETA, with the hours per day you set, minus leave and holidays.</Notice>
       <Panel>
         <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -285,7 +285,7 @@ function AssignModal({ init, projects, employees, roles, active, onClose, onSave
             {edit ? <p className="py-2 text-[13px] text-[var(--color-text)]">{employees.find((x) => x.user_id === f.email)?.employee_name || f.email}</p> : <select required className={inputCls} value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })}><option value="">Select…</option>{employees.map((x) => <option key={x.name} value={x.user_id || ""} disabled={!x.user_id}>{x.employee_name}{x.designation ? ` · ${x.designation}` : ""}{x.user_id ? "" : " (no login)"}</option>)}</select>}
           </Field>
         </div>
-        <Field label="Role on this project" hint={managesProject(roles, f.role) ? "This person will manage this project: assign its team and approve its timesheets, on this project only." : undefined}>
+        <Field label="Role on This Project" hint={managesProject(roles, f.role) ? "This person will manage this project: assign its team and approve its timesheets, on this project only." : undefined}>
           <select required className={inputCls} value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })}>
             <option value="">Select…</option>
             {edit && !roles.some((r) => r.role_name === f.role) && <option>{f.role}</option>}
@@ -293,15 +293,15 @@ function AssignModal({ init, projects, employees, roles, active, onClose, onSave
           </select>
         </Field>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <DateField label="Start date" value={f.start} onChange={(v) => setF({ ...f, start: v, eta: f.eta < v ? v : f.eta })} required />
-          <DateField label="ETA (end date)" value={f.eta} onChange={(v) => setF({ ...f, eta: v })} required />
-          <Field label="Hours per day"><input type="number" min="0.25" max="24" step="0.25" required className={inputCls} value={f.hours} onChange={(e) => setF({ ...f, hours: e.target.value })} /></Field>
+          <DateField label="Start Date" value={f.start} onChange={(v) => setF({ ...f, start: v, eta: f.eta < v ? v : f.eta })} required />
+          <DateField label="ETA (End Date)" value={f.eta} onChange={(v) => setF({ ...f, eta: v })} required />
+          <Field label="Hours per Day"><input type="number" min="0.25" max="24" step="0.25" required className={inputCls} value={f.hours} onChange={(e) => setF({ ...f, hours: e.target.value })} /></Field>
         </div>
-        <Field label="Notes (optional)"><textarea rows={2} className={inputCls} value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} /></Field>
+        <Field label="Notes (Optional)"><textarea rows={2} className={inputCls} value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} /></Field>
         <p className="text-[12px] text-[var(--color-text-muted)]">About <b className="text-[var(--color-text)]">{days}</b> working day(s) · <b className="text-[var(--color-text)]">{(days * hours).toFixed(1)} h</b> in total. The employee's monthly timesheet fills these days automatically.</p>
         {booked > 0 && <Notice tone="info">This employee is already booked {booked} h/day in that period - with this assignment that becomes {booked + hours} h/day.</Notice>}
         {err && <Notice>{err}</Notice>}
-        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Saving…" : edit ? "Save changes" : "Assign"}</Button></div>
+        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Saving…" : edit ? "Save Changes" : "Assign"}</Button></div>
       </form>
     </Modal>
   );

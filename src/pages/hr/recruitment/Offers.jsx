@@ -91,7 +91,7 @@ function Actions({ o, user, approver, setModal, act }) {
   return (
     <div className="flex flex-wrap justify-end gap-1 whitespace-nowrap">
       {o.docstatus === 0 && <button type="button" title="Edit" className={btn} onClick={() => setModal({ kind: "edit", offer: o })}><Pencil size={14} /></button>}
-      {["Draft", "Rejected"].includes(s) && <Button variant="secondary" className="!px-2 !py-1 text-[11px]" onClick={async () => (await confirmDialog(`Send ${o.applicant_name}'s offer for approval?`)) && act(() => setOfferApproval(o, "Pending Approval"), "Sent for approval.")}>Send for approval</Button>}
+      {["Draft", "Rejected"].includes(s) && <Button variant="secondary" className="!px-2 !py-1 text-[11px]" onClick={async () => (await confirmDialog(`Send ${o.applicant_name}'s offer for approval?`)) && act(() => setOfferApproval(o, "Pending Approval"), "Sent for approval.")}>Send for Approval</Button>}
       {s === "Pending Approval" && approver && (!mine || user?.email === "Administrator") && <>
         <button type="button" title="Approve" className={`${btn} !text-[var(--color-green)]`} onClick={() => setModal({ kind: "decide", offer: o, approve: true })}><Check size={14} /></button>
         <button type="button" title="Reject" className={btn} onClick={() => setModal({ kind: "decide", offer: o, approve: false })}><X size={14} /></button>
@@ -105,7 +105,7 @@ function Actions({ o, user, approver, setModal, act }) {
       </>}
       {s === "Accepted" && <>
         <Button className="!px-2 !py-1 text-[11px]" onClick={() => setModal({ kind: "hire", offer: o })}><UserPlus size={12} /> Hire</Button>
-        <Button variant="ghost" className="!px-2 !py-1 text-[11px]" onClick={() => setModal({ kind: "noshow", offer: o })}>Didn't join</Button>
+        <Button variant="ghost" className="!px-2 !py-1 text-[11px]" onClick={() => setModal({ kind: "noshow", offer: o })}>Didn't Join</Button>
       </>}
       {o.docstatus === 0 && <button type="button" title="Delete draft" className={`${btn} hover:!text-[var(--color-red-hover)]`} onClick={async () => (await confirmDialog("Delete this draft offer?")) && act(() => frappe.deleteDoc("Job Offer", o.name), "Draft deleted.")}><Trash2 size={14} /></button>}
     </div>
@@ -144,7 +144,7 @@ function ApproveModal({ offer, approve, onClose, onSaved }) {
       <form onSubmit={submit} className="space-y-3">
         <p className="text-[12px] text-[var(--color-text-muted)]">{offer.designation} · {offer.custom_ctc ? money(offer.custom_ctc) : "CTC not set"} · joining {dmy(offer.custom_joining_date) || "—"} · drafted by {offer.owner}</p>
         {offer.custom_rounds_override && <Notice tone="info">Interview rounds overridden: {offer.custom_rounds_override}</Notice>}
-        <Field label={approve ? "Note (optional)" : "What needs to change?"}><textarea rows={2} required={!approve} className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} /></Field>
+        <Field label={approve ? "Note (Optional)" : "What needs to change?"}><textarea rows={2} required={!approve} className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} /></Field>
         {err && <Notice>{err}</Notice>}
         <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Saving…" : approve ? "Approve" : "Reject"}</Button></div>
       </form>
@@ -181,7 +181,7 @@ function SendModal({ offer, onClose, onSaved }) {
       <p className="text-[13px] text-[var(--color-text-muted)]">Sending locks the offer. To change it later, use Revise.</p>
       <label className="mt-3 flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><input type="checkbox" checked={email} onChange={(e) => setEmail(e.target.checked)} /><Mail size={13} /> Email the PDF offer letter to {offer.applicant_email || "the candidate"}</label>
       {err && <div className="mt-3"><Notice>{err}</Notice></div>}
-      <div className="mt-4 flex justify-end gap-2"><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={go} disabled={busy}>{busy ? "Sending…" : "Send offer"}</Button></div>
+      <div className="mt-4 flex justify-end gap-2"><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={go} disabled={busy}>{busy ? "Sending…" : "Send Offer"}</Button></div>
     </Modal>
   );
 }

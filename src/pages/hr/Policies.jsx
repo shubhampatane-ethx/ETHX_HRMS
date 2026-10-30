@@ -18,7 +18,7 @@ export default function Policies() {
 
   async function upload(file) {
     if (!file) return;
-    if (!(await confirmDialog({ title: "Publish policy", message: `Publish "${file.name}" to every employee's Policies & Documents?`, confirmLabel: "Publish" }))) { if (fileRef.current) fileRef.current.value = ""; return; }
+    if (!(await confirmDialog({ title: "Publish Policy", message: `Publish "${file.name}" to every employee's Policies & Documents?`, confirmLabel: "Publish" }))) { if (fileRef.current) fileRef.current.value = ""; return; }
     setBusy(true);
     setError("");
     setMessage("");
@@ -58,7 +58,7 @@ export default function Policies() {
         <>
           <input ref={fileRef} type="file" className="hidden" onChange={(e) => upload(e.target.files?.[0])} />
           <Button onClick={() => fileRef.current?.click()} disabled={busy}>
-            <Upload size={14} /> {busy ? "Uploading…" : "Upload policy"}
+            <Upload size={14} /> {busy ? "Uploading…" : "Upload Policy"}
           </Button>
         </>
       } />

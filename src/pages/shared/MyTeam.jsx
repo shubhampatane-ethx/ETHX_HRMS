@@ -108,7 +108,7 @@ function DecideModal({ app, to, onClose, onSaved }) {
     <Modal title={`${to === "Approved" ? "Approve" : "Reject"} · ${app.employee_name}`} onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
         <p className="text-[12px] text-[var(--color-text-muted)]">{app.leave_type} · {dmy(app.from_date)}{app.to_date !== app.from_date ? ` – ${dmy(app.to_date)}` : ""} · {app.total_leave_days} day(s)</p>
-        <Field label={to === "Rejected" ? "Reason (required)" : "Note (optional)"}><textarea rows={2} className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} /></Field>
+        <Field label={to === "Rejected" ? "Reason (Required)" : "Note (Optional)"}><textarea rows={2} className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} /></Field>
         {err && <Notice>{err}</Notice>}
         <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Saving…" : to === "Approved" ? "Approve" : "Reject"}</Button></div>
       </form>

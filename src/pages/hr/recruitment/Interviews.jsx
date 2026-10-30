@@ -83,7 +83,7 @@ function Rounds() {
     }
   }
   return (
-    <Panel title="Interview Rounds" hint="Reusable rounds with a 1–5 skill scorecard and default interviewers. Pick and order them per opening." action={<Button onClick={() => setModal({})}><Plus size={14} /> New round</Button>}>
+    <Panel title="Interview Rounds" hint="Reusable rounds with a 1–5 skill scorecard and default interviewers. Pick and order them per opening." action={<Button onClick={() => setModal({})}><Plus size={14} /> New Round</Button>}>
       <Async state={rounds}>
         {(list) => <Grid rows={list} empty="No rounds yet - create e.g. Technical 1, Technical 2, HR." columns={[
           { key: "round_name", label: "Round", render: (r) => <b className="font-medium">{r.round_name}</b> },
@@ -123,18 +123,18 @@ function RoundModal({ round, onClose, onSaved }) {
     <Modal title={round ? `Edit ${round.round_name}` : "New interview round"} onClose={onClose} wide>
       <form onSubmit={submit} className="space-y-3">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="Round name"><input required disabled={Boolean(round)} className={inputCls} value={f.round_name} onChange={(e) => setF({ ...f, round_name: e.target.value })} placeholder="e.g. Technical 1" /></Field>
-          <LinkField label="Only for designation (optional)" linkDoctype="Designation" value={f.designation} onChange={(v) => setF({ ...f, designation: v })} frappe={frappe} />
+          <Field label="Round Name"><input required disabled={Boolean(round)} className={inputCls} value={f.round_name} onChange={(e) => setF({ ...f, round_name: e.target.value })} placeholder="e.g. Technical 1" /></Field>
+          <LinkField label="Only for Designation (Optional)" linkDoctype="Designation" value={f.designation} onChange={(v) => setF({ ...f, designation: v })} frappe={frappe} />
         </div>
-        <Field label="Scorecard skills" hint="Comma separated - each is rated 1–5 by every interviewer. New skills are created automatically."><input className={inputCls} value={f.skills} onChange={(e) => setF({ ...f, skills: e.target.value })} placeholder="Oracle Fusion SCM, SQL, Communication" /></Field>
-        <Field label="Pass mark (average stars)"><Stars value={f.expected} onChange={(n) => setF({ ...f, expected: n })} /></Field>
-        <Field label="Default interviewers">
+        <Field label="Scorecard Skills" hint="Comma separated - each is rated 1–5 by every interviewer. New skills are created automatically."><input className={inputCls} value={f.skills} onChange={(e) => setF({ ...f, skills: e.target.value })} placeholder="Oracle Fusion SCM, SQL, Communication" /></Field>
+        <Field label="Pass Mark (Average Stars)"><Stars value={f.expected} onChange={(n) => setF({ ...f, expected: n })} /></Field>
+        <Field label="Default Interviewers">
           <div className="max-h-40 overflow-y-auto rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] p-2">
             {(users.data || []).map((u) => <label key={u.name} className="flex items-center gap-2 py-0.5 text-[12.5px] text-[var(--color-text)]"><input type="checkbox" checked={f.interviewers.includes(u.name)} onChange={() => toggle(u.name)} /> {u.full_name || u.name}</label>)}
           </div>
         </Field>
         {err && <Notice>{err}</Notice>}
-        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Saving…" : "Save round"}</Button></div>
+        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Saving…" : "Save Round"}</Button></div>
       </form>
     </Modal>
   );

@@ -97,7 +97,7 @@ export const HR_SETUP_SECTIONS = [
         formFields: [
           { name: "employee", label: "Employee", type: "link", linkDoctype: "Employee", required: true },
           { name: "leave_type", label: "Leave Type", type: "link", linkDoctype: "Leave Type" },
-          { name: "work_from_date", label: "Work From Date", type: "date", required: true },
+          { name: "work_from_date", label: "Work from Date", type: "date", required: true },
           { name: "work_end_date", label: "Work End Date", type: "date", required: true },
         ],
       },

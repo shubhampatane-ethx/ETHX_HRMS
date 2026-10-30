@@ -62,7 +62,7 @@ export default function ProjectManagers() {
           <div className="flex h-32 flex-col items-center justify-center gap-2 text-[13px] text-[var(--color-text-muted)]"><Briefcase size={18} className="text-[var(--color-text-faint)]" />No Project Managers yet.</div>
         ) : (
           <table className="w-full text-left text-[13px]">
-            <thead><tr className="border-b border-[var(--color-border)] text-[12px] text-[var(--color-text-muted)]"><th className="px-4 py-2.5 font-medium">Name</th><th className="px-4 py-2.5 font-medium">Email</th><th className="px-4 py-2.5 font-medium">Company</th><th className="px-4 py-2.5 font-medium">Status</th><th className="px-4 py-2.5 font-medium">Last login</th><th /></tr></thead>
+            <thead><tr className="border-b border-[var(--color-border)] text-[12px] text-[var(--color-text-muted)]"><th className="px-4 py-2.5 font-medium">Name</th><th className="px-4 py-2.5 font-medium">Email</th><th className="px-4 py-2.5 font-medium">Company</th><th className="px-4 py-2.5 font-medium">Status</th><th className="px-4 py-2.5 font-medium">Last Login</th><th /></tr></thead>
             <tbody>
               {rows.map((u) => (
                 <tr key={u.name} className="border-b border-[var(--color-border)] last:border-0 hover:bg-[var(--color-surface-2)]">
@@ -125,9 +125,9 @@ function CreateModal({ onClose, onDone }) {
   return (
     <Shell title="Add Project Manager" onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
-        <div className="grid grid-cols-2 gap-3"><Input label="First name" value={f.first} onChange={set("first")} required /><Input label="Last name" value={f.last} onChange={set("last")} /></div>
+        <div className="grid grid-cols-2 gap-3"><Input label="First Name" value={f.first} onChange={set("first")} required /><Input label="Last Name" value={f.last} onChange={set("last")} /></div>
         <Input label="Email" type="email" value={f.email} onChange={set("email")} required />
-        <Input label="Temporary password" value={f.password} onChange={set("password")} required minLength={8} autoComplete="off" />
+        <Input label="Temporary Password" value={f.password} onChange={set("password")} required minLength={8} autoComplete="off" />
         <LinkField label="Company" linkDoctype="Company" value={f.company} onChange={(v) => setF((x) => ({ ...x, company: v }))} required frappe={frappe} />
         <label className="flex items-start gap-2 text-[12px] text-[var(--color-text-muted)]"><input type="checkbox" className="mt-0.5" checked={f.portal} onChange={(e) => setF((x) => ({ ...x, portal: e.target.checked }))} /> Also give them the Employee portal (their own attendance, leave and timesheet). HR still has to link their Employee record to this email.</label>
         {error && <ErrorNote>{error}</ErrorNote>}
@@ -159,13 +159,13 @@ function ManageModal({ user, onClose, onDone }) {
         <p className="text-[12px] text-[var(--color-text-muted)]">{user.name} · {user.enabled ? "Active" : "Disabled"}</p>
         <div className="space-y-2">
           <LinkField label="Company" linkDoctype="Company" value={company} onChange={setCompany} frappe={frappe} />
-          <Button variant="secondary" disabled={Boolean(busy) || !company || company === user.company} onClick={() => run("company", () => setUserCompany(user.name, company), "Company updated.", `Move ${user.full_name || user.name} to ${company}?`)}><Building2 size={14} /> {busy === "company" ? "Saving…" : "Change company"}</Button>
+          <Button variant="secondary" disabled={Boolean(busy) || !company || company === user.company} onClick={() => run("company", () => setUserCompany(user.name, company), "Company updated.", `Move ${user.full_name || user.name} to ${company}?`)}><Building2 size={14} /> {busy === "company" ? "Saving…" : "Change Company"}</Button>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <input type="text" value={pwd} onChange={(e) => setPwd(e.target.value)} placeholder="New temporary password" autoComplete="off" className="w-56 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-3 py-2 text-[13px] text-[var(--color-text)] placeholder:text-[var(--color-text-faint)] outline-none focus:border-[var(--color-red)]" />
-          <Button variant="secondary" disabled={Boolean(busy) || pwd.length < 8} onClick={() => run("pwd", async () => { await frappe.updateDoc("User", user.name, { new_password: pwd, last_password_reset_date: null }); setPwd(""); }, "Password reset - they must change it at next sign-in.", `Reset ${user.full_name || user.name}'s password? They must change it at next sign-in.`)}><KeyRound size={14} /> Reset password</Button>
+          <Button variant="secondary" disabled={Boolean(busy) || pwd.length < 8} onClick={() => run("pwd", async () => { await frappe.updateDoc("User", user.name, { new_password: pwd, last_password_reset_date: null }); setPwd(""); }, "Password reset - they must change it at next sign-in.", `Reset ${user.full_name || user.name}'s password? They must change it at next sign-in.`)}><KeyRound size={14} /> Reset Password</Button>
         </div>
-        <Button variant="ghost" disabled={Boolean(busy)} onClick={() => run("enable", () => frappe.updateDoc("User", user.name, { enabled: user.enabled ? 0 : 1 }), user.enabled ? "Account disabled." : "Account enabled.", user.enabled ? { message: `Disable ${user.full_name || user.name}'s account? They won't be able to sign in.`, danger: true, confirmLabel: "Disable" } : `Enable ${user.full_name || user.name}'s account?`)}><Power size={14} /> {user.enabled ? "Disable account" : "Enable account"}</Button>
+        <Button variant="ghost" disabled={Boolean(busy)} onClick={() => run("enable", () => frappe.updateDoc("User", user.name, { enabled: user.enabled ? 0 : 1 }), user.enabled ? "Account disabled." : "Account enabled.", user.enabled ? { message: `Disable ${user.full_name || user.name}'s account? They won't be able to sign in.`, danger: true, confirmLabel: "Disable" } : `Enable ${user.full_name || user.name}'s account?`)}><Power size={14} /> {user.enabled ? "Disable Account" : "Enable Account"}</Button>
         {note && <p className="text-[12px] text-[var(--color-green)]">{note}</p>}
         {error && <ErrorNote>{error}</ErrorNote>}
       </div>

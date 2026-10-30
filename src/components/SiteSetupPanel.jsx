@@ -16,7 +16,7 @@ export function SiteSetupPanel() {
   const [log, setLog] = useState(null);
   const [busy, setBusy] = useState(false);
   async function run() {
-    if (!(await confirmDialog({ title: "Run system setup", message: "Add the required fields, change history, field restrictions and server rules on this ERPNext site?", confirmLabel: "Run setup" }))) return;
+    if (!(await confirmDialog({ title: "Run System Setup", message: "Add the required fields, change history, field restrictions and server rules on this ERPNext site?", confirmLabel: "Run Setup" }))) return;
     setBusy(true);
     setLog([]);
     try {

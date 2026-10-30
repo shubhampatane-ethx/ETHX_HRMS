@@ -69,7 +69,7 @@ export function LeaveApproversByBU() {
       <Card className="overflow-hidden">
         {rows === null ? <p className="flex h-28 items-center justify-center gap-2 text-[13px] text-[var(--color-text-muted)]"><Loader2 size={14} className="animate-spin" /> Loading…</p> : (
           <table className="w-full text-left text-[13px]">
-            <thead><tr className="border-b border-[var(--color-border)] text-[12px] text-[var(--color-text-muted)]"><th className="px-4 py-2.5 font-medium">Business unit</th><th className="px-4 py-2.5 font-medium">Company</th><th className="px-4 py-2.5 font-medium">Leave approvers (in order)</th><th /></tr></thead>
+            <thead><tr className="border-b border-[var(--color-border)] text-[12px] text-[var(--color-text-muted)]"><th className="px-4 py-2.5 font-medium">Business Unit</th><th className="px-4 py-2.5 font-medium">Company</th><th className="px-4 py-2.5 font-medium">Leave Approvers (In Order)</th><th /></tr></thead>
             <tbody>
               {shown.map((d) => (
                 <tr key={d.name} className="border-b border-[var(--color-border)] last:border-0 hover:bg-[var(--color-surface-2)]">
@@ -99,7 +99,7 @@ function ApproverEditor({ title, initial, users, names, onClose, onSave }) {
 
   async function save() {
     const order = list.map((e, i) => `${i + 1}. ${names[e] || e}`).join("\n");
-    if (!(await confirmDialog({ title: "Save approvers", message: list.length ? `Save these approvers in this order?\n\n${order}` : "Save with no approvers?" }))) return;
+    if (!(await confirmDialog({ title: "Save Approvers", message: list.length ? `Save these approvers in this order?\n\n${order}` : "Save with no approvers?" }))) return;
     setBusy(true);
     setErr("");
     try { await onSave(list); onClose(); } catch (e) { setErr(errMsg(e, "The change was refused.")); setBusy(false); }
@@ -253,7 +253,7 @@ export function ExpenseApproversByType() {
       <Card className="overflow-hidden">
         {rows === null ? <p className="flex h-28 items-center justify-center gap-2 text-[13px] text-[var(--color-text-muted)]"><Loader2 size={14} className="animate-spin" /> Loading…</p> : (
           <table className="w-full text-left text-[13px]">
-            <thead><tr className="border-b border-[var(--color-border)] text-[12px] text-[var(--color-text-muted)]"><th className="px-4 py-2.5 font-medium">Expense type</th><th className="px-4 py-2.5 font-medium">Approver</th></tr></thead>
+            <thead><tr className="border-b border-[var(--color-border)] text-[12px] text-[var(--color-text-muted)]"><th className="px-4 py-2.5 font-medium">Expense Type</th><th className="px-4 py-2.5 font-medium">Approver</th></tr></thead>
             <tbody>
               {rows.map((t) => (
                 <tr key={t.name} className="border-b border-[var(--color-border)] last:border-0">
@@ -332,7 +332,7 @@ export function ExpenseAccounting() {
       <Hint>Approving a claim books it in the accounts. Each company needs a payable account (what the company owes the employee) and a default cost center, and each expense type needs an expense account per company. Check with your accountant which accounts to use.</Hint>
       <Card className="mb-4 overflow-x-auto">
         <table className="w-full text-left text-[13px]">
-          <thead><tr className="border-b border-[var(--color-border)] text-[12px] text-[var(--color-text-muted)]"><th className="px-4 py-2.5 font-medium">Company</th><th className="px-4 py-2.5 font-medium">Expense claim payable account</th><th className="px-4 py-2.5 font-medium">Default cost center</th></tr></thead>
+          <thead><tr className="border-b border-[var(--color-border)] text-[12px] text-[var(--color-text-muted)]"><th className="px-4 py-2.5 font-medium">Company</th><th className="px-4 py-2.5 font-medium">Expense Claim Payable Account</th><th className="px-4 py-2.5 font-medium">Default Cost Center</th></tr></thead>
           <tbody>
             {data.companies.map((c) => (
               <tr key={c.name} className="border-b border-[var(--color-border)] last:border-0">
@@ -347,7 +347,7 @@ export function ExpenseAccounting() {
       </Card>
       <Card className="overflow-x-auto">
         <table className="w-full text-left text-[13px]">
-          <thead><tr className="border-b border-[var(--color-border)] text-[12px] text-[var(--color-text-muted)]"><th className="px-4 py-2.5 font-medium">Expense type</th>{data.companies.map((c) => <th key={c.name} className="px-4 py-2.5 font-medium">Expense account · {c.name}</th>)}</tr></thead>
+          <thead><tr className="border-b border-[var(--color-border)] text-[12px] text-[var(--color-text-muted)]"><th className="px-4 py-2.5 font-medium">Expense Type</th>{data.companies.map((c) => <th key={c.name} className="px-4 py-2.5 font-medium">Expense account · {c.name}</th>)}</tr></thead>
           <tbody>
             {data.types.map((t) => (
               <tr key={t.name} className="border-b border-[var(--color-border)] last:border-0">

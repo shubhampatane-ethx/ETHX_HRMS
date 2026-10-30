@@ -104,7 +104,7 @@ export function HrRecordForm({ doctype, fields, recordName, onCancel, onSaved, s
           <div className="flex gap-2">
             <Button type="submit" disabled={state === "saving"}>
               {state === "saving" && <Loader2 size={14} className="animate-spin" />}
-              {recordName ? "Save changes" : "Create record"}
+              {recordName ? "Save Changes" : "Create Record"}
             </Button>
             <Button type="button" variant="secondary" onClick={onCancel}>Cancel</Button>
           </div>

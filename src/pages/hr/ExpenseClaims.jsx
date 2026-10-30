@@ -42,7 +42,7 @@ export default function ExpenseClaims() {
 
   return (
     <div className="space-y-5">
-      <PageHeader icon={Receipt} title="Expense Claims" subtitle="Bills, approvers and reimbursement status for every employee" actions={<><Button variant="secondary" disabled={!rows.length} onClick={() => downloadCsv(`expense-claims-${isoDate()}.csv`, ["Claim", "Employee", "ID", "Date", "Types", "Claimed", "Approver", "Approval", "Status", "Reason"], rows.map((r) => [r.name, r.employee_name, r.employee, r.posting_date, r.types.join("; "), r.total_claimed_amount, r.expense_approver, r.approval_status, r.status, r.reason]))}><Download size={14} /> CSV</Button><Button onClick={() => setModal({ kind: "new" })}><Plus size={14} /> Claim for an employee</Button></>} />
+      <PageHeader icon={Receipt} title="Expense Claims" subtitle="Bills, approvers and reimbursement status for every employee" actions={<><Button variant="secondary" disabled={!rows.length} onClick={() => downloadCsv(`expense-claims-${isoDate()}.csv`, ["Claim", "Employee", "ID", "Date", "Types", "Claimed", "Approver", "Approval", "Status", "Reason"], rows.map((r) => [r.name, r.employee_name, r.employee, r.posting_date, r.types.join("; "), r.total_claimed_amount, r.expense_approver, r.approval_status, r.status, r.reason]))}><Download size={14} /> CSV</Button><Button onClick={() => setModal({ kind: "new" })}><Plus size={14} /> Claim for an Employee</Button></>} />
       <Panel>
         <div className="mb-4 flex flex-wrap items-center gap-2">
           {FILTERS.map(([v, l]) => <button key={v} type="button" onClick={() => setFilter(v)} className={chipCls(filter === v)}>{l}{v !== "all" && q.data ? ` (${count(v)})` : ""}</button>)}
@@ -84,7 +84,7 @@ function ApproverModal({ row, onClose, onSaved }) {
   const chosen = pick || pickApprover(options.filter((a) => a.email !== row.expense_approver))?.email || "";
   async function save() {
     const who = options.find((a) => a.email === chosen);
-    if (!(await previewDialog({ title: "Change approver", rows: [["Claim", row.name], ["Current approver", row.expense_approver || "—"], ["New approver", who ? `${who.name} (${who.email})` : chosen]], confirmLabel: "Confirm & save" }))) return;
+    if (!(await previewDialog({ title: "Change Approver", rows: [["Claim", row.name], ["Current approver", row.expense_approver || "—"], ["New approver", who ? `${who.name} (${who.email})` : chosen]], confirmLabel: "Confirm & Save" }))) return;
     setBusy(true);
     setErr("");
     try { await frappe.updateDoc("Expense Claim", row.name, { expense_approver: chosen }); onSaved(); } catch (e) { setErr(errMsg(e, "The change was refused.")); setBusy(false); }
@@ -95,7 +95,7 @@ function ApproverModal({ row, onClose, onSaved }) {
         <p className="text-[12px] text-[var(--color-text-muted)]">{row.employee_name} · {row.types.join(", ")} · now: {row.expense_approver || "none"}</p>
         <Async state={list}>
           {() => options.length === 0 ? <Notice tone="info">No approver is set for this expense type or business unit. Set them in Admin › Organization.</Notice> : (
-            <Field label="New approver">
+            <Field label="New Approver">
               <select className={inputCls} value={chosen} onChange={(e) => setPick(e.target.value)}>
                 <option value="">Select…</option>
                 {options.map((a) => <option key={a.email} value={a.email} disabled={a.email === row.expense_approver}>{a.name} - {a.source}{a.on_leave ? " (on leave)" : ""}{a.email === row.expense_approver ? " (current)" : ""}</option>)}
@@ -138,18 +138,18 @@ function NewClaimModal({ onClose, onSaved }) {
       <form onSubmit={submit} className="space-y-3">
         <LinkField label="Employee" linkDoctype="Employee" value={f.employee} onChange={(v) => setF({ ...f, employee: v })} required frappe={frappe} />
         <div className="grid grid-cols-2 gap-3">
-          <DateField label="Expense date" value={f.date} onChange={(v) => setF({ ...f, date: v })} required />
-          <Field label="Expense type"><select required className={inputCls} value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })}><option value="">Select…</option>{(types.data || []).map((t) => <option key={t.name}>{t.name}</option>)}</select></Field>
+          <DateField label="Expense Date" value={f.date} onChange={(v) => setF({ ...f, date: v })} required />
+          <Field label="Expense Type"><select required className={inputCls} value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })}><option value="">Select…</option>{(types.data || []).map((t) => <option key={t.name}>{t.name}</option>)}</select></Field>
         </div>
         <Field label="Amount"><input type="number" min="0.01" step="0.01" required className={inputCls} value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} /></Field>
         <Field label="Description"><textarea rows={2} className={inputCls} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} /></Field>
         <label className="block">
-          <span className="mb-1.5 block text-[12px] text-[var(--color-text-muted)]">Bills (required)</span>
+          <span className="mb-1.5 block text-[12px] text-[var(--color-text-muted)]">Bills (Required)</span>
           <input type="file" multiple accept="image/*,.pdf" onChange={(e) => setFiles(Array.from(e.target.files || []))} className="block w-full text-[12px] text-[var(--color-text-muted)] file:mr-3 file:rounded-md file:border file:border-[var(--color-border-strong)] file:bg-[var(--color-surface-2)] file:px-3 file:py-1.5 file:text-[12px] file:text-[var(--color-text)]" />
         </label>
         <p className="text-[11px] text-[var(--color-text-faint)]">The approver comes from the expense type (or the employee's business unit); they decide it in their approvals.</p>
         {err && <Notice>{err}</Notice>}
-        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy || !files.length || !f.employee || !f.type}>{busy ? "Saving…" : "Create claim"}</Button></div>
+        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy || !files.length || !f.employee || !f.type}>{busy ? "Saving…" : "Create Claim"}</Button></div>
       </form>
     </Modal>
   );

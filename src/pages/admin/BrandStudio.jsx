@@ -113,7 +113,7 @@ export default function BrandStudio() {
     if (!file || !companyName) return;
     if (!file.type.startsWith("image/")) return setError("Choose an image file for the company logo.");
     if (file.size > 3 * 1024 * 1024) return setError("Logo files must be 3 MB or smaller.");
-    if (!(await confirmDialog({ title: "Upload company logo", message: `Use "${file.name}" as the logo for ${currentCompany?.company_name || companyName}?` }))) { if (fileRef.current) fileRef.current.value = ""; return; }
+    if (!(await confirmDialog({ title: "Upload Company Logo", message: `Use "${file.name}" as the logo for ${currentCompany?.company_name || companyName}?` }))) { if (fileRef.current) fileRef.current.value = ""; return; }
     setBusy("logo");
     setError("");
     setMessage("");
@@ -163,7 +163,7 @@ export default function BrandStudio() {
             <p className="mt-1.5 text-[13px] leading-5 text-[var(--color-text-muted)]">Give every company its own logo and color system. Changes are shared with that company’s users.</p>
           </div>
           <label className="min-w-60">
-            <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">Company workspace</span>
+            <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">Company Workspace</span>
             <span className="relative block">
               <Building2 size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-faint)]" />
               <select value={companyName} onChange={(event) => changeCompany(event.target.value)} disabled={companiesQuery.loading || !companies.length} className="w-full appearance-none rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] py-2 pl-9 pr-3 text-[13px] text-[var(--color-text)] outline-none focus:border-[var(--color-red)]">

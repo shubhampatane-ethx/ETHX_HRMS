@@ -123,7 +123,7 @@ export default function Login() {
 
           <form data-no-preview onSubmit={handleSubmit} className="mt-6 space-y-4">
             <label className="block">
-              <span className="mb-1.5 block text-[12px] font-medium text-[var(--color-text-muted)]">Email or username</span>
+              <span className="mb-1.5 block text-[12px] font-medium text-[var(--color-text-muted)]">Email or Username</span>
               <div className="relative">
                 <UserRound size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--color-text-faint)]" />
                 <input type="text" value={usr} onChange={(e) => setUsr(e.target.value)} placeholder="you@company.com or Administrator" autoComplete="username" required autoFocus className={inputClass} />
@@ -148,7 +148,7 @@ export default function Login() {
             )}
 
             <button type="submit" disabled={loading} className="group flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--color-red)] py-3 text-[14px] font-medium text-[var(--color-on-accent)] shadow-[0_8px_24px_-8px_color-mix(in_srgb,var(--color-red)_60%,transparent)] transition-all hover:bg-[var(--color-red-hover)] disabled:cursor-not-allowed disabled:opacity-70">
-              {loading ? <><Loader2 size={16} className="animate-spin" /> Signing in...</> : <>Sign in <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" /></>}
+              {loading ? <><Loader2 size={16} className="animate-spin" /> Signing In...</> : <>Sign In <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" /></>}
             </button>
           </form>
 

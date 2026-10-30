@@ -52,7 +52,7 @@ export default function Onboarding() {
 
   return (
     <div className="space-y-5">
-      <PageHeader icon={ClipboardList} title="Onboarding" subtitle="New joiners from accepted offers - pre-joining documents, laptop / email and buddy tasks" actions={<Link to="/hr/recruitment/offers"><Button variant="secondary">Accepted offers</Button></Link>} />
+      <PageHeader icon={ClipboardList} title="Onboarding" subtitle="New joiners from accepted offers - pre-joining documents, laptop / email and buddy tasks" actions={<Link to="/hr/recruitment/offers"><Button variant="secondary">Accepted Offers</Button></Link>} />
       {msg && <Notice>{msg}</Notice>}
       <Panel>
         <div className="mb-4 flex gap-2">{[["open", "In Progress"], ["done", "Completed"], ["all", "All"]].map(([v, l]) => <button key={v} type="button" onClick={() => setFilter(v)} className={chipCls(filter === v)}>{l}</button>)}</div>

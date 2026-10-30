@@ -61,14 +61,14 @@ function Applications() {
       }
     }
     setRerouting(false);
-    alertDialog(moved ? { tone: "success", title: "Requests reassigned", message: `${moved} request(s) moved to an available approver.` } : { tone: "info", title: "Nothing reassigned", message: "No other available approver was found - reassign manually." });
+    alertDialog(moved ? { tone: "success", title: "Requests Reassigned", message: `${moved} request(s) moved to an available approver.` } : { tone: "info", title: "Nothing Reassigned", message: "No other available approver was found - reassign manually." });
     apps.reload();
   }
   const rows = (apps.data || []).filter((a) => (filter === "all" || a.status === filter) && (!q || `${a.employee_name} ${a.employee} ${a.leave_type}`.toLowerCase().includes(q.toLowerCase())));
   const count = (s) => (apps.data || []).filter((a) => a.status === s).length;
 
   return (
-    <Panel action={<div className="flex flex-wrap gap-2">{flagged.length > 0 && <Button variant="secondary" onClick={reroute} disabled={rerouting}><UserCog size={14} /> {rerouting ? "Reassigning…" : `Reassign ${flagged.length} with approver on leave`}</Button>}<Button onClick={() => setModal({ kind: "apply" })}><Plus size={14} /> Apply for an employee</Button></div>}>
+    <Panel action={<div className="flex flex-wrap gap-2">{flagged.length > 0 && <Button variant="secondary" onClick={reroute} disabled={rerouting}><UserCog size={14} /> {rerouting ? "Reassigning…" : `Reassign ${flagged.length} with approver on leave`}</Button>}<Button onClick={() => setModal({ kind: "apply" })}><Plus size={14} /> Apply for an Employee</Button></div>}>
       <div className="mb-4 flex flex-wrap items-center gap-2">
         {[["Open", `Awaiting Decision (${count("Open")})`], ["Approved", "Approved"], ["Rejected", "Rejected"], ["all", "All"]].map(([v, l]) => <button key={v} type="button" onClick={() => setFilter(v)} className={chipCls(filter === v)}>{l}</button>)}
         <input className={`${inputCls} !w-56 !py-1`} placeholder="Search employee or type…" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -119,7 +119,7 @@ function DecideModal({ app, to, onClose, onSaved }) {
     <Modal title={`${to === "Approved" ? "Approve" : "Reject"} Leave · ${app.employee_name}`} onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
         <p className="text-[12px] text-[var(--color-text-muted)]">{app.leave_type} · {dmy(app.from_date)}{app.to_date !== app.from_date ? ` – ${dmy(app.to_date)}` : ""} · {app.total_leave_days} day(s){app.description ? ` · “${app.description}”` : ""}</p>
-        <Field label={to === "Rejected" ? "Reason (required)" : "Note (optional)"}><textarea rows={2} className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} /></Field>
+        <Field label={to === "Rejected" ? "Reason (Required)" : "Note (Optional)"}><textarea rows={2} className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} /></Field>
         <p className="text-[11px] text-[var(--color-text-faint)]">The decision is final after submission. To change it later, cancel the application.</p>
         {err && <Notice>{err}</Notice>}
         <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Saving…" : to === "Approved" ? "Approve" : "Reject"}</Button></div>
@@ -152,7 +152,7 @@ function ApplyModal({ onClose, onSaved }) {
     <Modal title="Apply for Leave on an Employee's Behalf" onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
         <LinkField label="Employee" linkDoctype="Employee" value={f.employee} onChange={(v) => setF({ ...f, employee: v })} required frappe={frappe} />
-        <LinkField label="Leave type" linkDoctype="Leave Type" value={f.leave_type} onChange={(v) => setF({ ...f, leave_type: v })} required frappe={frappe} />
+        <LinkField label="Leave Type" linkDoctype="Leave Type" value={f.leave_type} onChange={(v) => setF({ ...f, leave_type: v })} required frappe={frappe} />
         <div className="grid grid-cols-2 gap-3"><DateField label="From" value={f.from} onChange={(v) => setF({ ...f, from: v, to: f.to < v ? v : f.to })} required /><DateField label="To" value={f.to} onChange={(v) => setF({ ...f, to: v })} required /></div>
         <label className="flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><input type="checkbox" checked={f.half} onChange={(e) => setF({ ...f, half: e.target.checked })} /> Half day (on the start date)</label>
         <Field label="Reason"><input className={inputCls} value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} /></Field>
@@ -190,7 +190,7 @@ function Balances() {
   const [allocating, setAllocating] = useState(false);
   const rows = useMemo(() => (data.data || []).filter((r) => !q || `${r.employee_name} ${r.employee} ${r.leave_type} ${r.department}`.toLowerCase().includes(q.toLowerCase())), [data.data, q]);
   return (
-    <Panel hint="Current leave periods (allocations valid today). Balance = allocated − approved; pending applications are shown separately." action={<div className="flex gap-2"><Button variant="secondary" disabled={!rows.length} onClick={() => downloadCsv(`leave-balances-${isoDate()}.csv`, ["Employee", "ID", "Department", "Leave type", "Period from", "Period to", "Allocated", "Used", "Pending", "Balance"], rows.map((r) => [r.employee_name, r.employee, r.department, r.leave_type, r.from_date, r.to_date, r.total_leaves_allocated, r.used, r.pending, r.balance]))}><Download size={14} /> CSV</Button><Button onClick={() => setAllocating(true)}><Plus size={14} /> Allocate leave</Button></div>}>
+    <Panel hint="Current leave periods (allocations valid today). Balance = allocated − approved; pending applications are shown separately." action={<div className="flex gap-2"><Button variant="secondary" disabled={!rows.length} onClick={() => downloadCsv(`leave-balances-${isoDate()}.csv`, ["Employee", "ID", "Department", "Leave type", "Period from", "Period to", "Allocated", "Used", "Pending", "Balance"], rows.map((r) => [r.employee_name, r.employee, r.department, r.leave_type, r.from_date, r.to_date, r.total_leaves_allocated, r.used, r.pending, r.balance]))}><Download size={14} /> CSV</Button><Button onClick={() => setAllocating(true)}><Plus size={14} /> Allocate Leave</Button></div>}>
       <input className={`${inputCls} mb-4 !w-64 !py-1`} placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} />
       <Async state={data}>
         {() => <Grid rows={rows} rowKey={(r) => r.name} empty="No leave allocations valid today. Allocate leave to get started." columns={[
@@ -231,7 +231,7 @@ function AllocateModal({ onClose, onSaved }) {
     <Modal title="Allocate Leave" onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
         <LinkField label="Employee" linkDoctype="Employee" value={f.employee} onChange={(v) => setF({ ...f, employee: v })} required frappe={frappe} />
-        <LinkField label="Leave type" linkDoctype="Leave Type" value={f.leave_type} onChange={(v) => setF({ ...f, leave_type: v })} required frappe={frappe} />
+        <LinkField label="Leave Type" linkDoctype="Leave Type" value={f.leave_type} onChange={(v) => setF({ ...f, leave_type: v })} required frappe={frappe} />
         <div className="grid grid-cols-3 gap-3"><DateField label="From" value={f.from} onChange={(v) => setF({ ...f, from: v })} required /><DateField label="To" value={f.to} onChange={(v) => setF({ ...f, to: v })} required /><Field label="Days"><input type="number" min="0.5" step="0.5" required className={inputCls} value={f.days} onChange={(e) => setF({ ...f, days: e.target.value })} /></Field></div>
         {err && <Notice>{err}</Notice>}
         <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Saving…" : "Allocate"}</Button></div>
@@ -251,7 +251,7 @@ function ReassignModal({ app, onClose, onSaved }) {
 
   async function save() {
     const who = options.find((a) => a.email === chosen);
-    if (!(await previewDialog({ title: "Change approver", rows: [["Employee", app.employee_name], ["Leave", `${app.leave_type} · ${dmy(app.from_date)}${app.to_date !== app.from_date ? ` – ${dmy(app.to_date)}` : ""}`], ["Current approver", app.leave_approver || "—"], ["New approver", who ? `${who.name} (${who.email})` : chosen]], confirmLabel: "Confirm & reassign" }))) return;
+    if (!(await previewDialog({ title: "Change Approver", rows: [["Employee", app.employee_name], ["Leave", `${app.leave_type} · ${dmy(app.from_date)}${app.to_date !== app.from_date ? ` – ${dmy(app.to_date)}` : ""}`], ["Current approver", app.leave_approver || "—"], ["New approver", who ? `${who.name} (${who.email})` : chosen]], confirmLabel: "Confirm & Reassign" }))) return;
     setBusy(true);
     setErr("");
     try {
@@ -269,7 +269,7 @@ function ReassignModal({ app, onClose, onSaved }) {
         <p className="text-[12px] text-[var(--color-text-muted)]">{app.employee_name} · {app.leave_type} · {dmy(app.from_date)}{app.to_date !== app.from_date ? ` – ${dmy(app.to_date)}` : ""}. Now: {app.leave_approver_name || app.leave_approver || "none"}</p>
         <Async state={list}>
           {() => options.length === 0 ? <Notice tone="info">No approvers are set for this employee's business unit. Set them in Admin › Organization › Leave approvers.</Notice> : (
-            <Field label="New approver (business unit approvers, in order)">
+            <Field label="New Approver (Business Unit Approvers, in Order)">
               <select className={inputCls} value={chosen} onChange={(e) => setPick(e.target.value)}>
                 <option value="">Select…</option>
                 {options.map((a) => <option key={a.email} value={a.email} disabled={a.email === app.leave_approver}>{a.name}{a.on_leave ? " (on leave)" : ""}{a.email === app.leave_approver ? " (current)" : ""}</option>)}

@@ -267,8 +267,8 @@ function CreateHRModal({ onClose, onCreated }) {
     <ModalShell title="Create HR User" onClose={onClose}>
       <form onSubmit={handleSubmit} className="mt-4 space-y-3">
         <div className="grid grid-cols-2 gap-3">
-          <Input label="First name" value={form.first_name} onChange={set("first_name")} required />
-          <Input label="Last name" value={form.last_name} onChange={set("last_name")} required />
+          <Input label="First Name" value={form.first_name} onChange={set("first_name")} required />
+          <Input label="Last Name" value={form.last_name} onChange={set("last_name")} required />
         </div>
         <Input label="Email" type="email" value={form.email} onChange={set("email")} required />
 
@@ -404,13 +404,13 @@ function HRUserModal({ user, onClose, onChanged, onChangeCompany }) {
           <section>
             <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Actions</h3>
             <div className="flex flex-wrap items-center gap-2">
-              <Button variant="secondary" onClick={onChangeCompany} disabled={Boolean(busy)}><Building2 size={14} /> Change company</Button>
-              <Button variant="secondary" onClick={toggle} disabled={Boolean(busy)}><Power size={14} /> {doc.enabled ? "Disable account" : "Enable account"}</Button>
+              <Button variant="secondary" onClick={onChangeCompany} disabled={Boolean(busy)}><Building2 size={14} /> Change Company</Button>
+              <Button variant="secondary" onClick={toggle} disabled={Boolean(busy)}><Power size={14} /> {doc.enabled ? "Disable Account" : "Enable Account"}</Button>
               <Button variant="ghost" onClick={remove} disabled={Boolean(busy)}><Trash2 size={14} /> Delete</Button>
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <input type="text" value={pwd} onChange={(e) => setPwd(e.target.value)} placeholder="New password" autoComplete="off" className="w-56 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-3 py-2 text-[13px] text-[var(--color-text)] placeholder:text-[var(--color-text-faint)] outline-none focus:border-[var(--color-red)]" />
-              <Button variant="secondary" onClick={reset} disabled={Boolean(busy) || pwd.length < 8}><KeyRound size={14} /> {busy === "pwd" ? "Saving…" : "Set password"}</Button>
+              <Button variant="secondary" onClick={reset} disabled={Boolean(busy) || pwd.length < 8}><KeyRound size={14} /> {busy === "pwd" ? "Saving…" : "Set Password"}</Button>
             </div>
           </section>
 

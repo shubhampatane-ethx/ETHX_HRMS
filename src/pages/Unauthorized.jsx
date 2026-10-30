@@ -15,8 +15,8 @@ export default function Unauthorized() {
           : "Your account doesn't have access to this section. Contact your admin if you think this is wrong."}
       </p>
       <div className="flex items-center gap-4">
-        {!noWorkspace && <Link to="/" className="text-[13px] text-[var(--color-red-hover)] hover:underline">Back to dashboard</Link>}
-        {user && <button type="button" onClick={logout} className="text-[13px] text-[var(--color-text-muted)] hover:text-[var(--color-text)]">Sign out</button>}
+        {!noWorkspace && <Link to="/" className="text-[13px] text-[var(--color-red-hover)] hover:underline">Back to Dashboard</Link>}
+        {user && <button type="button" onClick={logout} className="text-[13px] text-[var(--color-text-muted)] hover:text-[var(--color-text)]">Sign Out</button>}
       </div>
     </div>
   );

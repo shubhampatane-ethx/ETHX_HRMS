@@ -36,7 +36,7 @@ export default function Overview() {
     <div className="space-y-5">
       <PageHeader icon={UserSearch} title="Recruitment" subtitle="Requisition → opening → candidates → interviews → offer → onboarding" actions={<>
         <Link to="/hr/recruitment/requisitions"><Button variant="secondary"><ClipboardList size={14} /> Requisitions</Button></Link>
-        <Link to="/hr/recruitment/candidates?add=1"><Button><Plus size={14} /> Add candidate</Button></Link>
+        <Link to="/hr/recruitment/candidates?add=1"><Button><Plus size={14} /> Add Candidate</Button></Link>
       </>} />
       <SetupHint />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">

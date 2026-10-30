@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { PageLoading } from "../PageLoading";
 import { Outlet, useLocation } from "react-router-dom";
-import { LayoutDashboard, Users, Building2, ShieldCheck, ScrollText, Briefcase, ClipboardList, SlidersHorizontal, Wrench } from "lucide-react";
+import { LayoutDashboard, Users, Building2, ListChecks, ShieldCheck, ScrollText, Briefcase, ClipboardList, SlidersHorizontal, Wrench } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { TOP_NAV, hrSetupGroups } from "./HRLayout";
@@ -37,6 +37,7 @@ const NAV = [
   { to: "/admin/users", label: "Users", icon: Users },
   { to: "/admin/organization", label: "Organization", icon: Building2 },
   { to: "/admin/roles", label: "Roles & Permissions", icon: ShieldCheck },
+  { to: "/admin/access-control", label: "Access Control", icon: ListChecks },
   { to: "/admin/settings", label: "Settings", icon: SlidersHorizontal },
   { to: "/admin/audit-logs", label: "Audit Logs", icon: ScrollText },
   { to: "/admin/setup", label: "System Setup", icon: Wrench },
@@ -49,6 +50,7 @@ const TITLES = {
   "/admin/users": "Users",
   "/admin/organization": "Organization",
   "/admin/roles": "Roles & Permissions",
+  "/admin/access-control": "Access Control",
   "/admin/settings": "Settings",
   "/admin/audit-logs": "Audit Logs",
   "/admin/setup": "System Setup",

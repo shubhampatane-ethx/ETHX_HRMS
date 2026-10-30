@@ -89,7 +89,7 @@ function FeedbackModal({ interview, me, onClose, onSaved }) {
         <Field label="Comments"><textarea rows={4} className={inputCls} value={text} onChange={(e) => setText(e.target.value)} placeholder="Strengths, concerns, anything HR should know" /></Field>
         <p className="text-[11px] text-[var(--color-text-faint)]">Submitted feedback can't be edited. HR sees all panel scorecards side by side before deciding.</p>
         {err && <Notice>{err}</Notice>}
-        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy || !(skills.data || []).length}>{busy ? "Submitting…" : "Submit feedback"}</Button></div>
+        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy || !(skills.data || []).length}>{busy ? "Submitting…" : "Submit Feedback"}</Button></div>
       </form>
     </Modal>
   );

@@ -17,6 +17,7 @@ const PMDashboard = lazy(() => import("./pages/pm/PMPages").then((m) => ({ defau
 const PMProjects = lazy(() => import("./pages/pm/PMPages").then((m) => ({ default: m.PMProjects })));
 const ProjectManagers = lazy(() => import("./pages/admin/ProjectManagers"));
 const ProjectRoles = lazy(() => import("./pages/admin/ProjectRoles"));
+const AccessControl = lazy(() => import("./pages/admin/PageAccess"));
 const PMApprovals = lazy(() => import("./pages/pm/PMApprovals"));
 const PMLeaveApprovals = lazy(() => import("./pages/pm/PMLeaveApprovals"));
 const MyTeam = lazy(() => import("./pages/shared/MyTeam"));
@@ -98,6 +99,7 @@ export default function App() {
               <Route path="employees" element={<Employees />} />
               <Route path="project-managers" element={<ProjectManagers />} />
               <Route path="project-roles" element={<ProjectRoles />} />
+              <Route path="access-control" element={<AccessControl />} />
               <Route path="organization" element={<Organization />} />
               <Route path="roles" element={<Roles />} />
               <Route path="settings" element={<Settings />} />

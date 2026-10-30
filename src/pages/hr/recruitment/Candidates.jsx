@@ -41,7 +41,7 @@ export default function Candidates() {
     <div className="space-y-5">
       <PageHeader icon={Users} title="Candidates" subtitle="Everyone who applied or was sourced, across all openings" actions={<>
         <Button variant="secondary" onClick={exportCsv} disabled={!rows.length}><Download size={14} /> CSV</Button>
-        <Button onClick={() => setAdding(true)}><Plus size={14} /> Add candidate</Button>
+        <Button onClick={() => setAdding(true)}><Plus size={14} /> Add Candidate</Button>
       </>} />
       <SetupHint />
       <Panel>

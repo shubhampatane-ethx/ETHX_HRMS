@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { ArrowRight, Building2, Check, Circle, Layers, Plus, ScrollText, ShieldCheck, SlidersHorizontal, UserCog, Users } from "lucide-react";
 import { frappe } from "../../lib/api/frappeClient";
 import { useAuth } from "../../context/AuthContext";
+import { greetingName } from "../../lib/names";
 import { Card } from "../../components/ui/primitives";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -16,7 +17,7 @@ const QUICK_LINKS = [
   { to: "/admin/audit-logs", label: "Audit Logs", hint: "Who did what", icon: ScrollText },
 ];
 
-const greeting = (h) => (h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening");
+const greeting = (h) => (h < 12 ? "Good Morning" : h < 17 ? "Good Afternoon" : "Good Evening");
 
 function dmy(value = "") {
   const [y, m, d] = value.slice(0, 10).split("-").map(Number);
@@ -91,10 +92,10 @@ export default function AdminDashboard() {
   const count = (list) => (list ? list.length : data ? "—" : undefined);
 
   const checklist = [
-    { label: "Create your first HR user", done: users ? users.length > 0 : null, to: "/admin/users", cta: "Create HR" },
-    { label: "Set up a company", done: data?.companies ? data.companies.length > 0 : null, to: "/admin/organization", cta: "Open" },
-    { label: "Add departments", done: data?.departments ? data.departments.length > 0 : null, to: "/admin/organization", cta: "Open" },
-    { label: "Review roles & permissions", done: null, to: "/admin/roles", cta: "Review" },
+    { label: "Create Your First HR User", done: users ? users.length > 0 : null, to: "/admin/users", cta: "Create HR" },
+    { label: "Set Up a Company", done: data?.companies ? data.companies.length > 0 : null, to: "/admin/organization", cta: "Open" },
+    { label: "Add Departments", done: data?.departments ? data.departments.length > 0 : null, to: "/admin/organization", cta: "Open" },
+    { label: "Review Roles & Permissions", done: null, to: "/admin/roles", cta: "Review" },
     { label: "HR adds employees", done: data?.employees ? data.employees.length > 0 : null, to: "/admin/organization", cta: null },
   ];
   const measurable = checklist.filter((c) => c.done !== null);
@@ -109,13 +110,13 @@ export default function AdminDashboard() {
         <div className="relative flex flex-wrap items-center justify-between gap-5">
           <div>
             <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-[var(--color-red-hover)]">{DAYS[now.getDay()]}, {String(now.getDate()).padStart(2, "0")} {MONTHS[now.getMonth()]} {now.getFullYear()}</p>
-            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-[var(--color-text)]">{greeting(now.getHours())}, {user?.email === "Administrator" ? "Administrator" : user?.email?.split("@")[0]}</h2>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-[var(--color-text)]">{greeting(now.getHours())}, {user?.email === "Administrator" ? "Administrator" : greetingName(user?.fullName, user?.email)}</h2>
             <p className="mt-1.5 text-[13px] text-[var(--color-text-muted)]">
               {data ? `${users?.length ?? 0} HR user${users?.length === 1 ? "" : "s"} manage ${data.employees?.length ?? 0} active employees across ${data.companies?.length ?? 0} ${data.companies?.length === 1 ? "company" : "companies"}.` : "Loading your platform…"}
             </p>
           </div>
           <div className="flex flex-wrap gap-2.5">
-            <Link to="/admin/users" className="flex items-center gap-2 rounded-lg bg-[var(--color-red)] px-4 py-2.5 text-[13px] font-medium text-[var(--color-on-accent)] transition-colors hover:bg-[var(--color-red-hover)]"><Plus size={15} /> Create HR user</Link>
+            <Link to="/admin/users" className="flex items-center gap-2 rounded-lg bg-[var(--color-red)] px-4 py-2.5 text-[13px] font-medium text-[var(--color-on-accent)] transition-colors hover:bg-[var(--color-red-hover)]"><Plus size={15} /> Create HR User</Link>
             <Link to="/admin/organization" className="flex items-center gap-2 rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-4 py-2.5 text-[13px] font-medium text-[var(--color-text)] transition-colors hover:border-[var(--color-text-faint)]"><Building2 size={15} /> Organization</Link>
           </div>
         </div>
@@ -132,7 +133,7 @@ export default function AdminDashboard() {
       {/* Setup progress + recent HR users */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="rounded-xl p-5 lg:col-span-2">
-          <SectionTitle title="Getting started" hint={data ? `${doneCount} of ${measurable.length} setup steps done` : "Checking your setup…"} />
+          <SectionTitle title="Getting Started" hint={data ? `${doneCount} of ${measurable.length} setup steps done` : "Checking your setup…"} />
           <div className="mb-5 h-1.5 overflow-hidden rounded-full bg-[var(--color-surface-2)]">
             <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, background: "linear-gradient(90deg, var(--color-red-deep), var(--color-red-hover))" }} />
           </div>
@@ -152,11 +153,11 @@ export default function AdminDashboard() {
         </Card>
 
         <Card className="rounded-xl p-5">
-          <SectionTitle title="Recent HR users" to="/admin/users" />
+          <SectionTitle title="Recent HR Users" to="/admin/users" />
           {!users ? <Skeleton className="h-36 w-full" /> : users.length === 0 ? (
             <div className="flex h-36 flex-col items-center justify-center gap-2 text-center text-[13px] text-[var(--color-text-muted)]">
               No HR users yet.
-              <Link to="/admin/users" className="text-[var(--color-red-hover)] hover:underline">Create the first one</Link>
+              <Link to="/admin/users" className="text-[var(--color-red-hover)] hover:underline">Create the First One</Link>
             </div>
           ) : (
             <ul className="space-y-3.5">

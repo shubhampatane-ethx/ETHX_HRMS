@@ -8,11 +8,11 @@ import { alertDialog, confirmDialog } from "../../components/ui/dialogs";
 
 const FIELDS = [
   { name: "employee", label: "Employee", type: "link", linkDoctype: "Employee", required: true },
-  { name: "attendance_date", label: "Attendance date", type: "date", required: true },
+  { name: "attendance_date", label: "Attendance Date", type: "date", required: true },
   { name: "status", label: "Status", type: "select", options: ["Present", "Absent", "On Leave", "Half Day", "Work From Home"], required: true },
   { name: "company", label: "Company", type: "link", linkDoctype: "Company", required: true },
   { name: "shift", label: "Shift", type: "link", linkDoctype: "Shift Type" },
-  { name: "leave_type", label: "Leave type", type: "link", linkDoctype: "Leave Type" },
+  { name: "leave_type", label: "Leave Type", type: "link", linkDoctype: "Leave Type" },
 ];
 
 const STATUSES = ["Present", "Absent", "On Leave", "Half Day", "Work From Home"];
@@ -126,7 +126,7 @@ export default function Attendance() {
   function pickEmployee(id) { setActiveEmployee(id); setYearSel(null); setMonthSel(null); }
 
   return <div className="space-y-4">
-    <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4"><div className="flex flex-wrap items-center justify-between gap-4"><div><div className="mb-1 flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--color-red-hover)]"><CalendarCheck size={14} /> Workforce tracking</div><h2 className="text-base font-semibold text-[var(--color-text)]">Attendance</h2></div><div className="flex gap-2">{unconfirmed.length > 0 && <Button variant="secondary" onClick={() => confirmRows(unconfirmed)} disabled={confirming}><Check size={14} /> {confirming ? "Saving…" : `Confirm ${unconfirmed.length} punched-in`}</Button>}<Button variant="secondary" onClick={load} disabled={state === "loading"}><RefreshCw size={14} /> Refresh</Button><Button onClick={() => { setEditing(null); setFormOpen(true); }}><Plus size={14} /> Mark attendance</Button></div></div></section>
+    <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-4"><div className="flex flex-wrap items-center justify-between gap-4"><div><div className="mb-1 flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--color-red-hover)]"><CalendarCheck size={14} /> Workforce tracking</div><h2 className="text-base font-semibold text-[var(--color-text)]">Attendance</h2></div><div className="flex gap-2">{unconfirmed.length > 0 && <Button variant="secondary" onClick={() => confirmRows(unconfirmed)} disabled={confirming}><Check size={14} /> {confirming ? "Saving…" : `Confirm ${unconfirmed.length} punched-in`}</Button>}<Button variant="secondary" onClick={load} disabled={state === "loading"}><RefreshCw size={14} /> Refresh</Button><Button onClick={() => { setEditing(null); setFormOpen(true); }}><Plus size={14} /> Mark Attendance</Button></div></div></section>
     {formOpen && <HrRecordForm doctype="Attendance" submittable fields={FIELDS} recordName={editing} onCancel={closeForm} onSaved={() => { closeForm(); load(); }} />}
 
     {state === "loading" && <Card><div className="flex h-32 items-center justify-center text-[13px] text-[var(--color-text-muted)]">Loading attendance...</div></Card>}
@@ -154,7 +154,7 @@ export default function Attendance() {
         </select>
         <div className="flex gap-1 overflow-x-auto">
           {MONTHS.map((m, i) => <button key={m} type="button" disabled={!monthCounts[i]} onClick={() => setMonthSel(i)} className={`${chip(month === i)} disabled:opacity-30 disabled:pointer-events-none`}>{m}{monthCounts[i] ? <span className="ml-1 text-[10px] text-[var(--color-text-faint)]">{monthCounts[i]}</span> : null}</button>)}
-          <button type="button" onClick={() => setMonthSel("all")} className={chip(month === "all")}>Whole year</button>
+          <button type="button" onClick={() => setMonthSel("all")} className={chip(month === "all")}>Whole Year</button>
         </div>
       </div>
       <div className="flex flex-wrap gap-1.5 text-[11px]">

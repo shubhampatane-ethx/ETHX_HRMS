@@ -165,13 +165,13 @@ function TimesheetList({ readOnly = false, hrView = false }) {
               {m}{monthCounts[i] ? <span className="ml-1 text-[10px] text-[var(--color-text-faint)]">{monthCounts[i]}</span> : null}
             </button>
           ))}
-          <button type="button" onClick={() => setMonthSel("all")} className={chip(month === "all")}>Whole year</button>
+          <button type="button" onClick={() => setMonthSel("all")} className={chip(month === "all")}>Whole Year</button>
         </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <div className="flex flex-wrap gap-1">{STATUS_FILTERS.map(([v, l]) => <button key={v} type="button" onClick={() => setStatusFilter(v)} className={chip(statusFilter === v)}>{l}{v === "pending" && awaiting ? <span className="ml-1 text-[10px] text-[var(--color-amber)]">{awaiting}</span> : null}</button>)}</div>
-        <label className="flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]">Sort by
+        <label className="flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]">Sort By
           <select value={sort} onChange={(e) => setSort(e.target.value)} className={select}>{SORTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
         </label>
         <div className="ml-auto flex flex-wrap gap-1.5 text-[11px]">
@@ -335,7 +335,7 @@ export function Detail({ sheet, onClose, onChanged, readOnly = false, onlyProjec
               </div>
             </div>
             <table className="w-full text-left text-[12px]">
-              <thead><tr className="text-[var(--color-text-muted)]"><th className="px-3 py-1.5 font-medium">Date</th><th className="px-3 py-1.5 font-medium">Task</th><th className="px-3 py-1.5 font-medium">Hours</th>{hasNotes && <th className="px-3 py-1.5 font-medium">Notes</th>}{fieldsMode && <th className="px-3 py-1.5 font-medium">Approved by</th>}</tr></thead>
+              <thead><tr className="text-[var(--color-text-muted)]"><th className="px-3 py-1.5 font-medium">Date</th><th className="px-3 py-1.5 font-medium">Task</th><th className="px-3 py-1.5 font-medium">Hours</th>{hasNotes && <th className="px-3 py-1.5 font-medium">Notes</th>}{fieldsMode && <th className="px-3 py-1.5 font-medium">Approved By</th>}</tr></thead>
               <tbody>
                 {g.lines.map((l) => (
                   <tr key={l.name} className="border-t border-[var(--color-border)]">
@@ -359,9 +359,9 @@ export function Detail({ sheet, onClose, onChanged, readOnly = false, onlyProjec
             {!mode ? (
               <div className="flex flex-wrap justify-end gap-2">
                 {status === "finalized" ? (hr && <Button variant="secondary" onClick={() => start("reopen")}><Undo2 size={14} /> Reopen</Button>) : <>
-                  {myPending.length > 0 && <Button variant="secondary" onClick={() => start("return")}><Undo2 size={14} /> Return for correction</Button>}
-                  {hr && status === "approved" && fieldsMode && <Button variant="secondary" onClick={() => start("finalize")}><Lock size={14} /> Finalize &amp; lock</Button>}
-                  {myPending.length > 0 && <Button onClick={() => start("approve")}><Check size={14} /> {myPending.length < visibleGroups.filter((g) => g.pending).length || !hr ? "Approve my projects" : "Approve all"}</Button>}
+                  {myPending.length > 0 && <Button variant="secondary" onClick={() => start("return")}><Undo2 size={14} /> Return for Correction</Button>}
+                  {hr && status === "approved" && fieldsMode && <Button variant="secondary" onClick={() => start("finalize")}><Lock size={14} /> Finalize &amp; Lock</Button>}
+                  {myPending.length > 0 && <Button onClick={() => start("approve")}><Check size={14} /> {myPending.length < visibleGroups.filter((g) => g.pending).length || !hr ? "Approve My Projects" : "Approve All"}</Button>}
                   {!myPending.length && status !== "approved" && <span className="text-[12px] text-[var(--color-text-faint)]">Nothing here for you to approve.</span>}
                 </>}
               </div>

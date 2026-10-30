@@ -50,7 +50,7 @@ export default function CandidateProfile() {
     }
   }
   async function cancelInterview(i) {
-    const why = await promptDialog({ title: "Cancel interview", message: `Cancel ${i.interview_round} on ${dmy(i.scheduled_on)}?`, label: "Reason (optional)", required: false, danger: true, confirmLabel: "Cancel interview", cancelLabel: "Keep it" });
+    const why = await promptDialog({ title: "Cancel Interview", message: `Cancel ${i.interview_round} on ${dmy(i.scheduled_on)}?`, label: "Reason (optional)", required: false, danger: true, confirmLabel: "Cancel Interview", cancelLabel: "Keep It" });
     if (why == null) return;
     try {
       await frappe.deleteDoc("Interview", i.name);
@@ -72,8 +72,8 @@ export default function CandidateProfile() {
           <>
             <PageHeader icon={UserRound} title={a.applicant_name} subtitle={<span className="flex flex-wrap items-center gap-2"><StageBadge stage={stage} />{opening.data?.job_title || "Talent pool"}<span>·</span>{a.email_id}{a.phone_number && <><span>·</span>{a.phone_number}</>}</span>} actions={<>
               <Button variant="secondary" onClick={() => setModal({ kind: "edit" })}><Pencil size={14} /> Edit</Button>
-              {!isClosedStage(stage) && <Button variant="secondary" onClick={() => setModal({ kind: "schedule" })}><CalendarPlus size={14} /> Schedule interview</Button>}
-              {!isClosedStage(stage) && !liveOffer && <Button onClick={() => setModal({ kind: "offer" })}><Handshake size={14} /> Make offer</Button>}
+              {!isClosedStage(stage) && <Button variant="secondary" onClick={() => setModal({ kind: "schedule" })}><CalendarPlus size={14} /> Schedule Interview</Button>}
+              {!isClosedStage(stage) && !liveOffer && <Button onClick={() => setModal({ kind: "offer" })}><Handshake size={14} /> Make Offer</Button>}
               {liveOffer && <Link to={`/hr/recruitment/offers?offer=${encodeURIComponent(liveOffer.name)}`}><Button variant="secondary"><Handshake size={14} /> Offer: {offerStage(liveOffer)}</Button></Link>}
             </>} />
 
@@ -177,7 +177,7 @@ export default function CandidateProfile() {
                 </Panel>
 
                 {["Rejected", "Withdrawn", "Hold"].includes(stage) && Number(a.custom_anonymised) !== 1 && user && (
-                  <Button variant="ghost" className="w-full" onClick={() => setModal({ kind: "anon" })}><ShieldOff size={14} /> Anonymise now</Button>
+                  <Button variant="ghost" className="w-full" onClick={() => setModal({ kind: "anon" })}><ShieldOff size={14} /> Anonymise Now</Button>
                 )}
               </div>
             </div>
@@ -217,7 +217,7 @@ function NoteModal({ id, onClose, onSaved }) {
       <form onSubmit={submit} className="space-y-3">
         <Field label="Note"><textarea required rows={3} className={inputCls} value={text} onChange={(e) => setText(e.target.value)} /></Field>
         {err && <Notice>{err}</Notice>}
-        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>Add note</Button></div>
+        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>Add Note</Button></div>
       </form>
     </Modal>
   );

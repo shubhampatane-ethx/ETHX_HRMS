@@ -115,12 +115,12 @@ function MoveModal({ kind, onClose, onSaved }) {
       <form onSubmit={submit} className="space-y-3">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <LinkField label="Employee" linkDoctype="Employee" value={employee} onChange={(v) => { setEmployee(v); setValues({}); }} required frappe={frappe} />
-          <DateField label={kind === "promotion" ? "Promotion date" : "Transfer date"} value={f.date} onChange={(v) => setF({ ...f, date: v })} required />
+          <DateField label={kind === "promotion" ? "Promotion Date" : "Transfer Date"} value={f.date} onChange={(v) => setF({ ...f, date: v })} required />
         </div>
         {e && (
           <>
             <table className="w-full text-left text-[12.5px]">
-              <thead><tr className="text-[var(--color-text-muted)]"><th className="py-1.5 font-medium">Detail</th><th className="py-1.5 font-medium">Current</th><th className="py-1.5 font-medium">New (leave empty to keep)</th></tr></thead>
+              <thead><tr className="text-[var(--color-text-muted)]"><th className="py-1.5 font-medium">Detail</th><th className="py-1.5 font-medium">Current</th><th className="py-1.5 font-medium">New (Leave Empty to Keep)</th></tr></thead>
               <tbody>
                 {PROPS.map((p) => (
                   <tr key={p.fieldname} className="border-t border-[var(--color-border)]">
@@ -157,7 +157,7 @@ function Exits() {
   const [msg, setMsg] = useState(null);
 
   return (
-    <Panel action={<Button onClick={() => setModal({ kind: "new" })}><Plus size={14} /> Start exit</Button>}>
+    <Panel action={<Button onClick={() => setModal({ kind: "new" })}><Plus size={14} /> Start Exit</Button>}>
       {msg && <div className="mb-3"><Notice tone={msg.ok ? "info" : "error"}>{msg.text}</Notice></div>}
       <Async state={list}>
         {(rows) => <Grid rows={rows} empty="No exits in progress." columns={[
@@ -169,8 +169,8 @@ function Exits() {
           { key: "_a", label: "", render: (r) => {
             const e = emps.data?.[r.employee];
             return <div className="flex justify-end gap-1">
-              {r.docstatus === 0 && <Button variant="secondary" className="!px-2 !py-1 text-[11px]" onClick={async () => { if (!(await confirmDialog(`Start the separation checklist for ${r.employee_name || r.employee}?`))) return; try { await frappe.submitDoc(await frappe.getDoc("Employee Separation", r.name)); list.reload(); } catch (x) { setMsg({ ok: false, text: errMsg(x, "Couldn't start the checklist.") }); } }}>Start checklist</Button>}
-              {e && e.status !== "Left" && <Button variant="ghost" className="!px-2 !py-1 text-[11px]" onClick={() => setModal({ kind: "left", row: r, emp: e })}><LogOut size={12} /> Mark as left</Button>}
+              {r.docstatus === 0 && <Button variant="secondary" className="!px-2 !py-1 text-[11px]" onClick={async () => { if (!(await confirmDialog(`Start the separation checklist for ${r.employee_name || r.employee}?`))) return; try { await frappe.submitDoc(await frappe.getDoc("Employee Separation", r.name)); list.reload(); } catch (x) { setMsg({ ok: false, text: errMsg(x, "Couldn't start the checklist.") }); } }}>Start Checklist</Button>}
+              {e && e.status !== "Left" && <Button variant="ghost" className="!px-2 !py-1 text-[11px]" onClick={() => setModal({ kind: "left", row: r, emp: e })}><LogOut size={12} /> Mark as Left</Button>}
             </div>;
           } },
         ]} />}
@@ -209,11 +209,11 @@ function ExitModal({ onClose, onSaved }) {
     <Modal title="Start an Exit" onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
         <LinkField label="Employee" linkDoctype="Employee" value={f.employee} onChange={(v) => setF({ ...f, employee: v })} required frappe={frappe} />
-        <div className="grid grid-cols-2 gap-3"><DateField label="Resignation date" value={f.resigned} onChange={(v) => setF({ ...f, resigned: v })} required /><DateField label="Last working day" value={f.last} onChange={(v) => setF({ ...f, last: v })} required /></div>
-        <LinkField label="Exit checklist template (optional)" linkDoctype="Employee Separation Template" value={f.template} onChange={(v) => setF({ ...f, template: v })} frappe={frappe} />
-        <Field label="Reason for leaving"><input className={inputCls} value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} /></Field>
+        <div className="grid grid-cols-2 gap-3"><DateField label="Resignation Date" value={f.resigned} onChange={(v) => setF({ ...f, resigned: v })} required /><DateField label="Last Working Day" value={f.last} onChange={(v) => setF({ ...f, last: v })} required /></div>
+        <LinkField label="Exit Checklist Template (Optional)" linkDoctype="Employee Separation Template" value={f.template} onChange={(v) => setF({ ...f, template: v })} frappe={frappe} />
+        <Field label="Reason for Leaving"><input className={inputCls} value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} /></Field>
         {err && <Notice>{err}</Notice>}
-        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Saving…" : "Start exit"}</Button></div>
+        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Saving…" : "Start Exit"}</Button></div>
       </form>
     </Modal>
   );
@@ -243,10 +243,10 @@ function LeftModal({ row, emp, onClose, onSaved }) {
   return (
     <Modal title={`Mark ${row.employee_name} as Left`} onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
-        <DateField label="Relieving date" value={date} onChange={setDate} required />
+        <DateField label="Relieving Date" value={date} onChange={setDate} required />
         {emp.user_id && <label className="flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><input type="checkbox" checked={disable} onChange={(e) => setDisable(e.target.checked)} /> Disable their portal login ({emp.user_id})</label>}
         {err && <Notice>{err}</Notice>}
-        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Saving…" : "Mark as left"}</Button></div>
+        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Saving…" : "Mark as Left"}</Button></div>
       </form>
     </Modal>
   );

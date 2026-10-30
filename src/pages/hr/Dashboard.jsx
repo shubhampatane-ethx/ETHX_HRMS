@@ -8,6 +8,7 @@ import { frappe } from "../../lib/api/frappeClient";
 import { getCheckinsBetween, summariseCheckins } from "../../lib/employeePortal";
 import { useAuth } from "../../context/AuthContext";
 import { Card } from "../../components/ui/primitives";
+import { greetingName } from "../../lib/names";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -40,7 +41,7 @@ const QUICK_LINKS = [
 ];
 
 function greeting(hour) {
-  return hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  return hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
 }
 
 function Skeleton({ className = "" }) {
@@ -165,10 +166,7 @@ export default function HRDashboard() {
     offset: present.slice(0, i).reduce((sum, p) => sum + (todayCounts[p.key] / donutTotal) * C, 0),
   }));
 
-  const firstName = (() => {
-    const part = (user?.email || "").split("@")[0].split(/[._-]/)[0];
-    return part ? part[0].toUpperCase() + part.slice(1) : "there";
-  })();
+  const firstName = greetingName(user?.fullName, user?.email) || "There";
 
   const summary = (
     <>
@@ -178,9 +176,9 @@ export default function HRDashboard() {
   );
   const actions = (
     <div className="flex flex-wrap gap-2.5">
-      <Link to="/hr/attendance" className="flex items-center gap-2 rounded-lg bg-[var(--color-red)] px-4 py-2.5 text-[13px] font-medium text-[var(--color-on-accent)] transition-colors hover:bg-[var(--color-red-hover)]"><Plus size={15} /> Mark attendance</Link>
-      <Link to="/hr/leave" className="flex items-center gap-2 rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-4 py-2.5 text-[13px] font-medium text-[var(--color-text)] transition-colors hover:border-[var(--color-text-faint)]"><CalendarClock size={15} /> Review leave</Link>
-      <Link to="/hr/employees" className="flex items-center gap-2 rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-4 py-2.5 text-[13px] font-medium text-[var(--color-text)] transition-colors hover:border-[var(--color-text-faint)]"><UserPlus size={15} /> Add employee</Link>
+      <Link to="/hr/attendance" className="flex items-center gap-2 rounded-lg bg-[var(--color-red)] px-4 py-2.5 text-[13px] font-medium text-[var(--color-on-accent)] transition-colors hover:bg-[var(--color-red-hover)]"><Plus size={15} /> Mark Attendance</Link>
+      <Link to="/hr/leave" className="flex items-center gap-2 rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-4 py-2.5 text-[13px] font-medium text-[var(--color-text)] transition-colors hover:border-[var(--color-text-faint)]"><CalendarClock size={15} /> Review Leave</Link>
+      <Link to="/hr/employees" className="flex items-center gap-2 rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-4 py-2.5 text-[13px] font-medium text-[var(--color-text)] transition-colors hover:border-[var(--color-text-faint)]"><UserPlus size={15} /> Add Employee</Link>
     </div>
   );
 
@@ -210,7 +208,7 @@ export default function HRDashboard() {
       {/* Charts */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="rounded-xl p-5 lg:col-span-2">
-          <SectionTitle title="Attendance - last 7 days" hint="Employees attended, on leave and absent per day" to="/hr/attendance" />
+          <SectionTitle title="Attendance - Last 7 Days" hint="Employees attended, on leave and absent per day" to="/hr/attendance" />
           {!attendance ? <Skeleton className="h-44 w-full" /> : (
             <>
               <div className="flex h-44 items-end gap-3">
@@ -237,7 +235,7 @@ export default function HRDashboard() {
         </Card>
 
         <Card className="rounded-xl p-5">
-          <SectionTitle title="Today's attendance" hint={`${marked} marked${notMarked != null ? `, ${notMarked} pending` : ""}`} />
+          <SectionTitle title="Today's Attendance" hint={`${marked} marked${notMarked != null ? `, ${notMarked} pending` : ""}`} />
           {!attendance ? <Skeleton className="mx-auto h-36 w-36 rounded-full" /> : (
             <div className="flex flex-col items-center gap-5">
               <div className="relative h-36 w-36">
@@ -262,7 +260,7 @@ export default function HRDashboard() {
       {/* Leave + departments */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="rounded-xl p-5 lg:col-span-2">
-          <SectionTitle title="Pending leave requests" hint="Oldest start dates first" to="/hr/leave" />
+          <SectionTitle title="Pending Leave Requests" hint="Oldest start dates first" to="/hr/leave" />
           {!leave ? <Skeleton className="h-28 w-full" /> : leave.length === 0 ? (
             <div className="flex h-28 items-center justify-center text-[13px] text-[var(--color-text-muted)]">You're all caught up - no requests waiting.</div>
           ) : (
@@ -287,7 +285,7 @@ export default function HRDashboard() {
         </Card>
 
         <Card className="rounded-xl p-5">
-          <SectionTitle title="Headcount by department" hint="Active employees" />
+          <SectionTitle title="Headcount by Department" hint="Active employees" />
           {!employees ? <Skeleton className="h-28 w-full" /> : departments.length === 0 ? (
             <div className="flex h-28 items-center justify-center text-[13px] text-[var(--color-text-muted)]">No employees yet.</div>
           ) : (

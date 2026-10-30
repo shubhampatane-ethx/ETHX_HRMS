@@ -63,12 +63,12 @@ export default function Board() {
 
   return (
     <div className="space-y-4">
-      <Link to="/hr/recruitment/openings" className="inline-flex items-center gap-1 text-[12px] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"><ArrowLeft size={13} /> All openings</Link>
+      <Link to="/hr/recruitment/openings" className="inline-flex items-center gap-1 text-[12px] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"><ArrowLeft size={13} /> All Openings</Link>
       <Async state={opening}>
         {() => (
           <PageHeader icon={KanbanSquare} title={o.job_title} subtitle={[o.designation, o.department, o.company, `${vacanciesOf(o) || "?"} vacancies`, o.status].filter(Boolean).join(" · ")} actions={<>
-            <Button variant="secondary" onClick={() => setModal({ kind: "edit" })}><Pencil size={14} /> Edit opening</Button>
-            <Button onClick={() => setModal({ kind: "add" })} disabled={o.status !== "Open"}><Plus size={14} /> Add candidate</Button>
+            <Button variant="secondary" onClick={() => setModal({ kind: "edit" })}><Pencil size={14} /> Edit Opening</Button>
+            <Button onClick={() => setModal({ kind: "add" })} disabled={o.status !== "Open"}><Plus size={14} /> Add Candidate</Button>
           </>} />
         )}
       </Async>

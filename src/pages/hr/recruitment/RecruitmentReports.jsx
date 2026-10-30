@@ -90,7 +90,7 @@ export default function RecruitmentReports() {
                 { key: "v", label: "Filled / Vacancies", render: (o) => `${o.accepted} / ${vacanciesOf(o) || "—"}` },
                 { key: "total", label: "Candidates" },
                 ...["Screening", "Shortlisted", "Interview", "Offer"].map((st) => ({ key: st, label: st, render: (o) => o.stages[st] || 0 })),
-                { key: "ageDays", label: "Open for", render: (o) => `${o.ageDays} d` },
+                { key: "ageDays", label: "Open For", render: (o) => `${o.ageDays} d` },
               ]} />
             </Panel>
             <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">

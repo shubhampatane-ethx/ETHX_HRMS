@@ -30,7 +30,7 @@ function Events() {
   const [modal, setModal] = useState(null);
   const rows = (events.data || []).filter((e) => filter === "all" || e.event_status === filter);
   return (
-    <Panel action={<Button onClick={() => setModal({ kind: "new" })}><Plus size={14} /> New event</Button>}>
+    <Panel action={<Button onClick={() => setModal({ kind: "new" })}><Plus size={14} /> New Event</Button>}>
       <div className="mb-4 flex gap-2">{[["Scheduled", "Scheduled"], ["Completed", "Completed"], ["Cancelled", "Cancelled"], ["all", "All"]].map(([v, l]) => <button key={v} type="button" onClick={() => setFilter(v)} className={chipCls(filter === v)}>{l}</button>)}</div>
       <Async state={events}>
         {() => <Grid rows={rows} empty="No training events here." columns={[
@@ -76,17 +76,17 @@ function EventModal({ onClose, onSaved }) {
     <Modal title="New Training Event" onClose={onClose} wide>
       <form onSubmit={submit} className="space-y-3">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="Event name"><input required className={inputCls} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
-          <LinkField label="Program (optional)" linkDoctype="Training Program" value={f.program} onChange={(v) => setF({ ...f, program: v })} frappe={frappe} />
+          <Field label="Event Name"><input required className={inputCls} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
+          <LinkField label="Program (Optional)" linkDoctype="Training Program" value={f.program} onChange={(v) => setF({ ...f, program: v })} frappe={frappe} />
           <Field label="Type"><select className={inputCls} value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })}>{["Seminar", "Theory", "Workshop", "Conference", "Exam", "Internet", "Self-Study"].map((t) => <option key={t}>{t}</option>)}</select></Field>
           <Field label="Level"><select className={inputCls} value={f.level} onChange={(e) => setF({ ...f, level: e.target.value })}><option value="">—</option>{["Beginner", "Intermediate", "Advance"].map((t) => <option key={t}>{t}</option>)}</select></Field>
           <Field label="Starts"><input type="datetime-local" required className={inputCls} value={f.start} onChange={(e) => setF({ ...f, start: e.target.value })} /></Field>
           <Field label="Ends"><input type="datetime-local" required className={inputCls} value={f.end} onChange={(e) => setF({ ...f, end: e.target.value })} /></Field>
-          <Field label="Location / link"><input required className={inputCls} value={f.location} onChange={(e) => setF({ ...f, location: e.target.value })} /></Field>
+          <Field label="Location / Link"><input required className={inputCls} value={f.location} onChange={(e) => setF({ ...f, location: e.target.value })} /></Field>
           <Field label="Trainer"><input className={inputCls} value={f.trainer} onChange={(e) => setF({ ...f, trainer: e.target.value })} /></Field>
         </div>
         <Field label="Introduction"><textarea rows={2} className={inputCls} value={f.intro} onChange={(e) => setF({ ...f, intro: e.target.value })} /></Field>
-        <Field label="Invite employees">
+        <Field label="Invite Employees">
           <div className="flex gap-2"><select className={inputCls} value={pick} onChange={(e) => setPick(e.target.value)}><option value="">Choose…</option>{(emps.data || []).filter((e) => !people.includes(e.name)).map((e) => <option key={e.name} value={e.name}>{e.employee_name}{e.department ? ` · ${e.department}` : ""}</option>)}</select><Button type="button" variant="secondary" disabled={!pick} onClick={() => { setPeople([...people, pick]); setPick(""); }}>Add</Button></div>
         </Field>
         {people.length > 0 && <div className="flex flex-wrap gap-1.5">{people.map((p) => <span key={p} className="rounded-full bg-[var(--color-surface-2)] px-2 py-0.5 text-[12px] text-[var(--color-text)]">{name(p)} <button type="button" onClick={() => setPeople(people.filter((x) => x !== p))} className="ml-1 text-[var(--color-text-muted)]">×</button></span>)}</div>}
@@ -105,7 +105,7 @@ function EventDetail({ event, onClose }) {
   const d = doc.data;
   const list = rows || (d?.employees || []).map((r) => ({ ...r }));
   async function save(status) {
-    if (!(await confirmDialog(status === "Cancelled" ? { message: `Cancel ${event.event_name}?`, danger: true, confirmLabel: "Cancel event", cancelLabel: "Keep it" } : `Mark ${event.event_name} as ${status.toLowerCase()}?`))) return;
+    if (!(await confirmDialog(status === "Cancelled" ? { message: `Cancel ${event.event_name}?`, danger: true, confirmLabel: "Cancel Event", cancelLabel: "Keep It" } : `Mark ${event.event_name} as ${status.toLowerCase()}?`))) return;
     setBusy(true);
     setMsg(null);
     try {
@@ -130,7 +130,7 @@ function EventDetail({ event, onClose }) {
             { key: "status", label: "Status", render: (r) => <StatusPill status={r.status} /> },
           ]} />
           {msg && <Notice tone={msg.ok ? "info" : "error"}>{msg.text}</Notice>}
-          {d.event_status === "Scheduled" && <div className="flex justify-end gap-2"><Button variant="ghost" disabled={busy} onClick={() => save("Cancelled")}>Cancel event</Button><Button disabled={busy} onClick={() => save("Completed")}>Mark completed</Button></div>}
+          {d.event_status === "Scheduled" && <div className="flex justify-end gap-2"><Button variant="ghost" disabled={busy} onClick={() => save("Cancelled")}>Cancel Event</Button><Button disabled={busy} onClick={() => save("Completed")}>Mark Completed</Button></div>}
           <p className="text-[11px] text-[var(--color-text-faint)]">Attendees see this training in their portal (Training &amp; Learning) and can give feedback there.</p>
         </div>
       )}
@@ -142,7 +142,7 @@ function Programs() {
   const list = useAsync(() => listTry("Training Program", { fields: ["name", "training_program", "status", "trainer_name", "company", "description"], orderBy: "modified desc" }, ["name", "status"]), []);
   const [open, setOpen] = useState(false);
   return (
-    <Panel action={<Button onClick={() => setOpen(true)}><Plus size={14} /> New program</Button>}>
+    <Panel action={<Button onClick={() => setOpen(true)}><Plus size={14} /> New Program</Button>}>
       <Async state={list}>
         {(rows) => <Grid rows={rows} empty="No training programs yet." columns={[
           { key: "name", label: "Program", render: (p) => <b className="font-medium">{p.training_program || p.name}</b> },
@@ -174,7 +174,7 @@ function ProgramModal({ onClose, onSaved }) {
   return (
     <Modal title="New Training Program" onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
-        <Field label="Program name"><input required className={inputCls} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="e.g. Oracle Fusion SCM bootcamp" /></Field>
+        <Field label="Program Name"><input required className={inputCls} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="e.g. Oracle Fusion SCM bootcamp" /></Field>
         <LinkField label="Company" linkDoctype="Company" value={f.company} onChange={(v) => setF({ ...f, company: v })} required frappe={frappe} />
         <Field label="Trainer"><input className={inputCls} value={f.trainer} onChange={(e) => setF({ ...f, trainer: e.target.value })} /></Field>
         <Field label="Description"><textarea rows={3} className={inputCls} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} /></Field>

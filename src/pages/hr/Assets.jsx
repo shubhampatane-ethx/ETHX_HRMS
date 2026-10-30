@@ -77,10 +77,10 @@ export default function Assets() {
     <div className="space-y-5">
       <PageHeader icon={Laptop} title="Asset Management" subtitle="The company asset register - each employee sees only the assets assigned to them" actions={
         <>
-          <Button type="button" variant="secondary" onClick={downloadTemplate}><Download size={14} /> Register template</Button>
+          <Button type="button" variant="secondary" onClick={downloadTemplate}><Download size={14} /> Register Template</Button>
           <input ref={fileRef} type="file" accept=".xlsx,.csv" className="hidden" onChange={(e) => pick(e.target.files?.[0])} />
           <Button type="button" onClick={() => fileRef.current?.click()} disabled={reading || !data.data}>
-            {reading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} {reading ? "Reading…" : "Import register"}
+            {reading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} {reading ? "Reading…" : "Import Register"}
           </Button>
         </>
       } />
@@ -108,7 +108,7 @@ export default function Assets() {
                   <Grid rows={rows} empty="No assets match." columns={[
                     { key: "custom_asset_code", label: "Code", render: (a) => <span className="font-medium">{a.custom_asset_code || "—"}</span> },
                     { key: "asset_name", label: "Asset", render: (a) => <span>{a.asset_name}<span className="block text-[11px] text-[var(--color-text-faint)]">{a.asset_category}{a.custom_serial_number ? ` · ${a.custom_serial_number}` : ""}</span></span> },
-                    { key: "custodian", label: "Assigned to", render: (a) => (a.custodian ? <span>{empName[a.custodian] || a.custodian}<span className="block text-[11px] text-[var(--color-text-faint)]">{a.custom_assigned_on ? `since ${dmy(a.custom_assigned_on)}` : a.custodian}</span></span> : <span className="text-[var(--color-text-muted)]">{a.custom_returned_on ? `Returned ${dmy(a.custom_returned_on)}` : "In office"}</span>) },
+                    { key: "custodian", label: "Assigned To", render: (a) => (a.custodian ? <span>{empName[a.custodian] || a.custodian}<span className="block text-[11px] text-[var(--color-text-faint)]">{a.custom_assigned_on ? `since ${dmy(a.custom_assigned_on)}` : a.custodian}</span></span> : <span className="text-[var(--color-text-muted)]">{a.custom_returned_on ? `Returned ${dmy(a.custom_returned_on)}` : "In office"}</span>) },
                     { key: "custom_condition", label: "Condition", render: (a) => (a.custom_condition ? <StatusPill status={a.custom_condition} /> : "—") },
                     { key: "location", label: "Location" },
                     { key: "docstatus", label: "", render: (a) => (Number(a.docstatus) === 0 ? <StatusPill status="Draft" /> : <button type="button" onClick={() => setMoving(a)} className="flex items-center gap-1 text-[12px] text-[var(--color-red-hover)] hover:underline"><ArrowRightLeft size={13} /> {a.custodian ? "Reassign / return" : "Assign"}</button>) },
@@ -173,7 +173,7 @@ function ImportModal({ file, reg, employees, assets, onClose, onDone }) {
     const holder = chosen === NOBODY ? "" : chosen;
     const issues = p.issues.filter((i) => !/choose|leave unassigned/.test(i));
     const changes = p.changes.filter((c) => c.field !== "custodian");
-    if (p.existing && (p.existing.custodian || "") !== holder) changes.unshift({ field: "custodian", label: "Assigned to", from: empName[p.existing.custodian] || p.existing.custodian || "Nobody", to: empName[holder] || "Nobody" });
+    if (p.existing && (p.existing.custodian || "") !== holder) changes.unshift({ field: "custodian", label: "Assigned To", from: empName[p.existing.custodian] || p.existing.custodian || "Nobody", to: empName[holder] || "Nobody" });
     return { ...p, holder, issues, changes, status: p.existing ? (changes.length || p.status === "update" ? "update" : "same") : "new" };
   });
   const kind = (p) => (p.issues.length ? "attention" : p.status);
@@ -189,7 +189,7 @@ function ImportModal({ file, reg, employees, assets, onClose, onDone }) {
     if (needsValue && !opts.company) return setErr("Choose the company for assets that aren't assigned to anyone.");
     const n = todo.filter((p) => !p.existing).length;
     const u = todo.length - n;
-    if (!(await confirmDialog({ title: "Apply asset register", message: `Add ${n} new asset(s) and update ${u} existing one(s) in ERPNext? Changes of holder are recorded as asset movements.`, confirmLabel: "Apply" }))) return;
+    if (!(await confirmDialog({ title: "Apply Asset Register", message: `Add ${n} new asset(s) and update ${u} existing one(s) in ERPNext? Changes of holder are recorded as asset movements.`, confirmLabel: "Apply" }))) return;
     setBusy(true);
     setLog([]);
     try {
@@ -219,10 +219,10 @@ function ImportModal({ file, reg, employees, assets, onClose, onDone }) {
 
         {needsValue && (
           <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--color-border)] p-3 sm:grid-cols-4">
-            <Field label="Company (unassigned assets)"><select className={inputCls} value={opts.company} onChange={(e) => setOpts({ ...opts, company: e.target.value })}>{companies.map((c) => <option key={c}>{c}</option>)}</select></Field>
-            <Field label="Default location"><input className={inputCls} value={opts.location} onChange={(e) => setOpts({ ...opts, location: e.target.value })} /></Field>
-            <Field label="Value per new asset (₹, optional)" hint="Blank records ₹1 as a placeholder - ERPNext needs some value"><input className={inputCls} type="number" min="1" placeholder="1" value={opts.value} onChange={(e) => setOpts({ ...opts, value: e.target.value })} /></Field>
-            <Field label="Purchase date if none" hint="Rows with an assigned date use that"><input className={inputCls} type="date" value={opts.purchaseDate} onChange={(e) => setOpts({ ...opts, purchaseDate: e.target.value })} /></Field>
+            <Field label="Company (Unassigned Assets)"><select className={inputCls} value={opts.company} onChange={(e) => setOpts({ ...opts, company: e.target.value })}>{companies.map((c) => <option key={c}>{c}</option>)}</select></Field>
+            <Field label="Default Location"><input className={inputCls} value={opts.location} onChange={(e) => setOpts({ ...opts, location: e.target.value })} /></Field>
+            <Field label="Value per New Asset (₹, Optional)" hint="Blank records ₹1 as a placeholder - ERPNext needs some value"><input className={inputCls} type="number" min="1" placeholder="1" value={opts.value} onChange={(e) => setOpts({ ...opts, value: e.target.value })} /></Field>
+            <Field label="Purchase Date if None" hint="Rows with an assigned date use that"><input className={inputCls} type="date" value={opts.purchaseDate} onChange={(e) => setOpts({ ...opts, purchaseDate: e.target.value })} /></Field>
           </div>
         )}
 
@@ -231,7 +231,7 @@ function ImportModal({ file, reg, employees, assets, onClose, onDone }) {
           {visible.length === 0 ? <Empty text="Nothing in this list." /> : (
             <table className="w-full text-left text-[12.5px]">
               <thead className="sticky top-0 bg-[var(--color-surface-2)] text-[11px] uppercase tracking-wide text-[var(--color-text-muted)]">
-                <tr><th className="w-8 px-3 py-2" /><th className="px-3 py-2">Asset</th><th className="px-3 py-2">In the sheet</th><th className="px-3 py-2">Assigned to (ERPNext)</th><th className="px-3 py-2">What happens</th></tr>
+                <tr><th className="w-8 px-3 py-2" /><th className="px-3 py-2">Asset</th><th className="px-3 py-2">In the Sheet</th><th className="px-3 py-2">Assigned to (ERPNext)</th><th className="px-3 py-2">What Happens</th></tr>
               </thead>
               <tbody className="divide-y divide-[var(--color-border)]">
                 {visible.map((p) => {
@@ -261,7 +261,7 @@ function ImportModal({ file, reg, employees, assets, onClose, onDone }) {
                       <td className="px-3 py-2 align-top">
                         {p.issues.map((i) => <span key={i} className="flex items-start gap-1 text-[var(--color-red-hover)]"><AlertTriangle size={12} className="mt-0.5 shrink-0" /> {i}</span>)}
                         {!p.issues.length && (p.status === "new" ? <StatusPill status="New" /> : p.status === "same" ? <span className="text-[var(--color-text-faint)]">No change</span> : (
-                          <ul className="space-y-0.5">{(p.changes.length ? p.changes : [{ label: "Linked to this register row", from: "", to: "" }]).map((c) => <li key={c.label}><span className="text-[var(--color-text-muted)]">{c.label}</span>{c.to !== "" && <>: <s className="text-[var(--color-text-faint)]">{c.from}</s> → {c.to}</>}</li>)}</ul>
+                          <ul className="space-y-0.5">{(p.changes.length ? p.changes : [{ label: "Linked to This Register Row", from: "", to: "" }]).map((c) => <li key={c.label}><span className="text-[var(--color-text-muted)]">{c.label}</span>{c.to !== "" && <>: <s className="text-[var(--color-text-faint)]">{c.from}</s> → {c.to}</>}</li>)}</ul>
                         ))}
                         {p.warnings.map((w) => <span key={w} className="block text-[11px] text-[var(--color-amber)]">{w}</span>)}
                       </td>
@@ -322,16 +322,16 @@ function MoveModal({ asset, employees, onClose, onDone }) {
     <Modal title={`${asset.custom_asset_code || asset.asset_name}`} onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
         <p className="text-[12px] text-[var(--color-text-muted)]">{asset.asset_name} · {asset.asset_category}{asset.custom_serial_number ? ` · ${asset.custom_serial_number}` : ""}. Now: {holder ? holder.employee_name : "in office"}.</p>
-        <Field label="Give it to">
+        <Field label="Give It To">
           <select className={inputCls} value={to} onChange={(e) => setTo(e.target.value)} required>
             <option value="" disabled>Choose…</option>
             {asset.custodian && <option value={NOBODY}>Return to the office</option>}
             {employees.filter((e) => e.name !== asset.custodian && e.status !== "Left").map((e) => <option key={e.name} value={e.name}>{e.employee_name} ({e.employee_number || e.name})</option>)}
           </select>
         </Field>
-        <Field label={to === NOBODY ? "Returned to (location)" : "Location"}><input className={inputCls} value={location} onChange={(e) => setLocation(e.target.value)} required /></Field>
+        <Field label={to === NOBODY ? "Returned to (Location)" : "Location"}><input className={inputCls} value={location} onChange={(e) => setLocation(e.target.value)} required /></Field>
         {err && <Notice>{err}</Notice>}
-        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy || !to}>{busy ? "Saving…" : to === NOBODY ? "Return asset" : "Assign asset"}</Button></div>
+        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy || !to}>{busy ? "Saving…" : to === NOBODY ? "Return Asset" : "Assign Asset"}</Button></div>
       </form>
     </Modal>
   );

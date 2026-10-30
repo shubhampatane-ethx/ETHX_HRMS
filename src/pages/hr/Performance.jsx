@@ -36,7 +36,7 @@ function Cycles() {
   }, [cycles.data]);
   const [modal, setModal] = useState(null);
   return (
-    <Panel action={<Button onClick={() => setModal({ kind: "new" })}><Plus size={14} /> New cycle</Button>}>
+    <Panel action={<Button onClick={() => setModal({ kind: "new" })}><Plus size={14} /> New Cycle</Button>}>
       <Async state={cycles}>
         {(rows) => <Grid rows={rows} empty="No appraisal cycles yet." columns={[
           { key: "cycle_name", label: "Cycle", render: (c) => <button type="button" onClick={() => setModal({ kind: "open", cycle: c })} className="text-left hover:underline"><b className="font-medium">{c.cycle_name}</b><span className="block text-[11px] text-[var(--color-text-faint)]">{[c.company, c.department].filter(Boolean).join(" · ")}</span></button> },
@@ -73,11 +73,11 @@ function NewCycle({ onClose, onSaved }) {
       <form onSubmit={submit} className="space-y-3">
         <Field label="Name"><input required className={inputCls} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
         <LinkField label="Company" linkDoctype="Company" value={f.company} onChange={(v) => setF({ ...f, company: v })} required frappe={frappe} />
-        <LinkField label="Only department (optional)" linkDoctype="Department" value={f.department} onChange={(v) => setF({ ...f, department: v })} frappe={frappe} />
+        <LinkField label="Only Department (Optional)" linkDoctype="Department" value={f.department} onChange={(v) => setF({ ...f, department: v })} frappe={frappe} />
         <div className="grid grid-cols-2 gap-3"><DateField label="Start" value={f.start} onChange={(v) => setF({ ...f, start: v })} required /><DateField label="End" value={f.end} onChange={(v) => setF({ ...f, end: v })} required /></div>
-        <Field label="KRA scoring"><select className={inputCls} value={f.method} onChange={(e) => setF({ ...f, method: e.target.value })}><option>Automated Based on Goal Progress</option><option>Manual Rating</option></select></Field>
+        <Field label="KRA Scoring"><select className={inputCls} value={f.method} onChange={(e) => setF({ ...f, method: e.target.value })}><option>Automated Based on Goal Progress</option><option>Manual Rating</option></select></Field>
         {err && <Notice>{err}</Notice>}
-        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Saving…" : "Create cycle"}</Button></div>
+        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Saving…" : "Create Cycle"}</Button></div>
       </form>
     </Modal>
   );
@@ -91,7 +91,7 @@ function CycleModal({ cycle, onClose }) {
   const d = doc.data;
 
   async function act(label, fn) {
-    const ask = { add: "Add every active employee of this company (and department) to the cycle?", create: "Create appraisals for everyone in this cycle?", start: "Start this cycle? Employees can then fill self-appraisals.", complete: { message: "Complete this cycle? Appraisals are closed.", danger: true, confirmLabel: "Complete cycle" } }[label];
+    const ask = { add: "Add every active employee of this company (and department) to the cycle?", create: "Create appraisals for everyone in this cycle?", start: "Start this cycle? Employees can then fill self-appraisals.", complete: { message: "Complete this cycle? Appraisals are closed.", danger: true, confirmLabel: "Complete Cycle" } }[label];
     if (ask && !(await confirmDialog(ask))) return;
     setBusy(label);
     setMsg(null);
@@ -127,11 +127,11 @@ function CycleModal({ cycle, onClose }) {
         <div className="space-y-4">
           <p className="text-[12px] text-[var(--color-text-muted)]">{dmy(d.start_date)} – {dmy(d.end_date)} · {d.company}{d.department ? ` · ${d.department}` : ""} · {d.kra_evaluation_method} · <StatusPill status={d.status === "Not Started" ? "Pending" : d.status} /></p>
           <div className="flex flex-wrap items-end gap-2">
-            <div className="w-64"><LinkField label="Template for employees without one" linkDoctype="Appraisal Template" value={template} onChange={setTemplate} frappe={frappe} /></div>
-            <Button variant="secondary" onClick={addEmployees} disabled={!!busy || d.status === "Completed"}>{busy === "add" ? "Adding…" : "Add employees"}</Button>
-            <Button variant="secondary" onClick={create} disabled={!!busy || !(d.appraisees || []).length}>{busy === "create" ? "Creating…" : "Create appraisals"}</Button>
-            {d.status === "Not Started" && <Button onClick={start} disabled={!!busy}>Start cycle</Button>}
-            {d.status === "In Progress" && <Button onClick={complete} disabled={!!busy}>{busy === "complete" ? "Completing…" : "Complete cycle"}</Button>}
+            <div className="w-64"><LinkField label="Template for Employees Without One" linkDoctype="Appraisal Template" value={template} onChange={setTemplate} frappe={frappe} /></div>
+            <Button variant="secondary" onClick={addEmployees} disabled={!!busy || d.status === "Completed"}>{busy === "add" ? "Adding…" : "Add Employees"}</Button>
+            <Button variant="secondary" onClick={create} disabled={!!busy || !(d.appraisees || []).length}>{busy === "create" ? "Creating…" : "Create Appraisals"}</Button>
+            {d.status === "Not Started" && <Button onClick={start} disabled={!!busy}>Start Cycle</Button>}
+            {d.status === "In Progress" && <Button onClick={complete} disabled={!!busy}>{busy === "complete" ? "Completing…" : "Complete Cycle"}</Button>}
           </div>
           {msg && <Notice tone={msg.ok ? "info" : "error"}>{msg.text}</Notice>}
           <Grid rows={d.appraisees || []} rowKey={(r) => r.employee} empty="No employees added yet." columns={[
@@ -183,13 +183,13 @@ function Goals() {
   const [modal, setModal] = useState(null);
   const rows = (goals.data || []).filter((g) => status === "all" || (status === "open" ? !["Completed", "Archived", "Closed"].includes(g.status) : ["Completed", "Archived", "Closed"].includes(g.status)));
   async function setProgress(g) {
-    const v = await promptDialog({ title: "Update goal progress", message: `Progress for "${g.goal_name}" (0-100)`, label: "Progress (%)", multiline: false, inputType: "number", min: 0, max: 100, defaultValue: String(g.progress ?? 0), confirmLabel: "Save progress" });
+    const v = await promptDialog({ title: "Update Goal Progress", message: `Progress for "${g.goal_name}" (0-100)`, label: "Progress (%)", multiline: false, inputType: "number", min: 0, max: 100, defaultValue: String(g.progress ?? 0), confirmLabel: "Save Progress" });
     if (v == null) return;
     const n = Math.max(0, Math.min(100, Number(v) || 0));
     try { await frappe.updateDoc("Goal", g.name, { progress: n, status: n >= 100 ? "Completed" : n > 0 ? "In Progress" : "Pending" }); goals.reload(); } catch (e) { alertDialog({ tone: "error", message: errMsg(e, "Couldn't update the goal.") }); }
   }
   return (
-    <Panel action={<Button onClick={() => setModal({})}><Plus size={14} /> New goal</Button>}>
+    <Panel action={<Button onClick={() => setModal({})}><Plus size={14} /> New Goal</Button>}>
       <div className="mb-4 flex gap-2">{[["open", "Open"], ["done", "Completed / Closed"], ["all", "All"]].map(([v, l]) => <button key={v} type="button" onClick={() => setStatus(v)} className={chipCls(status === v)}>{l}</button>)}</div>
       <Async state={goals}>
         {() => <Grid rows={rows} empty="No goals here." columns={[
@@ -228,14 +228,14 @@ function GoalModal({ onClose, onSaved }) {
         <LinkField label="Employee" linkDoctype="Employee" value={f.employee} onChange={(v) => setF({ ...f, employee: v })} required frappe={frappe} />
         <Field label="Goal"><input required className={inputCls} value={f.goal_name} onChange={(e) => setF({ ...f, goal_name: e.target.value })} placeholder="e.g. Close 3 Fusion SCM go-lives" /></Field>
         <div className="grid grid-cols-2 gap-3">
-          <LinkField label="Appraisal cycle" linkDoctype="Appraisal Cycle" value={f.cycle} onChange={(v) => setF({ ...f, cycle: v })} frappe={frappe} />
+          <LinkField label="Appraisal Cycle" linkDoctype="Appraisal Cycle" value={f.cycle} onChange={(v) => setF({ ...f, cycle: v })} frappe={frappe} />
           <LinkField label="KRA" linkDoctype="KRA" value={f.kra} onChange={(v) => setF({ ...f, kra: v })} frappe={frappe} />
           <DateField label="Start" value={f.start} onChange={(v) => setF({ ...f, start: v })} required />
           <DateField label="Due" value={f.end} onChange={(v) => setF({ ...f, end: v })} />
         </div>
         <p className="text-[11px] text-[var(--color-text-faint)]">With automated scoring, a goal's progress feeds its KRA score in the employee's appraisal (the KRA must be on their template).</p>
         {err && <Notice>{err}</Notice>}
-        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Saving…" : "Create goal"}</Button></div>
+        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Saving…" : "Create Goal"}</Button></div>
       </form>
     </Modal>
   );
@@ -251,7 +251,7 @@ function Templates() {
   }, []);
   const [open, setOpen] = useState(false);
   return (
-    <Panel action={<Button onClick={() => setOpen(true)}><Plus size={14} /> New template</Button>}>
+    <Panel action={<Button onClick={() => setOpen(true)}><Plus size={14} /> New Template</Button>}>
       <Async state={list}>
         {(rows) => <Grid rows={rows} empty="No templates. Create one with the KRAs for a role." columns={[
           { key: "name", label: "Template", render: (t) => <b className="font-medium">{t.template_title || t.name}</b> },
@@ -289,7 +289,7 @@ function TemplateModal({ onClose, onSaved }) {
   return (
     <Modal title="New Appraisal Template" onClose={onClose} wide>
       <form onSubmit={submit} className="space-y-3">
-        <Field label="Template name"><input required className={inputCls} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Oracle Fusion Consultant" /></Field>
+        <Field label="Template Name"><input required className={inputCls} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Oracle Fusion Consultant" /></Field>
         <div className="space-y-2">
           {rows.map((r, i) => (
             <div key={i} className="grid grid-cols-[1fr_7rem_2rem] gap-2">
@@ -301,7 +301,7 @@ function TemplateModal({ onClose, onSaved }) {
           <div className="flex items-center justify-between text-[12px]"><button type="button" onClick={() => setRows([...rows, { kra: "", w: "0" }])} className="text-[var(--color-red-hover)] hover:underline">+ Add KRA</button><span className={total === 100 ? "text-[var(--color-green)]" : "text-[var(--color-amber)]"}>Total {total}%</span></div>
         </div>
         {err && <Notice>{err}</Notice>}
-        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Saving…" : "Create template"}</Button></div>
+        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Saving…" : "Create Template"}</Button></div>
       </form>
     </Modal>
   );

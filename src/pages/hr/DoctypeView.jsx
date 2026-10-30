@@ -12,7 +12,7 @@ import { alertDialog, confirmDialog, previewDialog } from "../../components/ui/d
 const DEFAULT_FIELDS = ["name", "modified", "owner"];
 const DEFAULT_COLUMNS = [
   { key: "name", label: "Name" },
-  { key: "owner", label: "Created by" },
+  { key: "owner", label: "Created By" },
   { key: "modified", label: "Last Modified", render: (r) => formatDate(r.modified) },
 ];
 const FALLBACK_FORM_FIELDS = [{ name: "name", label: "Name", type: "text", required: true }];
@@ -288,7 +288,7 @@ function SingleSettings({ item }) {
   async function handleSave() {
     const labelOf = (key) => meta?.find((f) => f.fieldname === key)?.label || key.replace(/_/g, " ");
     const shown = (v) => (v === true || v === 1 ? "Yes" : v === false || v === 0 ? "No" : v === "" || v == null ? "(empty)" : String(v));
-    if (!(await previewDialog({ title: item.label || item.doctype, rows: Object.entries(edits).map(([k, v]) => [labelOf(k), shown(v)]), confirmLabel: "Confirm & save" }))) return;
+    if (!(await previewDialog({ title: item.label || item.doctype, rows: Object.entries(edits).map(([k, v]) => [labelOf(k), shown(v)]), confirmLabel: "Confirm & Save" }))) return;
     setSaving(true);
     setError(null);
     try {
@@ -332,7 +332,7 @@ function SingleSettings({ item }) {
             {error && <p className="text-[12px] text-[var(--color-red-hover)]">{error}</p>}
             <Button onClick={handleSave} disabled={saving || Object.keys(edits).length === 0}>
               {saving && <Loader2 size={14} className="animate-spin" />}
-              Save changes
+              Save Changes
             </Button>
           </div>
         )}
@@ -394,8 +394,8 @@ const F = {
   company: { fieldname: "company", label: "Company", type: "link", doctype: "Company" },
   employee: { fieldname: "employee", label: "Employee", type: "link", doctype: "Employee" },
   department: { fieldname: "department", label: "Department", type: "link", doctype: "Department" },
-  from: { fieldname: "from_date", label: "From date", type: "date" },
-  to: { fieldname: "to_date", label: "To date", type: "date" },
+  from: { fieldname: "from_date", label: "From Date", type: "date" },
+  to: { fieldname: "to_date", label: "To Date", type: "date" },
 };
 const req = (f, extra = {}) => ({ ...f, reqd: true, ...extra });
 // Filters each HRMS report needs (from the report's own .js definition). Others get the generic four.
@@ -407,10 +407,10 @@ const REPORT_FILTERS = {
     req(F.company), F.employee, F.department,
   ],
   "Employee Birthday": [{ fieldname: "month", label: "Month", type: "select", options: MONTHS3.map((m) => [m, m]), default: MONTHS3[thisMonth - 1], reqd: true }, req(F.company)],
-  "Employee Analytics": [req(F.company), { fieldname: "parameter", label: "Group by", type: "select", options: ["Branch", "Grade", "Department", "Designation", "Employment Type"].map((v) => [v, v]), default: "Department", reqd: true }],
-  "Recruitment Analytics": [req(F.company), { fieldname: "on_date", label: "As on", type: "date", default: today(), reqd: true }],
+  "Employee Analytics": [req(F.company), { fieldname: "parameter", label: "Group By", type: "select", options: ["Branch", "Grade", "Department", "Designation", "Employment Type"].map((v) => [v, v]), default: "Department", reqd: true }],
+  "Recruitment Analytics": [req(F.company), { fieldname: "on_date", label: "As On", type: "date", default: today(), reqd: true }],
   "Employee Leave Balance": [req(F.from, { default: `${y}-01-01` }), req(F.to, { default: `${y}-12-31` }), req(F.company), F.department, F.employee],
-  "Employee Leave Balance Summary": [{ fieldname: "date", label: "As on", type: "date", default: today(), reqd: true }, req(F.company), F.department, F.employee],
+  "Employee Leave Balance Summary": [{ fieldname: "date", label: "As On", type: "date", default: today(), reqd: true }, req(F.company), F.department, F.employee],
   "Employees Working on a Holiday": [req(F.from, { default: `${y}-01-01` }), req(F.to, { default: `${y}-12-31` }), req(F.company), F.department],
   "Employee Exits": [F.from, F.to, F.company, F.department, F.employee],
 };
@@ -469,7 +469,7 @@ function ReportRunner({ item }) {
         <p className="mt-2 text-[11px] text-[var(--color-text-faint)]">Fields marked * are required by this report; leave the others blank to include everything.</p>
         <Button className="mt-3" onClick={run} disabled={state === "loading"}>
           {state === "loading" && <Loader2 size={14} className="animate-spin" />}
-          Run report
+          Run Report
         </Button>
       </Card>
 

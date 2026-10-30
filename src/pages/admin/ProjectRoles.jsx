@@ -26,7 +26,7 @@ export default function ProjectRoles() {
 
   return (
     <div className="space-y-5">
-      <PageHeader icon={ShieldCheck} title="Project Roles" subtitle="Roles employees can hold on a project. Give them to people per project under Assignments." actions={<Button type="button" disabled={!installed} onClick={() => setModal({})}><Plus size={14} /> Add role</Button>} />
+      <PageHeader icon={ShieldCheck} title="Project Roles" subtitle="Roles employees can hold on a project. Give them to people per project under Assignments." actions={<Button type="button" disabled={!installed} onClick={() => setModal({})}><Plus size={14} /> Add Role</Button>} />
       {data.data && !installed && <Notice tone="info">Run <b>System Setup</b> once to create this list. Until then the assignment form offers the default roles shown here.</Notice>}
       {error && <Notice>{error}</Notice>}
       <Panel>
@@ -71,12 +71,12 @@ function RoleModal({ role, onClose, onSaved }) {
   return (
     <Modal title={role ? `Edit ${role.role_name}` : "Add Project Role"} onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
-        {!role && <Field label="Role name"><input required className={inputCls} value={f.role_name} onChange={(e) => setF({ ...f, role_name: e.target.value })} placeholder="e.g. Scrum Master" /></Field>}
-        <Field label="Description (optional)"><input className={inputCls} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} /></Field>
+        {!role && <Field label="Role Name"><input required className={inputCls} value={f.role_name} onChange={(e) => setF({ ...f, role_name: e.target.value })} placeholder="e.g. Scrum Master" /></Field>}
+        <Field label="Description (Optional)"><input className={inputCls} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} /></Field>
         <label className="flex items-start gap-2 text-[12.5px] text-[var(--color-text)]"><input type="checkbox" className="mt-0.5" checked={Boolean(f.manages_project)} onChange={(e) => setF({ ...f, manages_project: e.target.checked ? 1 : 0 })} /><span>Manages the project<span className="block text-[11px] text-[var(--color-text-muted)]">The holder runs that project: assigns its team and approves its timesheets. A project has one manager at a time.</span></span></label>
         {role && <label className="flex items-center gap-2 text-[12.5px] text-[var(--color-text)]"><input type="checkbox" checked={Boolean(f.disabled)} onChange={(e) => setF({ ...f, disabled: e.target.checked ? 1 : 0 })} /> Disabled (no longer offered for new assignments)</label>}
         {err && <Notice>{err}</Notice>}
-        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Saving…" : role ? "Save role" : "Add role"}</Button></div>
+        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Saving…" : role ? "Save Role" : "Add Role"}</Button></div>
       </form>
     </Modal>
   );

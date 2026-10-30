@@ -12,20 +12,20 @@ import { alertDialog, confirmDialog } from "../../components/ui/dialogs";
 const FIELDS = [
   // ERPNext builds the full name (employee_name) from first / middle / last name; these three plus gender and date
   // of birth are mandatory on Employee.
-  { name: "first_name", label: "First name", required: true },
-  { name: "last_name", label: "Last name" },
+  { name: "first_name", label: "First Name", required: true },
+  { name: "last_name", label: "Last Name" },
   { name: "gender", label: "Gender", type: "link", linkDoctype: "Gender", required: true },
-  { name: "date_of_birth", label: "Date of birth", type: "date", required: true },
-  { name: "date_of_joining", label: "Date of joining", type: "date", required: true },
+  { name: "date_of_birth", label: "Date of Birth", type: "date", required: true },
+  { name: "date_of_joining", label: "Date of Joining", type: "date", required: true },
   { name: "status", label: "Status", type: "select", options: ["Active", "Inactive", "Suspended", "Left"] },
   { name: "company", label: "Company", type: "link", linkDoctype: "Company", required: true },
   // The office decides the employee's holiday list (set automatically by the Office Locations rule).
-  { name: "branch", label: "Office location", type: "link", linkDoctype: "Branch" },
-  { name: "employee_number", label: "Employee code", type: "text" },
+  { name: "branch", label: "Office Location", type: "link", linkDoctype: "Branch" },
+  { name: "employee_number", label: "Employee Code", type: "text" },
   { name: "department", label: "Department", type: "link", linkDoctype: "Department" },
   { name: "designation", label: "Designation", type: "link", linkDoctype: "Designation" },
-  { name: "employment_type", label: "Employment type", type: "link", linkDoctype: "Employment Type" },
-  { name: "user_id", label: "User account", type: "link", linkDoctype: "User" },
+  { name: "employment_type", label: "Employment Type", type: "link", linkDoctype: "Employment Type" },
+  { name: "user_id", label: "User Account", type: "link", linkDoctype: "User" },
 ];
 
 const LIST_FIELDS = ["name", "employee_name", "first_name", "last_name", "department", "designation", "status", "company", "date_of_joining", "user_id", "company_email", "personal_email", "custom_is_contractor"];
@@ -187,7 +187,7 @@ export default function Employees({ contractorsOnly = false }) {
           </div>
           <div className="flex gap-2">
             <Button variant="secondary" onClick={load} disabled={state === "loading"}><RefreshCw size={14} className={state === "loading" ? "animate-spin" : ""} /> Refresh</Button>
-            {!contractorsOnly && <Button onClick={() => { setEditing(null); setFormOpen(true); }}><Plus size={14} /> Add employee</Button>}
+            {!contractorsOnly && <Button onClick={() => { setEditing(null); setFormOpen(true); }}><Plus size={14} /> Add Employee</Button>}
             <Button variant={contractorsOnly ? "primary" : "secondary"} onClick={() => setAddingContractor(true)}><HardHat size={14} /> Add Contractor</Button>
           </div>
         </div>
@@ -285,11 +285,11 @@ function LoginModal({ employee, onClose, onDone }) {
         ) : (
           <form onSubmit={submit} className="mt-4 space-y-3">
             <label className="block">
-              <span className="mb-1.5 block text-[12px] text-[var(--color-text-muted)]">Login email</span>
+              <span className="mb-1.5 block text-[12px] text-[var(--color-text-muted)]">Login Email</span>
               <input type="email" required readOnly={reset} className={`${inputCls} ${reset ? "opacity-70" : ""}`} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" />
             </label>
             <label className="block">
-              <span className="mb-1.5 block text-[12px] text-[var(--color-text-muted)]">Temporary password</span>
+              <span className="mb-1.5 block text-[12px] text-[var(--color-text-muted)]">Temporary Password</span>
               <input type="text" required minLength={8} autoComplete="off" className={inputCls} value={password} onChange={(e) => setPassword(e.target.value)} />
               <span className="mt-1 block text-[11px] text-[var(--color-text-faint)]">At least 8 characters with a mix of letters, numbers and symbols.</span>
             </label>
@@ -302,7 +302,7 @@ function LoginModal({ employee, onClose, onDone }) {
                 try { await setLoginEnabled(employee, false); onDone(); onClose(); } catch (err) { setError(methodMissing(err) ? "Disabling logins needs Admin › System Setup to be run first." : loginError(err)); setBusy(false); }
               }}>Disable login</Button>}
               <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-              <Button type="submit" disabled={busy}>{busy ? "Working…" : reset ? "Reset password" : "Create login"}</Button>
+              <Button type="submit" disabled={busy}>{busy ? "Working…" : reset ? "Reset Password" : "Create Login"}</Button>
             </div>
           </form>
         )}
@@ -403,8 +403,8 @@ function EmployeeDetail({ employee, onClose, onEdit, onLogin }) {
         )}
 
         <div className="mt-5 flex justify-end gap-2">
-          <Button variant="secondary" onClick={onLogin}><KeyRound size={14} /> {employee.user_id ? "Reset password" : "Create login"}</Button>
-          <Button onClick={onEdit}><Edit3 size={14} /> Edit employee</Button>
+          <Button variant="secondary" onClick={onLogin}><KeyRound size={14} /> {employee.user_id ? "Reset Password" : "Create Login"}</Button>
+          <Button onClick={onEdit}><Edit3 size={14} /> Edit Employee</Button>
         </div>
       </div>
     </div>
@@ -433,15 +433,15 @@ function ContractorModal({ onClose, onSaved }) {
   return (
     <Modal title="Add Contractor" onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
-        <Field label="Full name"><input required className={inputCls} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
-        <Field label="Email (their login)"><input required type="email" className={inputCls} value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></Field>
-        <Field label="Temporary password" hint="They must change it at first sign-in."><input required type="password" autoComplete="new-password" minLength={8} className={inputCls} value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} /></Field>
+        <Field label="Full Name"><input required className={inputCls} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
+        <Field label="Email (Their Login)"><input required type="email" className={inputCls} value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></Field>
+        <Field label="Temporary Password" hint="They must change it at first sign-in."><input required type="password" autoComplete="new-password" minLength={8} className={inputCls} value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} /></Field>
         <LinkField label="Company" linkDoctype="Company" value={f.company} onChange={(v) => setF({ ...f, company: v })} required frappe={frappe} />
-        <LinkField label="Office location (optional)" linkDoctype="Branch" value={f.branch} onChange={(v) => setF({ ...f, branch: v })} frappe={frappe} />
-        <DateField label="Start date" value={f.joining} onChange={(v) => setF({ ...f, joining: v })} required />
+        <LinkField label="Office Location (Optional)" linkDoctype="Branch" value={f.branch} onChange={(v) => setF({ ...f, branch: v })} frappe={frappe} />
+        <DateField label="Start Date" value={f.joining} onChange={(v) => setF({ ...f, joining: v })} required />
         <p className="text-[11px] text-[var(--color-text-faint)]">Next, the Administrator or a Project Manager gives them a role on a project under Assignments. They sign in to see only their projects and timesheet.</p>
         {err && <Notice>{err}</Notice>}
-        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Creating…" : "Create contractor"}</Button></div>
+        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Creating…" : "Create Contractor"}</Button></div>
       </form>
     </Modal>
   );

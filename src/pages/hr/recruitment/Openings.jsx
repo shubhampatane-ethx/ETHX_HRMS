@@ -57,7 +57,7 @@ export default function Openings() {
 
   return (
     <div className="space-y-5">
-      <PageHeader icon={Briefcase} title="Job Openings" subtitle="Positions you're hiring for, their interview rounds and how far each one has got" actions={<Button onClick={() => setModal({})}><Plus size={14} /> New opening</Button>} />
+      <PageHeader icon={Briefcase} title="Job Openings" subtitle="Positions you're hiring for, their interview rounds and how far each one has got" actions={<Button onClick={() => setModal({})}><Plus size={14} /> New Opening</Button>} />
       <SetupHint />
       <Panel>
         <div className="mb-4 flex flex-wrap gap-2">{[["Open", "Open"], ["Closed", "Closed"], ["all", "All"]].map(([v, l]) => <button key={v} type="button" onClick={() => setFilter(v)} className={chipCls(filter === v)}>{l}</button>)}</div>
@@ -69,10 +69,10 @@ export default function Openings() {
             { key: "rounds", label: "Rounds", render: (o) => roundsOf(o).length ? <span className="text-[11.5px]">{roundsOf(o).join(" → ")}</span> : <span className="text-[11px] text-[var(--color-amber)]">Not set</span> },
             { key: "salary", label: "Salary Range", render: (o) => (o.lower_range || o.upper_range ? `${money(o.lower_range, o.currency || "INR")} – ${money(o.upper_range, o.currency || "INR")}` : "—") },
             { key: "closes_on", label: "Closes", render: (o) => (o.status === "Closed" ? `Closed ${dmy(o.closed_on)}` : dmy(o.closes_on) || "—") },
-            { key: "status", label: "Status", render: (o) => <span className="flex items-center gap-1.5"><StatusPill status={o.status} />{Number(o.publish) === 1 && <Globe size={12} className="text-[var(--color-green)]" title="On the careers page" />}</span> },
+            { key: "status", label: "Status", render: (o) => <span className="flex items-center gap-1.5"><StatusPill status={o.status} />{Number(o.publish) === 1 && <Globe size={12} className="text-[var(--color-green)]" title="On the Careers Page" />}</span> },
             { key: "_a", label: "", render: (o) => (
               <div className="flex justify-end gap-1 whitespace-nowrap">
-                <Link to={`/hr/recruitment/openings/${enc(o.name)}`} title="Pipeline board" className="rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]"><KanbanSquare size={14} /></Link>
+                <Link to={`/hr/recruitment/openings/${enc(o.name)}`} title="Pipeline Board" className="rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]"><KanbanSquare size={14} /></Link>
                 <button type="button" title="Edit" onClick={() => setModal({ opening: o })} className="rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]"><Pencil size={14} /></button>
                 {Number(o.publish) === 1 && o.route && o.status === "Open" && <a href={`/${o.route}`} target="_blank" rel="noreferrer" title="Open on careers page" className="rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]"><ExternalLink size={14} /></a>}
                 <button type="button" onClick={() => toggle(o, "status", o.status === "Open" ? "Closed" : "Open")} className="rounded px-1.5 py-1 text-[11px] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]">{o.status === "Open" ? "Close" : "Reopen"}</button>
@@ -111,7 +111,7 @@ export function RoundsPicker({ value, onChange, designation }) {
           <option value="">+ Add a round…</option>
           {options.map((r) => <option key={r.name} value={r.name}>{r.round_name}{r.designation ? ` (${r.designation})` : ""}</option>)}
         </select>
-        <Link to="/hr/recruitment/interviews?tab=rounds" className="text-[11px] text-[var(--color-red-hover)] hover:underline" target="_blank">Manage rounds</Link>
+        <Link to="/hr/recruitment/interviews?tab=rounds" className="text-[11px] text-[var(--color-red-hover)] hover:underline" target="_blank">Manage Rounds</Link>
       </div>
     </div>
   );
@@ -156,38 +156,38 @@ export function OpeningModal({ opening, onClose, onSaved }) {
     <Modal title={o.name ? `Edit ${o.job_title}` : "New job opening"} onClose={onClose} wide="xl">
       <form onSubmit={submit} className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <div className="space-y-3">
-          <Field label="Job title"><input required className={inputCls} value={f.job_title} onChange={set("job_title")} /></Field>
+          <Field label="Job Title"><input required className={inputCls} value={f.job_title} onChange={set("job_title")} /></Field>
           <div className="grid grid-cols-2 gap-3">
             <LinkField label="Designation" linkDoctype="Designation" value={f.designation} onChange={(v) => setF({ ...f, designation: v })} required frappe={frappe} />
             <LinkField label="Department" linkDoctype="Department" value={f.department} onChange={(v) => setF({ ...f, department: v })} frappe={frappe} />
             <LinkField label="Company" linkDoctype="Company" value={f.company} onChange={(v) => setF({ ...f, company: v })} required frappe={frappe} />
-            <LinkField label="Location (branch)" linkDoctype="Branch" value={f.location} onChange={(v) => setF({ ...f, location: v })} frappe={frappe} />
-            <LinkField label="Employment type" linkDoctype="Employment Type" value={f.employment_type} onChange={(v) => setF({ ...f, employment_type: v })} frappe={frappe} />
+            <LinkField label="Location (Branch)" linkDoctype="Branch" value={f.location} onChange={(v) => setF({ ...f, location: v })} frappe={frappe} />
+            <LinkField label="Employment Type" linkDoctype="Employment Type" value={f.employment_type} onChange={(v) => setF({ ...f, employment_type: v })} frappe={frappe} />
             <Field label="Vacancies"><input type="number" min="1" className={inputCls} value={f.vacancies} onChange={set("vacancies")} /></Field>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Experience"><input className={inputCls} value={f.custom_experience} onChange={set("custom_experience")} placeholder="e.g. 4–7 years" /></Field>
-            <DateField label="Applications close on" value={f.closes_on} onChange={(v) => setF({ ...f, closes_on: v })} />
+            <DateField label="Applications Close On" value={f.closes_on} onChange={(v) => setF({ ...f, closes_on: v })} />
           </div>
-          <Field label="Key skills" hint="Comma separated"><input className={inputCls} value={f.custom_skills} onChange={set("custom_skills")} /></Field>
+          <Field label="Key Skills" hint="Comma separated"><input className={inputCls} value={f.custom_skills} onChange={set("custom_skills")} /></Field>
           <div className="grid grid-cols-3 gap-3">
-            <Field label="Salary from"><input type="number" min="0" className={inputCls} value={f.lower_range} onChange={set("lower_range")} /></Field>
-            <Field label="Salary to"><input type="number" min="0" className={inputCls} value={f.upper_range} onChange={set("upper_range")} /></Field>
+            <Field label="Salary From"><input type="number" min="0" className={inputCls} value={f.lower_range} onChange={set("lower_range")} /></Field>
+            <Field label="Salary To"><input type="number" min="0" className={inputCls} value={f.upper_range} onChange={set("upper_range")} /></Field>
             <Field label="Per"><select className={inputCls} value={f.salary_per} onChange={set("salary_per")}><option>Year</option><option>Month</option></select></Field>
           </div>
           <label className="flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><input type="checkbox" checked={f.publish} onChange={(e) => setF({ ...f, publish: e.target.checked })} /> Publish on the careers page</label>
           <label className="flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><input type="checkbox" checked={f.publish_salary_range} onChange={(e) => setF({ ...f, publish_salary_range: e.target.checked })} /> Show the salary range publicly</label>
         </div>
         <div className="space-y-3">
-          <Field label="Job description"><textarea rows={8} className={inputCls} value={desc} onChange={set("description")} placeholder="Responsibilities, must-haves, nice-to-haves…" /></Field>
+          <Field label="Job Description"><textarea rows={8} className={inputCls} value={desc} onChange={set("description")} placeholder="Responsibilities, must-haves, nice-to-haves…" /></Field>
           <div>
-            <span className="mb-1.5 block text-[12px] text-[var(--color-text-muted)]">Interview rounds, in order</span>
+            <span className="mb-1.5 block text-[12px] text-[var(--color-text-muted)]">Interview Rounds, in Order</span>
             <RoundsPicker value={f.rounds} onChange={(rounds) => setF({ ...f, rounds })} designation={f.designation} />
           </div>
           <p className="text-[11px] text-[var(--color-text-faint)]">Offers can only be sent once every round here is Cleared, unless an HR override reason is given. LinkedIn / Naukri: post manually for now and record the source on each candidate.</p>
         </div>
         {err && <div className="lg:col-span-2"><Notice>{err}</Notice></div>}
-        <div className="flex justify-end gap-2 lg:col-span-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Saving…" : o.name ? "Save" : "Create opening"}</Button></div>
+        <div className="flex justify-end gap-2 lg:col-span-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Saving…" : o.name ? "Save" : "Create Opening"}</Button></div>
       </form>
     </Modal>
   );

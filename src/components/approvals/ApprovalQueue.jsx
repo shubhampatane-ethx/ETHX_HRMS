@@ -92,9 +92,9 @@ export function DecideModal({ kind, row, approve, onClose, onDone }) {
       <form onSubmit={submit} className="space-y-3">
         <p className="text-[13px] text-[var(--color-text-muted)]">{summary}</p>
         {approve ? (
-          kind === "leave" && <Field label="Note (optional)"><textarea rows={2} className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} /></Field>
+          kind === "leave" && <Field label="Note (Optional)"><textarea rows={2} className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} /></Field>
         ) : (
-          <Field label="Reason for rejection (required - the employee sees it)">
+          <Field label="Reason for Rejection (Required - The Employee Sees It)">
             <textarea required minLength={min} rows={3} className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} placeholder={kind === "expense" ? "e.g. Receipt is unreadable / amount exceeds policy" : "e.g. Project deadline that week - please pick other dates"} />
           </Field>
         )}

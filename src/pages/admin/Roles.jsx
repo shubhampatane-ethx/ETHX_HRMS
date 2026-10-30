@@ -208,7 +208,7 @@ function ApplyEverything() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
   async function run() {
-    if (!(await confirmDialog({ title: "Apply permissions", message: "Add every missing permission for HR Manager, HR User, Projects Manager, Employee, Contractor and Interviewer? Existing permissions are not removed.", confirmLabel: "Apply everything" }))) return;
+    if (!(await confirmDialog({ title: "Apply Permissions", message: "Add every missing permission for HR Manager, HR User, Projects Manager, Employee, Contractor and Interviewer? Existing permissions are not removed.", confirmLabel: "Apply Everything" }))) return;
     setBusy(true);
     setMsg(null);
     let applied = 0;
@@ -461,7 +461,7 @@ function EmployeeRestrictions() {
             <li key={r.name} className="flex items-center justify-between gap-3 py-2.5 text-[13px]">
               <span className="min-w-0"><span className="text-[var(--color-text)]">{r.employee_name}</span><span className="ml-2 text-[11px] text-[var(--color-text-faint)]">{r.user_id}</span></span>
               {r.hasEmployee && r.hasCompany ? <span className="flex items-center gap-1 text-[12px] text-[var(--color-green)]"><Check size={14} /> Restricted</span>
-                : <button type="button" disabled={busy} onClick={() => fix([r])} className="text-[12px] text-[var(--color-red-hover)] hover:underline disabled:opacity-50">Not restricted - fix</button>}
+                : <button type="button" disabled={busy} onClick={() => fix([r])} className="text-[12px] text-[var(--color-red-hover)] hover:underline disabled:opacity-50">Not Restricted - Fix</button>}
             </li>
           ))}
         </ul>

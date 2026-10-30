@@ -50,7 +50,7 @@ export function EmpTimesheet() {
 
   return (
     <>
-      <PageHeader icon={CalendarDays} title="Timesheet" subtitle="Fill in your hours for the week - projects and the work you did - and submit it for review" actions={<Button onClick={() => setEditor({})}><CalendarDays size={14} /> Weekly timesheet</Button>} />
+      <PageHeader icon={CalendarDays} title="Timesheet" subtitle="Fill in your hours for the week - projects and the work you did - and submit it for review" actions={<Button onClick={() => setEditor({})}><CalendarDays size={14} /> Weekly Timesheet</Button>} />
       {err && <Notice>{err}</Notice>}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         <Panel title="Assigned Tasks" hint="Open tasks assigned to you" className="lg:col-span-1">
@@ -437,7 +437,7 @@ function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, on
             {!editName && <button type="button" title="Previous week" onClick={() => move(-1)} className="rounded p-1.5 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]"><ChevronLeft size={16} /></button>}
             <span className="min-w-[11rem] text-center text-[14px] font-semibold text-[var(--color-text)]">{weekLabel(ws)}</span>
             {!editName && <button type="button" title="Next week" onClick={() => move(1)} className="rounded p-1.5 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]"><ChevronRight size={16} /></button>}
-            {!editName && ws !== mondayOf(today) && <button type="button" onClick={() => move(Math.round((fromIso(mondayOf(today)) - fromIso(ws)) / (7 * 86400000)))} className="text-[11px] text-[var(--color-red-hover)] hover:underline">This week</button>}
+            {!editName && ws !== mondayOf(today) && <button type="button" onClick={() => move(Math.round((fromIso(mondayOf(today)) - fromIso(ws)) / (7 * 86400000)))} className="text-[11px] text-[var(--color-red-hover)] hover:underline">This Week</button>}
             <StatusPill status={status} />
           </div>
           <div className="min-w-[14rem]">
@@ -459,7 +459,7 @@ function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, on
               <colgroup><col className="w-[320px]" />{days.map((d) => <col key={d.date} />)}<col className="w-[64px]" /><col className="w-[64px]" /></colgroup>
               <thead className="bg-[var(--color-surface)]">
                 <tr className="border-b border-[var(--color-border)] text-[var(--color-text-muted)]">
-                  <th className="px-3 py-2 text-left font-medium">Project · task · work done</th>
+                  <th className="px-3 py-2 text-left font-medium">Project · Task · Work Done</th>
                   {days.map((d) => (
                     <th key={d.date} title={d.label || undefined} className={`px-1 py-2 text-center font-medium ${d.date === today ? "text-[var(--color-red-hover)]" : ""} ${d.off || (d.leave && !d.leave.half) ? "bg-[var(--color-surface-2)]" : ""}`}>
                       <span className="block">{WEEKDAYS[d.wd]} {fromIso(d.date).getDate()}</span>
@@ -505,7 +505,7 @@ function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, on
                   );
                 })}
                 <tr className="border-b border-[var(--color-border)]">
-                  <td colSpan={10} className="px-3 py-2"><button type="button" onClick={() => change((v) => [...v, newRow()])} className="flex items-center gap-1 text-[12px] text-[var(--color-red-hover)] hover:underline"><Plus size={13} /> Add line</button></td>
+                  <td colSpan={10} className="px-3 py-2"><button type="button" onClick={() => change((v) => [...v, newRow()])} className="flex items-center gap-1 text-[12px] text-[var(--color-red-hover)] hover:underline"><Plus size={13} /> Add Line</button></td>
                 </tr>
                 <tr className="bg-[var(--color-surface)] text-[var(--color-text)]">
                   <td className="px-3 py-2 text-[12px] text-[var(--color-text-muted)]">Daily total</td>
@@ -524,7 +524,7 @@ function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, on
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" variant="secondary" onClick={copyLastWeek} disabled={Boolean(busy) || waiting}><Copy size={14} /> {busy === "copy" ? "Copying…" : "Copy last week"}</Button>
+          <Button type="button" variant="secondary" onClick={copyLastWeek} disabled={Boolean(busy) || waiting}><Copy size={14} /> {busy === "copy" ? "Copying…" : "Copy Last Week"}</Button>
           <Button type="button" variant="secondary" onClick={() => fillFromAssignments(false)} disabled={waiting || assigned.loading || !assignments.length} title="Lines and hours from the projects your Project Manager assigned to you"><Wand2 size={14} /> From my assignments ({assignments.length})</Button>
           <input ref={fileInput} type="file" accept=".csv,text/csv" className="hidden" onChange={importCsv} />
           <Button type="button" variant="ghost" onClick={() => fileInput.current?.click()}><Upload size={14} /> Import CSV</Button>
@@ -539,8 +539,8 @@ function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, on
         {err && <Notice>{err}</Notice>}
         <div className="flex justify-end gap-2 border-t border-[var(--color-border)] pt-3">
           <Button type="button" variant="ghost" onClick={async () => { if (!dirty || (await confirmDialog("Close without saving your changes?"))) onClose(); }}>Cancel</Button>
-          <Button type="button" variant="secondary" disabled={Boolean(busy) || waiting} onClick={() => save(false)}>{busy === "draft" ? "Saving…" : "Save draft"}</Button>
-          <Button type="button" disabled={Boolean(busy) || waiting} onClick={() => save(true)}><Send size={14} /> {busy === "submit" ? "Submitting…" : "Submit week"}</Button>
+          <Button type="button" variant="secondary" disabled={Boolean(busy) || waiting} onClick={() => save(false)}>{busy === "draft" ? "Saving…" : "Save Draft"}</Button>
+          <Button type="button" disabled={Boolean(busy) || waiting} onClick={() => save(true)}><Send size={14} /> {busy === "submit" ? "Submitting…" : "Submit Week"}</Button>
         </div>
       </div>
     </Modal>

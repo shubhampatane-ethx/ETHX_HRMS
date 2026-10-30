@@ -8,9 +8,9 @@ import BrandStudio from "./BrandStudio";
 const PLATFORM = [
   { to: "/admin/users", label: "HR Users", hint: "Create and manage HR accounts", icon: UserCog },
   { to: "/admin/users?tab=project-managers", label: "Project Managers", hint: "Who can assign projects", icon: ClipboardList },
-  { to: "/admin/organization", label: "Organization & approvers", hint: "Companies, leave and expense approvers", icon: Building2 },
-  { to: "/admin/organization?tab=expense", label: "Expense approvers", hint: "Who approves each expense type", icon: Receipt },
-  { to: "/admin/organization?tab=leave", label: "Leave approvers", hint: "Approvers per business unit", icon: CalendarCheck },
+  { to: "/admin/organization", label: "Organization & Approvers", hint: "Companies, leave and expense approvers", icon: Building2 },
+  { to: "/admin/organization?tab=expense", label: "Expense Approvers", hint: "Who approves each expense type", icon: Receipt },
+  { to: "/admin/organization?tab=leave", label: "Leave Approvers", hint: "Approvers per business unit", icon: CalendarCheck },
   { to: "/admin/roles", label: "Roles & Permissions", hint: "What HR, Project Managers and employees may do", icon: ShieldCheck },
   { to: "/admin/setup", label: "System Setup", hint: "Custom fields and server rules", icon: Wrench },
   { to: "/admin/audit-logs", label: "Audit Logs", hint: "Who changed what", icon: ScrollText },

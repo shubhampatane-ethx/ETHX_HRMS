@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { Lock, Search, ShieldCheck } from "lucide-react";
-import { Async, chipCls, CONTRACTOR_NAV, Empty, EMPLOYEE_NAV, inputCls, Notice, Panel } from "../../components/employee/EmployeeShell";
+import { ListChecks, Lock, Search, ShieldCheck } from "lucide-react";
+import { Async, chipCls, CONTRACTOR_NAV, Empty, EMPLOYEE_NAV, inputCls, Notice, PageHeader, Panel } from "../../components/employee/EmployeeShell";
 import { Button } from "../../components/ui/primitives";
 import { hrNav } from "../../components/layout/HRLayout";
 import { pmNav } from "../../components/layout/PMLayout";
@@ -56,6 +56,7 @@ export default function PageAccess() {
 
   return (
     <div className="space-y-5">
+      <PageHeader icon={ListChecks} title="Access Control" subtitle="Choose what each person can open" />
       <Notice tone="info">Every page a person's role allows is ticked by default. Untick a page to remove it from their menu and block it. To open pages outside their role (such as HR pages), give them that role. Changes apply the next time they sign in.</Notice>
       <Async state={data}>
         {({ ready }) => (!ready ? <Notice>Access Control isn't set up yet. Run <b>System Setup › Run setup</b> first.</Notice> : (

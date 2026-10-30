@@ -269,14 +269,14 @@ export function ChangePasswordForm({ forced = false, onCancel }) {
   const type = show ? "text" : "password";
   return (
     <form onSubmit={submit} className="space-y-3">
-      <Field label={forced ? "Temporary password (from HR)" : "Current password"}><input type={type} required autoComplete="current-password" className={inputCls} value={f.current} onChange={set("current")} /></Field>
-      <Field label="New password" hint="At least 8 characters. Use a mix of letters, numbers and symbols."><input type={type} required autoComplete="new-password" className={inputCls} value={f.next} onChange={set("next")} /></Field>
-      <Field label="Confirm new password"><input type={type} required autoComplete="new-password" className={inputCls} value={f.confirm} onChange={set("confirm")} /></Field>
+      <Field label={forced ? "Temporary Password (From HR)" : "Current Password"}><input type={type} required autoComplete="current-password" className={inputCls} value={f.current} onChange={set("current")} /></Field>
+      <Field label="New Password" hint="At least 8 characters. Use a mix of letters, numbers and symbols."><input type={type} required autoComplete="new-password" className={inputCls} value={f.next} onChange={set("next")} /></Field>
+      <Field label="Confirm New Password"><input type={type} required autoComplete="new-password" className={inputCls} value={f.confirm} onChange={set("confirm")} /></Field>
       <label className="flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><input type="checkbox" checked={show} onChange={(e) => setShow(e.target.checked)} /> Show passwords</label>
       {err && <Notice>{err}</Notice>}
       <div className="flex justify-end gap-2 pt-1">
         {onCancel && <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>}
-        <Button type="submit" disabled={busy}>{busy ? "Saving…" : forced ? "Set password & continue" : "Change password"}</Button>
+        <Button type="submit" disabled={busy}>{busy ? "Saving…" : forced ? "Set Password & Continue" : "Change Password"}</Button>
       </div>
     </form>
   );
@@ -292,7 +292,7 @@ export function ForcedPasswordScreen() {
         <p className="mb-5 mt-1.5 text-[13px] text-[var(--color-text-muted)]">You signed in with a temporary password from HR. Choose a new one to continue.</p>
         <ChangePasswordForm forced />
       </div>
-      <button type="button" onClick={logout} className="mt-5 text-[12px] text-[var(--color-text-muted)] hover:text-[var(--color-text)]">Sign out</button>
+      <button type="button" onClick={logout} className="mt-5 text-[12px] text-[var(--color-text-muted)] hover:text-[var(--color-text)]">Sign Out</button>
     </div>
   );
 }

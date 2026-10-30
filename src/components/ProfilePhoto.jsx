@@ -3,6 +3,7 @@ import { Camera, Loader2, X, ZoomIn, ZoomOut } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { frappe } from "../lib/api/frappeClient";
 import { errMsg } from "../lib/employeePortal";
+import { titleName } from "../lib/names";
 
 const VIEW = 280; // crop window size on screen (px)
 const OUT = 512; // saved photo size (px)
@@ -10,7 +11,7 @@ const MAX_SOURCE = 10 * 1024 * 1024; // the photo is resized before upload, so t
 
 /** Display name for the signed-in account: ERPNext full name, falling back to the email. */
 export function displayName(user) {
-  return user?.fullName || user?.email || "";
+  return titleName(user?.fullName) || user?.email || "";
 }
 
 export function initials(name) {
@@ -75,7 +76,7 @@ export function ProfileAvatar({ size = 40, editable = false, className = "" }) {
   );
 }
 
-/** Drag to position, slider to zoom, then "Save photo" uploads a square JPEG and sets it as the User image. */
+/** Drag to position, slider to zoom, then "Save Photo" uploads a square JPEG and sets it as the User image. */
 function CropDialog({ file, onClose }) {
   const { user, setProfileImage } = useAuth();
   const [url, setUrl] = useState("");
@@ -195,7 +196,7 @@ function CropDialog({ file, onClose }) {
           <button type="button" onClick={onClose} disabled={busy} className="rounded-md border border-[var(--color-border-strong)] px-3.5 py-2 text-[13px] text-[var(--color-text)] transition-colors hover:bg-[var(--color-surface-2)] disabled:opacity-50">Cancel</button>
           <button type="button" onClick={save} disabled={busy || !natural} className="flex items-center gap-2 rounded-md bg-[var(--color-red)] px-3.5 py-2 text-[13px] font-medium text-white transition-colors hover:bg-[var(--color-red-hover)] disabled:opacity-60">
             {busy && <Loader2 size={14} className="animate-spin" />}
-            {busy ? "Saving…" : "Save photo"}
+            {busy ? "Saving…" : "Save Photo"}
           </button>
         </div>
       </div>

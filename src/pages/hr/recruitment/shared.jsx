@@ -51,7 +51,7 @@ export function SetupHint() {
   return (
     <Notice>
       Recruitment isn't fully set up yet (pipeline stages, CTC, offer approval and retention fields are missing).{" "}
-      {user?.email === "Administrator" ? <Link to="/hr/recruitment/setup" className="underline">Run the one-time setup</Link> : "Ask the Administrator to open HR › Recruitment › Setup and run it."}
+      {user?.email === "Administrator" ? <Link to="/hr/recruitment/setup" className="underline">Run the One-Time Setup</Link> : "Ask the Administrator to open HR › Recruitment › Setup and run it."}
     </Notice>
   );
 }
@@ -139,7 +139,7 @@ export function CandidateModal({ applicant, openings, defaultOpening, onClose, o
     <Modal title={edit ? `Edit ${a.applicant_name}` : "Add candidate"} onClose={onClose} wide>
       <form onSubmit={submit} className="space-y-3">
         <Row>
-          <Field label="Full name"><input required className={inputCls} value={f.applicant_name} onChange={set("applicant_name")} /></Field>
+          <Field label="Full Name"><input required className={inputCls} value={f.applicant_name} onChange={set("applicant_name")} /></Field>
           <Field label="Opening">
             <select className={inputCls} value={f.job_title} onChange={set("job_title")}>
               <option value="">General / talent pool</option>
@@ -162,23 +162,23 @@ export function CandidateModal({ applicant, openings, defaultOpening, onClose, o
               {["Careers Page", "LinkedIn", "Naukri", "Employee Referral", "Agency", "Walk In", "Campaign"].map((s) => <option key={s}>{s}</option>)}
             </select>
           </Field>
-          {f.source === "Employee Referral" ? <LinkField label="Referred by (employee)" linkDoctype="Employee" value={f.source_name} onChange={(v) => setF({ ...f, source_name: v })} frappe={frappe} /> : <Field label="Current company"><input className={inputCls} value={f.custom_current_company} onChange={set("custom_current_company")} /></Field>}
+          {f.source === "Employee Referral" ? <LinkField label="Referred by (Employee)" linkDoctype="Employee" value={f.source_name} onChange={(v) => setF({ ...f, source_name: v })} frappe={frappe} /> : <Field label="Current Company"><input className={inputCls} value={f.custom_current_company} onChange={set("custom_current_company")} /></Field>}
         </Row>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Field label="Experience (yrs)"><input type="number" min="0" step="0.5" className={inputCls} value={f.custom_total_experience} onChange={set("custom_total_experience")} /></Field>
-          <Field label="Notice (days)"><input type="number" min="0" className={inputCls} value={f.custom_notice_days} onChange={set("custom_notice_days")} /></Field>
-          <Field label="Current CTC (₹/yr)"><input type="number" min="0" className={inputCls} value={f.custom_current_ctc} onChange={set("custom_current_ctc")} /></Field>
-          <Field label="Expected CTC (₹/yr)"><input type="number" min="0" className={inputCls} value={f.custom_expected_ctc} onChange={set("custom_expected_ctc")} /></Field>
+          <Field label="Experience (Yrs)"><input type="number" min="0" step="0.5" className={inputCls} value={f.custom_total_experience} onChange={set("custom_total_experience")} /></Field>
+          <Field label="Notice (Days)"><input type="number" min="0" className={inputCls} value={f.custom_notice_days} onChange={set("custom_notice_days")} /></Field>
+          <Field label="Current CTC (₹/Yr)"><input type="number" min="0" className={inputCls} value={f.custom_current_ctc} onChange={set("custom_current_ctc")} /></Field>
+          <Field label="Expected CTC (₹/Yr)"><input type="number" min="0" className={inputCls} value={f.custom_expected_ctc} onChange={set("custom_expected_ctc")} /></Field>
         </div>
         <Row>
-          <Field label="Current location"><input className={inputCls} value={f.custom_location} onChange={set("custom_location")} /></Field>
-          <Field label="Key skills" hint="Comma separated"><input className={inputCls} value={f.custom_skills} onChange={set("custom_skills")} placeholder="Oracle Fusion, SQL, OIC" /></Field>
+          <Field label="Current Location"><input className={inputCls} value={f.custom_location} onChange={set("custom_location")} /></Field>
+          <Field label="Key Skills" hint="Comma separated"><input className={inputCls} value={f.custom_skills} onChange={set("custom_skills")} placeholder="Oracle Fusion, SQL, OIC" /></Field>
         </Row>
         <Row>
           <Field label={a.resume_attachment ? "Replace CV" : "CV (PDF / Word)"}><input type="file" accept=".pdf,.doc,.docx" className={inputCls} onChange={(e) => setFile(e.target.files?.[0] || null)} /></Field>
-          <Field label="Or CV / profile link"><input className={inputCls} value={f.resume_link} onChange={set("resume_link")} placeholder="https://" /></Field>
+          <Field label="Or CV / Profile Link"><input className={inputCls} value={f.resume_link} onChange={set("resume_link")} placeholder="https://" /></Field>
         </Row>
-        <Field label="Cover note (optional)"><textarea rows={2} className={inputCls} value={f.cover_letter} onChange={set("cover_letter")} /></Field>
+        <Field label="Cover Note (Optional)"><textarea rows={2} className={inputCls} value={f.cover_letter} onChange={set("cover_letter")} /></Field>
         {(!edit || !a.custom_consent) && (
           <label className="flex items-start gap-2 text-[12px] text-[var(--color-text-muted)]">
             <input type="checkbox" className="mt-0.5" checked={f.consent} onChange={(e) => setF({ ...f, consent: e.target.checked })} />
@@ -225,7 +225,7 @@ export function MoveStageModal({ applicant, to, opening, onClose, onSaved }) {
       <form onSubmit={submit} className="space-y-3">
         <p className="text-[12px] text-[var(--color-text-muted)]">{ALL_STAGES.find((s) => s.id === to)?.hint}</p>
         {needsReason && <Field label={to === "Hold" ? "Why on hold?" : "Reason"}><textarea required rows={2} className={inputCls} value={reason} onChange={(e) => setReason(e.target.value)} /></Field>}
-        <Field label="Note for the timeline (optional)"><input className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} /></Field>
+        <Field label="Note for the Timeline (Optional)"><input className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} /></Field>
         {to === "Rejected" && <label className="flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><input type="checkbox" checked={regret} onChange={(e) => setRegret(e.target.checked)} /> Email a polite regret note to {applicant.email_id}</label>}
         {["Rejected", "Withdrawn", "Hold"].includes(to) && <p className="text-[11px] text-[var(--color-text-faint)]">The candidate's data will be kept for 12 months, then it can be anonymised from Recruitment › Setup.</p>}
         {warn ? <><Notice tone="info">{warn}</Notice><div className="flex justify-end"><Button type="button" onClick={onSaved}>Close</Button></div></> : <>{err && <Notice>{err}</Notice>}<Buttons onClose={onClose} busy={busy} label={`Move to ${to}`} /></>}
@@ -309,7 +309,7 @@ export function ScheduleModal({ applicant, opening, interview, onClose, onSaved 
         </div>
         <Row>
           <Field label="Mode"><select className={inputCls} value={f.mode} onChange={(e) => setF({ ...f, mode: e.target.value })}>{["Video call", "In person", "Phone"].map((m) => <option key={m}>{m}</option>)}</select></Field>
-          <Field label={f.mode === "In person" ? "Location" : "Meeting link"}><input className={inputCls} value={f.link} onChange={(e) => setF({ ...f, link: e.target.value })} placeholder={f.mode === "In person" ? "Office, room" : "Teams / Meet link"} /></Field>
+          <Field label={f.mode === "In person" ? "Location" : "Meeting Link"}><input className={inputCls} value={f.link} onChange={(e) => setF({ ...f, link: e.target.value })} placeholder={f.mode === "In person" ? "Office, room" : "Teams / Meet link"} /></Field>
         </Row>
         <Field label="Panel" hint="Interviewers get access to this candidate's profile.">
           <div className="max-h-40 overflow-y-auto rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] p-2">
@@ -452,15 +452,15 @@ export function OfferModal({ applicant, opening, offer, amendFrom, onClose, onSa
           <LinkField label="Company" linkDoctype="Company" value={f.company} onChange={(v) => setF({ ...f, company: v })} required frappe={frappe} />
         </Row>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-          <Field label="Offered CTC (₹/yr)"><input type="number" min="0" required className={inputCls} value={f.ctc} onChange={(e) => setF({ ...f, ctc: e.target.value })} /></Field>
-          <DateField label="Offer date" value={f.offer_date} onChange={(v) => setF({ ...f, offer_date: v })} required />
-          <DateField label="Joining date" value={f.joining} onChange={(v) => setF({ ...f, joining: v })} required />
-          <DateField label="Valid till" value={f.valid_till} onChange={(v) => setF({ ...f, valid_till: v })} required />
+          <Field label="Offered CTC (₹/Yr)"><input type="number" min="0" required className={inputCls} value={f.ctc} onChange={(e) => setF({ ...f, ctc: e.target.value })} /></Field>
+          <DateField label="Offer Date" value={f.offer_date} onChange={(v) => setF({ ...f, offer_date: v })} required />
+          <DateField label="Joining Date" value={f.joining} onChange={(v) => setF({ ...f, joining: v })} required />
+          <DateField label="Valid Till" value={f.valid_till} onChange={(v) => setF({ ...f, valid_till: v })} required />
         </div>
         {(applicant.custom_expected_ctc || applicant.custom_current_ctc) && <p className="text-[11px] text-[var(--color-text-faint)]">Candidate: current {applicant.custom_current_ctc || "—"} · expected {applicant.custom_expected_ctc || "—"}</p>}
-        <LinkField label="Offer terms template (optional)" linkDoctype="Job Offer Term Template" value={f.template} onChange={(v) => setF({ ...f, template: v })} frappe={frappe} />
-        <Field label="Terms / letter body (optional)"><textarea rows={3} className={inputCls} value={f.terms} onChange={(e) => setF({ ...f, terms: e.target.value })} /></Field>
-        {missing.length > 0 && <Field label="Override reason (required to send without all rounds cleared)"><input className={inputCls} value={f.override} onChange={(e) => setF({ ...f, override: e.target.value })} /></Field>}
+        <LinkField label="Offer Terms Template (Optional)" linkDoctype="Job Offer Term Template" value={f.template} onChange={(v) => setF({ ...f, template: v })} frappe={frappe} />
+        <Field label="Terms / Letter Body (Optional)"><textarea rows={3} className={inputCls} value={f.terms} onChange={(e) => setF({ ...f, terms: e.target.value })} /></Field>
+        {missing.length > 0 && <Field label="Override Reason (Required to Send Without All Rounds Cleared)"><input className={inputCls} value={f.override} onChange={(e) => setF({ ...f, override: e.target.value })} /></Field>}
         <p className="text-[11px] text-[var(--color-text-faint)]">The offer is saved as a draft. It then needs approval by an HR Manager other than you before it can be sent.</p>
         {err && <Notice>{err}</Notice>}
         <Buttons onClose={onClose} busy={busy} label={offer ? "Save offer" : "Save draft"} />
@@ -489,8 +489,8 @@ export function ResponseModal({ offer, onClose, onSaved }) {
     <Modal title={`Candidate's Response · ${offer.applicant_name}`} onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
         <div className="flex gap-2">{[["Accepted", "Accepted"], ["Rejected", "Declined"]].map(([v, l]) => <button key={v} type="button" onClick={() => setStatus(v)} className={`rounded-md border px-3 py-1.5 text-[12px] ${status === v ? "border-[var(--color-red)] bg-[var(--color-red-wash)] text-[var(--color-text)]" : "border-[var(--color-border)] text-[var(--color-text-muted)]"}`}>{l}</button>)}</div>
-        <DateField label="Responded on" value={date} onChange={setDate} required />
-        {status === "Rejected" && <Field label="Reason (if known)"><input className={inputCls} value={reason} onChange={(e) => setReason(e.target.value)} /></Field>}
+        <DateField label="Responded On" value={date} onChange={setDate} required />
+        {status === "Rejected" && <Field label="Reason (If Known)"><input className={inputCls} value={reason} onChange={(e) => setReason(e.target.value)} /></Field>}
         {err && <Notice>{err}</Notice>}
         <Buttons onClose={onClose} busy={busy} label="Save" />
       </form>
@@ -538,9 +538,9 @@ export function HireModal({ offer, onClose, onSaved }) {
           {d.onboarding?.docstatus === 1 && <Notice tone="info">Onboarding {d.onboarding.name} is {d.onboarding.boarding_status || "in progress"}. Mandatory onboarding tasks must be completed before the employee can be created.</Notice>}
           {d.onboarding?.docstatus === 0 && <Notice tone="info">Onboarding {d.onboarding.name} was saved as a draft but not started - check the details below and try again.</Notice>}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <DateField label="Joining date" value={f.joining} onChange={(v) => setF({ ...f, joining: v })} required />
+            <DateField label="Joining Date" value={f.joining} onChange={(v) => setF({ ...f, joining: v })} required />
             <Field label="Gender"><select required className={inputCls} value={f.gender} onChange={(e) => setF({ ...f, gender: e.target.value })}><option value="">Select…</option>{["Male", "Female", "Other", "Prefer not to say"].map((g) => <option key={g}>{g}</option>)}</select></Field>
-            <DateField label="Date of birth" value={f.dob} onChange={(v) => setF({ ...f, dob: v })} required />
+            <DateField label="Date of Birth" value={f.dob} onChange={(v) => setF({ ...f, dob: v })} required />
           </div>
           <LinkField label="Department" linkDoctype="Department" value={f.department} onChange={(v) => setF({ ...f, department: v })} frappe={frappe} />
           {d.onboarding?.docstatus !== 1 && (
@@ -551,8 +551,8 @@ export function HireModal({ offer, onClose, onSaved }) {
           )}
           {f.useOnboarding && d.onboarding?.docstatus !== 1 && (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <LinkField label="Onboarding template" linkDoctype="Employee Onboarding Template" titleField="title" value={f.template} onChange={(v) => setF({ ...f, template: v })} frappe={frappe} />
-              <LinkField label="Holiday list" linkDoctype="Holiday List" value={f.holidayList} onChange={(v) => setF({ ...f, holidayList: v })} required frappe={frappe} />
+              <LinkField label="Onboarding Template" linkDoctype="Employee Onboarding Template" titleField="title" value={f.template} onChange={(v) => setF({ ...f, template: v })} frappe={frappe} />
+              <LinkField label="Holiday List" linkDoctype="Holiday List" value={f.holidayList} onChange={(v) => setF({ ...f, holidayList: v })} required frappe={frappe} />
             </div>
           )}
           {f.useOnboarding && f.template && <p className="text-[11px] text-[var(--color-text-faint)]">With a template, the onboarding tasks are created now; come back here (or to HR › Onboarding) to create the employee once the mandatory tasks are done.</p>}
