@@ -83,7 +83,9 @@ export function AuthProvider({ children }) {
       } catch {
         // A missing profile image or name must not prevent an otherwise valid login.
       }
-      const nextUser = { email, fullName, roles, erpRoles, permissions: rolesToPermissions(roles), mustChangePassword, userImage };
+      // Pages the Administrator has blocked for this person. Before setup has run there are none.
+      const deniedPages = await frappe.callMethod("ethx_my_page_access").catch(() => []);
+      const nextUser = { email, fullName, roles, erpRoles, permissions: rolesToPermissions(roles), mustChangePassword, userImage, deniedPages: Array.isArray(deniedPages) ? deniedPages : [] };
       setUser(nextUser);
       setStatus("authenticated");
       return nextUser;

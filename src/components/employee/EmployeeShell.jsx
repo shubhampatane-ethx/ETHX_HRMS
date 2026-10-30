@@ -298,7 +298,7 @@ export function ForcedPasswordScreen() {
 }
 
 /* ===== EmployeeLayout.jsx ===== */
-const NAV = [
+export const EMPLOYEE_NAV = [
   { to: "/employee", label: "Dashboard", icon: LayoutDashboard },
   {
     label: "Time & Attendance",
@@ -361,11 +361,11 @@ const INTERVIEWS_NAV = { to: "/employee/interviews", label: "My Interviews" };
 const PROFILE_NAV = { to: "/employee/profile", label: "My Profile" };
 
 function navFor(user) {
-  if (!(user?.erpRoles || []).includes("Interviewer")) return NAV;
-  return NAV.map((n) => (n.label === "Approvals & Team" ? { ...n, children: [...n.children, INTERVIEWS_NAV] } : n));
+  if (!(user?.erpRoles || []).includes("Interviewer")) return EMPLOYEE_NAV;
+  return EMPLOYEE_NAV.map((n) => (n.label === "Approvals & Team" ? { ...n, children: [...n.children, INTERVIEWS_NAV] } : n));
 }
 
-const flat = [...NAV, INTERVIEWS_NAV, PROFILE_NAV].flatMap((n) => (n.children ? n.children : [n]));
+const flat = [...EMPLOYEE_NAV, INTERVIEWS_NAV, PROFILE_NAV].flatMap((n) => (n.children ? n.children : [n]));
 function titleFor(pathname) {
   const match = [...flat].sort((a, b) => b.to.length - a.to.length).find((n) => pathname === n.to || pathname.startsWith(`${n.to}/`));
   return match?.label ?? "Employee Portal";
@@ -386,7 +386,7 @@ function Gate() {
   return <Suspense fallback={<PageLoading />}><Outlet /></Suspense>;
 }
 
-const CONTRACTOR_NAV = [
+export const CONTRACTOR_NAV = [
   { to: "/contractor", label: "My Projects", icon: Briefcase },
   { to: "/contractor/timesheet", label: "Timesheet", icon: Timer },
 ];

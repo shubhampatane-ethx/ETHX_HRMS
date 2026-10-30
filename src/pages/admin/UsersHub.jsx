@@ -3,11 +3,13 @@ import { Tabs } from "../../components/employee/EmployeeShell";
 import AdminUsers from "./Users";
 import ProjectManagers from "./ProjectManagers";
 import Employees from "../hr/Employees";
+import PageAccess from "./PageAccess";
 
 const TABS = [
   { id: "hr", label: "HR Users" },
   { id: "employees", label: "All Employees" },
   { id: "project-managers", label: "Project Managers" },
+  { id: "page-access", label: "Page Access" },
 ];
 
 /** One "Users" page: HR users, every employee, and Project Managers as tabs (?tab=employees etc.). */
@@ -21,6 +23,7 @@ export default function UsersHub() {
       {tab === "hr" && <AdminUsers />}
       {tab === "employees" && <Employees />}
       {tab === "project-managers" && <ProjectManagers />}
+      {tab === "page-access" && <PageAccess />}
     </div>
   );
 }

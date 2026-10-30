@@ -4,6 +4,7 @@ import { Check, ChevronDown, LogOut, Palette, Settings, SlidersHorizontal, UserR
 import { useAuth } from "../../context/AuthContext";
 import { useBranding } from "../../context/BrandingContext";
 import { hasPermission } from "../../permissions/roles";
+import { isPageBlocked } from "../../permissions/pageAccess";
 import { getSavedTheme, hasSavedTheme, saveTheme, THEME_OPTIONS } from "../../lib/theme";
 import { displayName, initials, ProfileAvatar } from "../ProfilePhoto";
 
@@ -117,7 +118,7 @@ export function Topbar({ roleLabel, pageTitle }) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const box = useRef(null);
-  const items = accountMenu(user, roleLabel);
+  const items = accountMenu(user, roleLabel).filter((i) => !isPageBlocked(user, i.to));
 
   useOutside(open, box, () => setOpen(false));
 

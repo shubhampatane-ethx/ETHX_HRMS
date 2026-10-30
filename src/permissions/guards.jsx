@@ -1,13 +1,15 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { hasPermission } from "./roles";
+import { isPageBlocked } from "./pageAccess";
 
 export function RequireAuth() {
-  const { status } = useAuth();
+  const { status, user } = useAuth();
   const location = useLocation();
 
   if (status === "loading") return <FullScreenLoader />;
   if (status === "guest") return <Navigate to="/login" state={{ from: location }} replace />;
+  if (isPageBlocked(user, location.pathname)) return <Navigate to="/unauthorized" replace />;
   return <Outlet />;
 }
 

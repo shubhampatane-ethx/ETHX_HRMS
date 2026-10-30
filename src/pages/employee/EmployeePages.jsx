@@ -6,6 +6,7 @@ import { Async, ChangePasswordForm, chipCls, Empty, ErrorState, Field, Grid, inp
 import { CONTACTS, createRequest, daysBetween, daysUntil, dmy, dmyHm, errMsg, EXPIRY_WARN_DAYS, getAcknowledged, getAnnouncements, getAppraisals, getApprovals, getAttendanceHistory, getAttendanceRequests, getBenefitClaims, getCheckinsBetween, getEvents, getExpenseClaims, getFeedback, getGoals, getHelpArticles, getHolidays, getLeaveApplications, getLeaveBalance, getLeaveTypes, getMyAssets, getMyDocuments, getMyLeavesBetween, getMyTraining, getNotifications, getPayslips, getPolicies, getRequests, getShiftAssignments, getTeamAvailability, getTodayAttendance, hm, hoursLabel, isoDate, LETTER_TYPES, money, MONTHS, MONTHS_LONG, nowStamp, pad, REQUEST_CATEGORIES, stripHtml, summariseCheckins, useAsync, WEEKDAYS } from "../../lib/employeePortal";
 import { useAuth } from "../../context/AuthContext";
 import { hasPermission } from "../../permissions/roles";
+import { isPageBlocked } from "../../permissions/pageAccess";
 
 // Workspace dashboards that HR staff / Project Managers who are also employees switch to from their one Dashboard.
 const HRDashboard = lazy(() => import("../hr/Dashboard"));
@@ -1251,6 +1252,7 @@ const PAGES = [
 ];
 
 export function EmpSearch() {
+  const { user } = useAuth();
   const { employee } = useEmployee();
   const [params, setParams] = useSearchParams();
   const q = (params.get("q") || "").trim();
@@ -1265,7 +1267,7 @@ export function EmpSearch() {
     Promise.allSettled([getHolidays(employee), getPolicies(), getMyDocuments(employee.name), getHelpArticles(q)]).then(([h, p, d, a]) => {
       if (off) return;
       setRes({
-        pages: PAGES.filter(([, label]) => has(label)),
+        pages: PAGES.filter(([to, label]) => has(label) && !isPageBlocked(user, to)),
         holidays: h.status === "fulfilled" ? h.value.holidays.filter((x) => !x.weeklyOff && has(x.description)) : [],
         policies: p.status === "fulfilled" ? p.value.filter((x) => has(x.file_name)) : [],
         docs: d.status === "fulfilled" ? d.value.filter((x) => has(x.file_name)) : [],

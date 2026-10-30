@@ -2,6 +2,8 @@ import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { ChevronDown } from "lucide-react";
 import { Brand } from "../Brand";
+import { useAuth } from "../../context/AuthContext";
+import { visibleNav } from "../../permissions/pageAccess";
 
 /**
  * @param {{
@@ -14,6 +16,8 @@ import { Brand } from "../Brand";
  */
 export function Sidebar({ title, items }) {
   const { pathname } = useLocation();
+  const { user } = useAuth();
+  const shown = visibleNav(user, items);
 
   return (
     <aside className="flex h-screen w-64 shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)]">
@@ -23,7 +27,7 @@ export function Sidebar({ title, items }) {
 
       <nav aria-label={title} className="flex-1 overflow-y-auto px-3 py-4">
         <ul className="space-y-0.5">
-          {items.map((item) =>
+          {shown.map((item) =>
             item.children ? (
               <GroupItem key={item.label} group={item} pathname={pathname} />
             ) : (
