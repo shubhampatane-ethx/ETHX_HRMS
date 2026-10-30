@@ -10,6 +10,7 @@ import { dmy, errMsg, isoDate, listTry, useAsync } from "../../lib/employeePorta
 import { createAssignment, listAssignments, parseAssignment, setAssignmentStatus, updateAssignment, workingDays } from "../../lib/assignments";
 import { assertManagerRuleInstalled, loadProjectRoles, managerOf, managesProject, setProjectManager } from "../../lib/projectRoles";
 import { hasPermission } from "../../permissions/roles";
+import { TeamMemberSearch } from "../../components/TeamMemberSearch";
 import { endProject, previewEndProject } from "../../lib/contractors";
 import { alertDialog, confirmDialog } from "../../components/ui/dialogs";
 
@@ -48,7 +49,7 @@ export function PMDashboard() {
 
   return (
     <>
-      <PageHeader icon={Briefcase} title="Project Manager" subtitle="Assign people to projects with a role and ETA - their timesheets fill in automatically" actions={<Link to="/pm/assignments?assign=1"><Button><Plus size={14} /> Assign Employee</Button></Link>} />
+      <PageHeader icon={Briefcase} title="Project Manager" subtitle="Assign people to projects with a role and ETA - their timesheets fill in automatically" actions={<Link to="/pm/assignments?assign=1"><Button><Plus size={14} /> Assign Team Member</Button></Link>} />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat to="/pm/projects" icon={Briefcase} label="Open Projects" value={projects.data ? openProjects.length : projects.error ? "—" : undefined} sub="Not completed or cancelled" accent="#4f8cff" />
         <Stat to="/pm/assignments" icon={ClipboardList} label="Active Assignments" value={assignments.data ? active.length : assignments.error ? "—" : undefined} sub="People on projects" accent="var(--color-green)" />
@@ -59,7 +60,7 @@ export function PMDashboard() {
         <Async state={assignments}>
           {() => active.length === 0 ? <Empty text="No active assignments yet." /> : (
             <Grid rows={active.slice(0, 8)} columns={[
-              { key: "employee", label: "Employee", render: (r) => r.employee?.employee_name || r.assignees[0] || "—" },
+              { key: "employee", label: "Team Member", render: (r) => r.employee?.employee_name || r.assignees[0] || "—" },
               { key: "projectName", label: "Project" },
               { key: "role", label: "Role" },
               { key: "eta", label: "ETA", render: (r) => <span className={r.eta < today ? "text-[var(--color-red-hover)]" : ""}>{dmy(r.eta)}</span> },
@@ -176,7 +177,7 @@ export function PMAssignments() {
   const [modal, setModal] = useState(() => (params.get("assign") ? { project: params.get("assign") === "1" ? "" : params.get("assign") } : null));
   const today = isoDate();
 
-  const shown = rows.filter((a) => (filter === "all" || (filter === "active" ? isActive(a) : filter === "completed" ? a.status === "Completed" : a.status === "Cancelled")) && (!projectFilter || a.project === projectFilter) && (!search || (a.employee?.employee_name || a.assignees[0] || "").toLowerCase().includes(search.toLowerCase())));
+  const shown = rows.filter((a) => (filter === "all" || (filter === "active" ? isActive(a) : filter === "completed" ? a.status === "Completed" : a.status === "Cancelled")) && (!projectFilter || a.project === projectFilter) && (!search || `${a.employee?.employee_name || a.assignees[0] || ""} ${a.role}`.toLowerCase().includes(search.toLowerCase())));
 
   async function setStatus(a, status, text) {
     if (!(await confirmDialog(text))) return;
@@ -197,17 +198,17 @@ export function PMAssignments() {
 
   return (
     <>
-      <PageHeader icon={ClipboardList} title="Assignments" subtitle="Who works on which project, in what role, until when" actions={<Button onClick={() => setModal({ project: projectFilter })}><Plus size={14} /> Assign Employee</Button>} />
-      <Notice tone="info">Employees see these days pre-filled in their monthly timesheet: every working day from the start date to the ETA, with the hours per day you set, minus leave and holidays.</Notice>
+      <PageHeader icon={ClipboardList} title="Assignments" subtitle="Who works on which project, in what role, until when" actions={<Button onClick={() => setModal({ project: projectFilter })}><Plus size={14} /> Assign Team Member</Button>} />
+      <Notice tone="info">Team members see these days pre-filled in their monthly timesheet: every working day from the start date to the ETA, with the hours per day you set, minus leave and holidays.</Notice>
       <Panel>
         <div className="mb-4 flex flex-wrap items-center gap-2">
           {FILTERS.map(([v, l]) => <button key={v} type="button" onClick={() => setFilter(v)} className={chipCls(filter === v)}>{l}</button>)}
           <select value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)} className={`${inputCls} !w-auto !py-1`}><option value="">All projects</option>{(projects.data || []).map((p) => <option key={p.name} value={p.name}>{projectLabel(p)}</option>)}</select>
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search employee…" className={`${inputCls} !w-48 !py-1`} />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name or role…" className={`${inputCls} !w-48 !py-1`} />
         </div>
         <Async state={assignments}>
           {() => <Grid rows={shown} empty="No assignments match." columns={[
-            { key: "employee", label: "Employee", render: (a) => a.employee?.employee_name || a.assignees[0] || "—" },
+            { key: "employee", label: "Team Member", render: (a) => a.employee?.employee_name || a.assignees[0] || "—" },
             { key: "projectName", label: "Project" },
             { key: "role", label: "Role" },
             { key: "start", label: "Period", render: (a) => `${dmy(a.start)} – ${dmy(a.eta)}` },
@@ -223,12 +224,12 @@ export function PMAssignments() {
           ]} />}
         </Async>
       </Panel>
-      {modal && <AssignModal init={modal} projects={projects.data || []} employees={employees.data || []} roles={roles} active={rows.filter(isActive)} onClose={closeModal} onSaved={(text) => { closeModal(); assignments.reload(); projects.reload(); if (text) alertDialog({ tone: "success", title: "Project Manager Set", message: text }); }} />}
+      {modal && <AssignModal init={modal} projects={projects.data || []} employees={employees.data || []} roles={roles} active={rows.filter(isActive)} history={rows} onClose={closeModal} onSaved={(text) => { closeModal(); assignments.reload(); projects.reload(); if (text) alertDialog({ tone: "success", title: "Project Manager Set", message: text }); }} />}
     </>
   );
 }
 
-function AssignModal({ init, projects, employees, roles, active, onClose, onSaved }) {
+function AssignModal({ init, projects, employees, roles, active, history, onClose, onSaved }) {
   const edit = init.edit;
   const lastDay = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0);
   const [f, setF] = useState(() => edit
@@ -241,11 +242,12 @@ function AssignModal({ init, projects, employees, roles, active, onClose, onSave
   const days = workingDays(f.start, f.eta);
   const hours = Number(f.hours) || 0;
 
-  // how booked is this employee in the same period?
+  // how booked is this person in the same period?
   const booked = f.email ? active.filter((a) => a.name !== edit?.name && a.assignees.includes(f.email) && a.start <= f.eta && a.end >= f.start).reduce((s, a) => s + a.hoursPerDay, 0) : 0;
 
   async function submit(e) {
     e.preventDefault();
+    if (!f.email) return setErr("Choose a team member.");
     if (f.eta < f.start) return setErr("The ETA can't be before the start date.");
     if (!(hours > 0 && hours <= 24)) return setErr("Hours per day must be between 0 and 24.");
     const makeManager = managesProject(roles, f.role);
@@ -275,15 +277,20 @@ function AssignModal({ init, projects, employees, roles, active, onClose, onSave
   }
 
   return (
-    <Modal title={edit ? "Edit Assignment" : "Assign Employee to a Project"} onClose={onClose} wide>
+    <Modal title={edit ? "Edit Assignment" : "Assign Team Member to a Project"} onClose={onClose} wide>
       <form onSubmit={submit} className="space-y-3">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Project">
             {edit ? <p className="py-2 text-[13px] text-[var(--color-text)]">{label}</p> : <select required className={inputCls} value={f.project} onChange={(e) => setF({ ...f, project: e.target.value })}><option value="">Select…</option>{projects.filter((p) => !["Completed", "Cancelled"].includes(p.status)).map((p) => <option key={p.name} value={p.name}>{projectLabel(p)}</option>)}</select>}
           </Field>
-          <Field label="Employee" hint={!edit ? "Only employees with a portal login can be assigned." : undefined}>
-            {edit ? <p className="py-2 text-[13px] text-[var(--color-text)]">{employees.find((x) => x.user_id === f.email)?.employee_name || f.email}</p> : <select required className={inputCls} value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })}><option value="">Select…</option>{employees.map((x) => <option key={x.name} value={x.user_id || ""} disabled={!x.user_id}>{x.employee_name}{x.designation ? ` · ${x.designation}` : ""}{x.user_id ? "" : " (no login)"}</option>)}</select>}
-          </Field>
+          {/* Not a Field: that wraps its contents in a <label>, and clicking a result would refocus the search box. */}
+          <div>
+            <p className="mb-1.5 text-[12px] text-[var(--color-text-muted)]">Team Member</p>
+            {edit
+              ? <p className="py-2 text-[13px] text-[var(--color-text)]">{employees.find((x) => x.user_id === f.email)?.employee_name || f.email}</p>
+              : <TeamMemberSearch people={employees} assignments={history} value={f.email} onChange={(email) => setF({ ...f, email })} />}
+            {!edit && <p className="mt-1 text-[11px] text-[var(--color-text-faint)]">Search by name or role. Only people with a portal login can be assigned.</p>}
+          </div>
         </div>
         <Field label="Role on This Project" hint={managesProject(roles, f.role) ? "This person will manage this project: assign its team and approve its timesheets, on this project only." : undefined}>
           <select required className={inputCls} value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })}>
@@ -298,8 +305,8 @@ function AssignModal({ init, projects, employees, roles, active, onClose, onSave
           <Field label="Hours per Day"><input type="number" min="0.25" max="24" step="0.25" required className={inputCls} value={f.hours} onChange={(e) => setF({ ...f, hours: e.target.value })} /></Field>
         </div>
         <Field label="Notes (Optional)"><textarea rows={2} className={inputCls} value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} /></Field>
-        <p className="text-[12px] text-[var(--color-text-muted)]">About <b className="text-[var(--color-text)]">{days}</b> working day(s) · <b className="text-[var(--color-text)]">{(days * hours).toFixed(1)} h</b> in total. The employee's monthly timesheet fills these days automatically.</p>
-        {booked > 0 && <Notice tone="info">This employee is already booked {booked} h/day in that period - with this assignment that becomes {booked + hours} h/day.</Notice>}
+        <p className="text-[12px] text-[var(--color-text-muted)]">About <b className="text-[var(--color-text)]">{days}</b> working day(s) · <b className="text-[var(--color-text)]">{(days * hours).toFixed(1)} h</b> in total. Their monthly timesheet fills these days automatically.</p>
+        {booked > 0 && <Notice tone="info">This team member is already booked {booked} h/day in that period - with this assignment that becomes {booked + hours} h/day.</Notice>}
         {err && <Notice>{err}</Notice>}
         <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Saving…" : edit ? "Save Changes" : "Assign"}</Button></div>
       </form>
