@@ -217,6 +217,11 @@ times = frappe.db.get_value("Shift Type", shift, ["start_time", "end_time"], as_
 frappe.response["message"] = {"shift": shift, "start": str(times.start_time), "end": str(times.end_time)} if times else None
 `;
 
+// HR's Employee Requests page moves requests to In Progress, which stock ERPNext Issues don't have.
+export const TEAM_PROPERTIES = [
+  { doc_type: "Issue", field_name: "status", property: "options", property_type: "Text", value: "Open\nIn Progress\nReplied\nOn Hold\nResolved\nClosed", what: "Issue › status can be In Progress" },
+];
+
 export const TEAM_SCRIPTS = [
   { name: "ETHX - My benefits", script_type: "API", api_method: "ethx_my_benefits", script: MY_BENEFITS_API, what: "Employees see their own insurance, benefits and benefit claims" },
   { name: "ETHX - My requests", script_type: "API", api_method: "ethx_my_requests", script: MY_REQUESTS_API, what: "Employees see the requests they raised" },

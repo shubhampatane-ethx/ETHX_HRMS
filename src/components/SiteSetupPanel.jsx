@@ -40,7 +40,7 @@ export function SiteSetupPanel() {
                 {(m.doctypes || []).map((d) => <p key={d.name} className="flex items-start gap-2"><Ok ok={!m.missingDoctypes.includes(d)} /><span>{d.what}</span></p>)}
                 {m.fields.length > 0 && <p className="flex items-start gap-2"><Ok ok={!m.missingFields.length} /> Custom fields {m.missingFields.length ? `- ${m.missingFields.length} missing` : `- ${m.fields.length} present`}</p>}
                 {m.track.length > 0 && <p className="flex items-start gap-2"><Ok ok={!m.untracked.length} /> Change history {m.untracked.length ? `- off for ${m.untracked.join(", ")}` : "- on"}</p>}
-                {(m.properties || []).length > 0 && <p className="flex items-start gap-2"><Ok ok={!m.missingProps.length} /> Field restrictions {m.missingProps.length ? `- ${m.missingProps.length} to apply` : "- applied"}</p>}
+                {(m.properties || []).length > 0 && <p className="flex items-start gap-2"><Ok ok={!m.missingProps.length} /> Field settings {m.missingProps.length ? `- ${m.missingProps.length} to apply` : "- applied"}</p>}
                 {m.scripts.map((s) => <p key={s.name} className="flex items-start gap-2"><Ok ok={s.installed} /><span>{s.what}</span></p>)}
                 {m.id === "recruitment" && <p className="flex items-start gap-2"><Ok ok={!st.missingSources.length} /> Candidate sources</p>}
               </div>

@@ -34,6 +34,7 @@ const HR_PRESET = [
   { doctype: "Employee", permlevel: 1, perms: ["read", "write"], why: "Salary and bank details (restricted to HR by System Setup)" },
   { doctype: "Timesheet", perms: ["read", "write", "create", "submit", "cancel", "amend"], why: "Review timesheets: approve, or return for correction (cancels and creates an editable copy)" },
   { doctype: "Comment", perms: ["read", "create"], why: "Timesheet approvals and return notes are stored as comments" },
+  { doctype: "Issue", perms: ["read", "write"], why: "Employee Requests: see what employees raise, update the status and close them" },
   { doctype: "Company", perms: ["read"], why: "Pick the company for an employee" },
   { doctype: "Department", perms: ["read"], why: "Pick the department" },
   { doctype: "Designation", perms: ["read"], why: "Pick the designation" },
