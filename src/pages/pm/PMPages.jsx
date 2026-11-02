@@ -10,7 +10,7 @@ import { dmy, errMsg, isoDate, listTry, useAsync } from "../../lib/employeePorta
 import { createAssignment, listAssignments, parseAssignment, setAssignmentStatus, updateAssignment, workingDays } from "../../lib/assignments";
 import { assertManagerRuleInstalled, loadProjectRoles, managerOf, managesProject, setProjectManager } from "../../lib/projectRoles";
 import { hasPermission } from "../../permissions/roles";
-import { TeamMemberSearch } from "../../components/TeamMemberSearch";
+import { matchesSearch, TeamMemberSearch } from "../../components/TeamMemberSearch";
 import { endProject, previewEndProject } from "../../lib/contractors";
 import { alertDialog, confirmDialog } from "../../components/ui/dialogs";
 
@@ -177,7 +177,7 @@ export function PMAssignments() {
   const [modal, setModal] = useState(() => (params.get("assign") ? { project: params.get("assign") === "1" ? "" : params.get("assign") } : null));
   const today = isoDate();
 
-  const shown = rows.filter((a) => (filter === "all" || (filter === "active" ? isActive(a) : filter === "completed" ? a.status === "Completed" : a.status === "Cancelled")) && (!projectFilter || a.project === projectFilter) && (!search || `${a.employee?.employee_name || a.assignees[0] || ""} ${a.role}`.toLowerCase().includes(search.toLowerCase())));
+  const shown = rows.filter((a) => (filter === "all" || (filter === "active" ? isActive(a) : filter === "completed" ? a.status === "Completed" : a.status === "Cancelled")) && (!projectFilter || a.project === projectFilter) && (!search.trim() || matchesSearch(search, { name: a.employee?.employee_name || a.assignees[0] || "", roles: [a.role, a.employee?.designation] })));
 
   async function setStatus(a, status, text) {
     if (!(await confirmDialog(text))) return;
