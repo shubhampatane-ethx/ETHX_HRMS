@@ -263,17 +263,17 @@ function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, on
     setInfo("");
   }
 
-  /** Fill one line's empty working days (not leave, not future) with the standard day minus hours logged elsewhere. */
+  /** Fill one line's empty working days (not leave) with the standard day minus hours logged elsewhere. */
   function fillRow(r) {
     const hours = { ...r.hours };
     let n = 0;
-    days.filter((d) => !d.off && !d.future && !(d.leave && !d.leave.half)).forEach((d) => {
+    days.filter((d) => !d.off && !(d.leave && !d.leave.half)).forEach((d) => {
       if (Number(hours[d.date]) > 0) return;
       const want = roundHours((d.leave?.half ? DAY_HOURS / 2 : DAY_HOURS) - (d.logged?.hours || 0) - (dayTotal(d.date) - cell(r, d.date)));
       if (want > 0) { hours[d.date] = String(want); n += 1; }
     });
     patchRow(r.id, { hours });
-    setInfo(n ? `Filled ${n} working day(s) on this line.` : "Nothing to fill - those days are full, on leave or in the future.");
+    setInfo(n ? `Filled ${n} working day(s) on this line.` : "Nothing to fill - those days are full or on leave.");
   }
 
   /** Lines from the Project Manager's assignments for this week, with the assigned hours per day. */
@@ -281,7 +281,7 @@ function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, on
     if (!assignments.length) return setInfo("You have no project assignments for this week.");
     const incoming = assignments.filter((a) => a.status !== "Cancelled").map((a) => {
       const hours = {};
-      days.filter((d) => !d.off && !d.future && !(d.leave && !d.leave.half) && a.start <= d.date && d.date <= a.end).forEach((d) => {
+      days.filter((d) => !d.off && !(d.leave && !d.leave.half) && a.start <= d.date && d.date <= a.end).forEach((d) => {
         hours[d.date] = String(roundHours(d.leave?.half ? a.hoursPerDay / 2 : a.hoursPerDay));
       });
       return { project: labelOf(a.project), task: a.role, notes: `ETA ${dmy(a.eta)}`, hours };
@@ -332,10 +332,8 @@ function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, on
       const { entries, invalid, order, ambiguous } = csvToEntries(parseCsv(reader.result));
       const incoming = [];
       let other = 0;
-      let future = 0;
       entries.forEach((x) => {
         if (x.date < from || x.date > to) { other += 1; return; }
-        if (x.date > today) { future += 1; return; }
         let r = incoming.find((y) => rowKey(y.project, y.task) === rowKey(x.project, x.task));
         if (!r) { r = { project: x.project, task: x.task, notes: x.notes || "", hours: {} }; incoming.push(r); }
         r.hours[x.date] = String(roundHours((Number(r.hours[x.date]) || 0) + Number(x.hours)));
@@ -347,7 +345,6 @@ function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, on
       setInfo([
         `Imported ${used} entr${used === 1 ? "y" : "ies"} for ${weekLabel(ws)}`,
         other && `${other} from other weeks skipped`,
-        future && `${future} future-dated skipped`,
         invalid && `${invalid} row(s) without a valid date/hours skipped`,
         order === "mdy" ? "dates read as month/day (US format)" : ambiguous ? "dates read as day/month" : null,
       ].filter(Boolean).join("; ") + ".");
@@ -364,7 +361,7 @@ function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, on
       if (any && !String(r.project || "").trim()) return { error: "Choose a project on every line that has hours." };
       if (Object.values(r.hours).some((h) => Number(h) < 0)) return { error: "Hours can't be negative." };
     }
-    for (const d of days.filter((x) => !x.future)) {
+    for (const d of days) {
       const entries = rows.filter((r) => roundHours(r.hours[d.date]) > 0);
       if (!entries.length) continue;
       const total = entries.reduce((s, r) => s + roundHours(r.hours[d.date]), 0);
@@ -489,12 +486,11 @@ function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, on
                         <input value={r.notes} onChange={(e) => patchRow(r.id, { notes: e.target.value })} placeholder="Work done this week (optional)" className={`${inp} !text-[11.5px]`} />
                       </td>
                       {days.map((d) => {
-                        const blocked = d.future;
                         const grey = (d.off && !d.weekend) || (d.leave && !d.leave.half);
                         return (
                           <td key={d.date} className={`px-1 py-2 text-center ${grey ? "bg-[var(--color-surface-2)]" : ""}`}>
-                            <input type="number" min="0" max="24" step="0.25" inputMode="decimal" disabled={blocked} value={r.hours[d.date] ?? ""} onChange={(e) => setHours(r.id, d.date, e.target.value)}
-                              aria-label={`${r.project || "Line"} ${dmy(d.date)}`} placeholder={blocked ? "" : "0"}
+                            <input type="number" min="0" max="24" step="0.25" inputMode="decimal" value={r.hours[d.date] ?? ""} onChange={(e) => setHours(r.id, d.date, e.target.value)}
+                              aria-label={`${r.project || "Line"} ${dmy(d.date)}`} placeholder="0"
                               className={`w-full rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-1 py-1.5 text-center text-[13px] text-[var(--color-text)] outline-none focus:border-[var(--color-red)] disabled:cursor-not-allowed disabled:opacity-40 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none`} />
                           </td>
                         );
@@ -534,7 +530,7 @@ function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, on
           <input ref={fileInput} type="file" accept=".csv,text/csv" className="hidden" onChange={importCsv} />
           <Button type="button" variant="ghost" onClick={() => fileInput.current?.click()}><Upload size={14} /> Import CSV</Button>
           <Button type="button" variant="ghost" onClick={async () => { if (!dirty || (await confirmDialog("Clear every line for this week?"))) change(() => [newRow()]); }}>Clear</Button>
-          <span className="text-[11px] text-[var(--color-text-faint)]">Amber totals are under the expected {DAY_HOURS} h. Greyed days are holidays or leave. Weekends are optional. Days open for entry as they arrive.</span>
+          <span className="text-[11px] text-[var(--color-text-faint)]">Amber totals are under the expected {DAY_HOURS} h. Greyed days are holidays or leave. Weekends are optional.</span>
         </div>
 
         {assignments.length > 0 && (
