@@ -1,7 +1,8 @@
 // Employee portal: Timesheet page and the weekly timesheet editor (one timesheet per week, Monday to Sunday).
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { CalendarDays, ChevronLeft, ChevronRight, Copy, Pencil, Plus, Send, Trash2, Upload, Wand2, X } from "lucide-react";
-import { Async, Grid, Modal, Notice, PageHeader, Panel, StatusPill, useEmployee } from "../../components/employee/EmployeeShell";
+import { Async, Grid, Notice, PageHeader, Panel, StatusPill, useEmployee } from "../../components/employee/EmployeeShell";
 import { Button } from "../../components/ui/primitives";
 import { useAuth } from "../../context/AuthContext";
 import { frappe } from "../../lib/api/frappeClient";
@@ -27,15 +28,64 @@ export function EmpTimesheet() {
   const { employee } = useEmployee();
   const tasks = useAsync(() => getAssignedTasks(user.email), [user.email]);
   const sheets = useAsync(() => getTimesheets(employee.name), [employee.name]);
-  const [editor, setEditor] = useState(null); // null | { name?: string }
+  const [editor, setEditor] = useState(null); // null | the week on screen, and the draft chosen from the list if any
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
+  const [note, setNote] = useState("");
+  const unsaved = useRef(false);
+  const top = useRef(null);
+  const navigate = useNavigate();
+
+  // The sidebar stays clickable beside the grid, so leaving the page with unsaved hours asks first.
+  useEffect(() => {
+    const onClick = (e) => {
+      const link = e.target.closest?.("a[href]");
+      if (!link || !unsaved.current || link.target === "_blank" || link.hasAttribute("download")) return;
+      e.preventDefault();
+      e.stopPropagation();
+      confirmDialog("You have unsaved hours on your timesheet. Leave this page and discard them?").then((ok) => {
+        if (!ok) return;
+        unsaved.current = false;
+        navigate(link.getAttribute("href"));
+      });
+    };
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
+  }, [navigate]);
+
+  // Editing from the list opens the grid further up the page, so bring it into view.
+  useEffect(() => {
+    if (editor?.name) top.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [editor?.name]);
+
+  const inWeek = (r, ws) => r.start_date <= addDays(ws, 6) && (r.end_date || r.start_date) >= ws;
+  const weekDraft = editor && (sheets.data || []).find((r) => r.docstatus === 0 && inWeek(r, editor.ws));
+  const weekSubmitted = editor && (sheets.data || []).find((r) => r.docstatus === 1 && inWeek(r, editor.ws));
+  const openName = editor?.name || weekDraft?.name;
+  const showWeek = (ws) => { setNote(""); setErr(""); setEditor({ ws }); };
+  const discardOk = async (name) => !unsaved.current || (name && name !== openName) || confirmDialog("You have unsaved hours on your timesheet. Discard them?");
+  const closeEditor = () => { unsaved.current = false; setEditor(null); };
+  async function editSheet(r) {
+    if (!(await discardOk())) return;
+    setNote("");
+    setErr("");
+    setEditor({ ws: mondayOf(r.start_date), name: r.name });
+  }
+  /** The Weekly Timesheet button opens the grid on this week, and closes it when it's open. */
+  async function toggleEditor() {
+    if (editor) {
+      if (await discardOk()) closeEditor();
+      return;
+    }
+    showWeek(mondayOf(isoDate()));
+  }
 
   async function act(name, fn, failMsg) {
     setBusy(name);
     setErr("");
     try {
       await fn();
+      setEditor((v) => (v?.name === name ? { ws: v.ws } : v));
       sheets.reload();
     } catch (e) {
       setErr(errMsg(e, failMsg));
@@ -43,15 +93,39 @@ export function EmpTimesheet() {
       setBusy("");
     }
   }
-  const submitSheet = async (name) => (await confirmDialog(`Submit ${name} to HR? You won't be able to edit it unless HR returns it to you.`)) && act(name, () => submitTimesheet(name), "Couldn't submit this timesheet.");
-  const deleteSheet = async (name) => (await confirmDialog(`Delete draft ${name}? This can't be undone.`)) && act(name, () => frappe.deleteDoc("Timesheet", name), "Couldn't delete this timesheet.");
+  const submitSheet = async (name) => (await discardOk(name)) && (await confirmDialog(`Submit ${name} to HR? You won't be able to edit it unless HR returns it to you.`)) && act(name, () => submitTimesheet(name), "Couldn't submit this timesheet.");
+  const deleteSheet = async (name) => (await discardOk(name)) && (await confirmDialog(`Delete draft ${name}? This can't be undone.`)) && act(name, () => frappe.deleteDoc("Timesheet", name), "Couldn't delete this timesheet.");
 
   const recentNames = (sheets.data || []).slice(0, 6).map((r) => r.name);
 
   return (
     <>
-      <PageHeader icon={CalendarDays} title="Timesheet" subtitle="Fill in your hours for the week - projects and the work you did - and submit it for review" actions={<Button onClick={() => setEditor({})}><CalendarDays size={14} /> Weekly Timesheet</Button>} />
+      <PageHeader icon={CalendarDays} title="Timesheet" subtitle="Fill in your hours for the week - projects and the work you did - and submit it for review" actions={<Button onClick={toggleEditor}><CalendarDays size={14} /> Weekly Timesheet</Button>} />
       {err && <Notice>{err}</Notice>}
+      {note && <Notice tone="info">{note}</Notice>}
+      {editor && <div ref={top} className="scroll-mt-4">
+        {sheets.loading && !sheets.data ? <Panel title="Weekly Timesheet"><p className="py-6 text-center text-[13px] text-[var(--color-text-muted)]">Loading timesheet…</p></Panel> : (
+          <WeeklyPanel
+            key={`${openName || "new"}|${editor.ws}`}
+            employee={employee}
+            tasks={tasks.data || []}
+            editName={openName}
+            ws={editor.ws}
+            submittedName={!openName ? weekSubmitted?.name : null}
+            recentNames={recentNames}
+            unsaved={unsaved}
+            onWeek={showWeek}
+            onClose={closeEditor}
+            onChanged={(message) => { setErr(message); sheets.reload(); }}
+            onSaved={(name, submitted) => {
+              setErr("");
+              setNote(submitted ? `${name} was submitted for review.` : `${name} was saved as a draft.`);
+              closeEditor();
+              sheets.reload();
+            }}
+          />
+        )}
+      </div>}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         <Panel title="Assigned Tasks" hint="Open tasks assigned to you" className="lg:col-span-1">
           <Async state={tasks}>
@@ -73,7 +147,7 @@ export function EmpTimesheet() {
                   {
                     key: "_a", label: "", render: (r) => r.docstatus === 0 ? (
                       <span className="flex items-center gap-3 text-[11px]">
-                        <button type="button" disabled={Boolean(busy)} onClick={() => setEditor({ name: r.name })} className="flex items-center gap-1 text-[var(--color-text-muted)] hover:text-[var(--color-text)] disabled:opacity-50"><Pencil size={12} /> Edit</button>
+                        <button type="button" disabled={Boolean(busy)} onClick={() => editSheet(r)} className="flex items-center gap-1 text-[var(--color-text-muted)] hover:text-[var(--color-text)] disabled:opacity-50"><Pencil size={12} /> Edit</button>
                         {!canSubmitWeek(r.end_date || r.start_date, isoDate()) ? <span className="text-[var(--color-text-faint)]" title="Drafts are submitted automatically after the week ends">Submit opens {dmy(weekSunday(r.end_date || r.start_date))}</span> : <button type="button" disabled={Boolean(busy)} onClick={() => submitSheet(r.name)} className="flex items-center gap-1 text-[var(--color-red-hover)] hover:underline disabled:opacity-50"><Send size={12} /> {busy === r.name ? "Working…" : "Submit"}</button>}
                         <button type="button" disabled={Boolean(busy)} onClick={() => deleteSheet(r.name)} title="Delete draft" className="text-[var(--color-text-muted)] hover:text-[var(--color-red-hover)] disabled:opacity-50"><Trash2 size={12} /></button>
                       </span>
@@ -85,17 +159,6 @@ export function EmpTimesheet() {
           </Async>
         </Panel>
       </div>
-      {editor && (
-        <WeeklyModal
-          employee={employee}
-          tasks={tasks.data || []}
-          editName={editor.name}
-          recentNames={recentNames}
-          onClose={() => setEditor(null)}
-          onChanged={() => sheets.reload()}
-          onSaved={() => { setEditor(null); sheets.reload(); }}
-        />
-      )}
     </>
   );
 }
@@ -136,25 +199,23 @@ function logsToRows(logs, ws) {
   return { rows, outside };
 }
 
-/** Loads the draft being edited (if any), then opens the editor on its week. */
-function WeeklyModal(props) {
-  const { editName, onClose } = props;
+/** Loads the week's draft (if any), then shows the editor. */
+function WeeklyPanel(props) {
+  const { editName } = props;
   const doc = useAsync(() => (editName ? frappe.getDoc("Timesheet", editName) : Promise.resolve(null)), [editName]);
   if (editName && !doc.data) {
     return (
-      <Modal title={`Edit ${editName}`} onClose={onClose} wide="xl">
+      <Panel title="Weekly Timesheet" hint={`Editing ${editName}`}>
         {doc.error ? <Notice>{friendlyError(doc.error)}</Notice> : <p className="py-6 text-center text-[13px] text-[var(--color-text-muted)]">Loading timesheet…</p>}
-      </Modal>
+      </Panel>
     );
   }
   return <WeeklyEditor {...props} doc={doc.data} />;
 }
 
-function initialState(doc) {
-  if (!doc) return { ws: mondayOf(isoDate()), rows: [], outside: [] };
-  const start = String(doc.start_date || (doc.time_logs || [])[0]?.from_time || isoDate()).slice(0, 10);
-  const ws = mondayOf(start);
-  return { ws, ...logsToRows(doc.time_logs, ws) };
+function initialState(doc, ws) {
+  if (!doc) return { rows: [], outside: [] };
+  return logsToRows(doc.time_logs, ws);
 }
 
 /**
@@ -162,14 +223,14 @@ function initialState(doc) {
  * daily and weekly totals against the expected hours. Leave, holidays and weekly offs are greyed out;
  * hours already in another timesheet are counted and new entries are placed after them.
  */
-function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, onChanged, onSaved }) {
+function WeeklyEditor({ employee, tasks, editName, doc, ws, submittedName, recentNames, unsaved, onWeek, onClose, onChanged, onSaved }) {
   const emp = employee.name;
   const storeKey = `ts-projects:${emp}`;
   const today = isoDate();
-  const [init] = useState(() => initialState(doc));
-  const [ws, setWs] = useState(init.ws);
+  const [init] = useState(() => initialState(doc, ws));
   const [rows, setRows] = useState(() => (init.rows.length ? init.rows : [newRow()]));
   const [dirty, setDirty] = useState(false);
+  useEffect(() => { unsaved.current = dirty; }, [dirty, unsaved]);
   const [savedName, setSavedName] = useState(editName || null);
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
@@ -255,12 +316,7 @@ function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, on
 
   async function move(delta) {
     if (dirty && !(await confirmDialog("You have unsaved entries for this week. Switch week and discard them?"))) return;
-    setWs(addDays(ws, delta * 7));
-    setRows([newRow()]);
-    setDirty(false);
-    setSavedName(null);
-    setErr("");
-    setInfo("");
+    onWeek(addDays(ws, delta * 7));
   }
 
   /** Fill one line's empty working days (not leave) with the standard day minus hours logged elsewhere. */
@@ -319,7 +375,10 @@ function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, on
     if (editName || !ready || autoFor.current === from) return;
     autoFor.current = from;
     const empty = !rows.some((r) => Object.values(r.hours).some((h) => Number(h) > 0));
-    if (assignments.length && empty) fillFromAssignments(true);
+    if (assignments.length && empty && !elsewhere) {
+      fillFromAssignments(true);
+      setDirty(false);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, from]);
 
@@ -416,13 +475,13 @@ function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, on
       try {
         await submitTimesheet(name);
       } catch (x) {
-        setErr(`Saved as draft ${name}, but it couldn't be submitted: ${errMsg(x, "unknown error")} Fix the problem and press "Submit week" again - the same draft will be updated, not duplicated.`);
         setBusy("");
-        onChanged();
+        onChanged(`Saved as draft ${name}, but it couldn't be submitted: ${errMsg(x, "unknown error")} Fix the problem and press "Submit Week" again - the same draft will be updated, not duplicated.`);
         return;
       }
     }
-    onSaved();
+    setBusy("");
+    onSaved(name, submit);
   }
 
   const known = [...new Set([...readList(storeKey), ...(recent.data || []), ...(projects.data || []).map(projectLabel)])];
@@ -432,22 +491,23 @@ function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, on
   const status = savedName ? "Draft" : "New";
 
   return (
-    <Modal title={editName ? `Edit timesheet ${editName}` : "Weekly timesheet"} onClose={async () => { if (!dirty || (await confirmDialog("Close without saving your changes?"))) onClose(); }} wide="xl">
+    <Panel title="Weekly Timesheet" hint={editName ? `Editing ${editName}` : undefined}>
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            {!editName && <button type="button" title="Previous week" onClick={() => move(-1)} className="rounded p-1.5 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]"><ChevronLeft size={16} /></button>}
+            <button type="button" title="Previous week" onClick={() => move(-1)} className="rounded p-1.5 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]"><ChevronLeft size={16} /></button>
             <span className="min-w-[11rem] text-center text-[14px] font-semibold text-[var(--color-text)]">{weekLabel(ws)}</span>
-            {!editName && <button type="button" title="Next week" onClick={() => move(1)} className="rounded p-1.5 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]"><ChevronRight size={16} /></button>}
-            {!editName && ws !== mondayOf(today) && <button type="button" onClick={() => move(Math.round((fromIso(mondayOf(today)) - fromIso(ws)) / (7 * 86400000)))} className="text-[11px] text-[var(--color-red-hover)] hover:underline">This Week</button>}
+            <button type="button" title="Next week" onClick={() => move(1)} className="rounded p-1.5 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]"><ChevronRight size={16} /></button>
+            {ws !== mondayOf(today) && <button type="button" onClick={() => move(Math.round((fromIso(mondayOf(today)) - fromIso(ws)) / (7 * 86400000)))} className="text-[11px] text-[var(--color-red-hover)] hover:underline">This Week</button>}
             <StatusPill status={status} />
           </div>
           <div className="min-w-[14rem]">
-            <p className="text-right text-[12px] text-[var(--color-text-muted)]">Week total <b className="text-[14px] text-[var(--color-text)]">{fmt(weekTotal + elsewhere)}</b> / {fmt(expected)} h{elsewhere ? <span className="text-[var(--color-text-faint)]"> (incl. {fmt(elsewhere)} h in other timesheets)</span> : null}</p>
+            <p className="text-right text-[12px] text-[var(--color-text-muted)]">Week Total <b className="text-[14px] text-[var(--color-text)]">{fmt(weekTotal + elsewhere)}</b> / {fmt(expected)} h{elsewhere ? <span className="text-[var(--color-text-faint)]"> (incl. {fmt(elsewhere)} h in other timesheets)</span> : null}</p>
             <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[var(--color-surface-2)]"><div className="h-full rounded-full" style={{ width: `${pct * 100}%`, background: weekTotal + elsewhere > expected ? "var(--color-amber)" : "var(--color-green)" }} /></div>
           </div>
         </div>
 
+        {submittedName && <Notice tone="info">{submittedName} is already submitted for this week. Anything you enter here goes on a new timesheet.</Notice>}
         {editName && init.outside.length > 0 && <Notice tone="info">This timesheet also has {init.outside.length} entr{init.outside.length === 1 ? "y" : "ies"} outside {weekLabel(ws)}; they are kept unchanged.</Notice>}
         {existing.error && <Notice>Couldn't check the hours you've already logged this week ({friendlyError(existing.error)}). Saving may fail if days overlap with another timesheet.</Notice>}
         {leave.error && <Notice tone="info">Couldn't load your leave for this week, so leave days aren't marked.</Notice>}
@@ -509,7 +569,7 @@ function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, on
                   <td colSpan={10} className="px-3 py-2"><button type="button" onClick={() => change((v) => [...v, newRow()])} className="flex items-center gap-1 text-[12px] text-[var(--color-red-hover)] hover:underline"><Plus size={13} /> Add Line</button></td>
                 </tr>
                 <tr className="bg-[var(--color-surface)] text-[var(--color-text)]">
-                  <td className="px-3 py-2 text-[12px] text-[var(--color-text-muted)]">Daily total</td>
+                  <td className="px-3 py-2 text-[12px] text-[var(--color-text-muted)]">Daily Total</td>
                   {days.map((d) => {
                     const t = dayTotal(d.date) + (d.logged?.hours || 0);
                     const target = d.off ? 0 : d.leave ? (d.leave.half ? DAY_HOURS / 2 : 0) : DAY_HOURS;
@@ -526,7 +586,7 @@ function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, on
 
         <div className="flex flex-wrap items-center gap-2">
           <Button type="button" variant="secondary" onClick={copyLastWeek} disabled={Boolean(busy) || waiting}><Copy size={14} /> {busy === "copy" ? "Copying…" : "Copy Last Week"}</Button>
-          <Button type="button" variant="secondary" onClick={() => fillFromAssignments(false)} disabled={waiting || assigned.loading || !assignments.length} title="Lines and hours from the projects your Project Manager assigned to you"><Wand2 size={14} /> From my assignments ({assignments.length})</Button>
+          <Button type="button" variant="secondary" onClick={() => fillFromAssignments(false)} disabled={waiting || assigned.loading || !assignments.length} title="Lines and hours from the projects your Project Manager assigned to you"><Wand2 size={14} /> From My Assignments ({assignments.length})</Button>
           <input ref={fileInput} type="file" accept=".csv,text/csv" className="hidden" onChange={importCsv} />
           <Button type="button" variant="ghost" onClick={() => fileInput.current?.click()}><Upload size={14} /> Import CSV</Button>
           <Button type="button" variant="ghost" onClick={async () => { if (!dirty || (await confirmDialog("Clear every line for this week?"))) change(() => [newRow()]); }}>Clear</Button>
@@ -545,6 +605,6 @@ function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, on
           <Button type="button" disabled={Boolean(busy) || waiting || !submitOpen} title={submitOpen ? undefined : `Opens on Sunday ${dmy(sunday)}`} onClick={() => save(true)}><Send size={14} /> {busy === "submit" ? "Submitting…" : "Submit Week"}</Button>
         </div>
       </div>
-    </Modal>
+    </Panel>
   );
 }
