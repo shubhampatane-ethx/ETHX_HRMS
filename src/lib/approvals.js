@@ -117,7 +117,7 @@ export async function getExpenseApprover(employee, type) {
 
 const LEAVE_FIELDS = ["name", "employee", "employee_name", "department", "leave_type", "from_date", "to_date", "total_leave_days", "half_day", "description"];
 
-/** Leave waiting for me: the manager rule (ethx_my_team) also covers direct reports; else plain approver filter. */
+/** Leave waiting for me as its assigned approver. */
 async function leavesWaitingFor(email) {
   try {
     const r = await frappe.callMethod("ethx_my_team");
@@ -158,7 +158,7 @@ export async function decideLeave(name, status, note = "") {
   note = note.trim();
   if (status === "Rejected" && note.length < 3) throw new Error("Please give the reason for rejecting this leave.");
   try {
-    // server rule: the leave approver or the employee's manager decides, never the employee themself
+    // server rule: the assigned leave approver decides, never the employee themself
     return await frappe.callMethod("ethx_team_leave_decision", { leave: name, status, note });
   } catch (e) {
     if (!notInstalled(e)) throw e;
@@ -166,7 +166,7 @@ export async function decideLeave(name, status, note = "") {
   await decideLeaveDirect(name, status, note);
 }
 
-/** HR: decide directly (HRMS needs the status set and the application submitted, in one call). */
+/** Decide directly (HRMS needs the status set and the application submitted, in one call). The server allows only the assigned approver. */
 export async function decideLeaveDirect(name, status, note = "") {
   note = note.trim();
   if (status === "Rejected" && note.length < 3) throw new Error("Please give the reason for rejecting this leave.");

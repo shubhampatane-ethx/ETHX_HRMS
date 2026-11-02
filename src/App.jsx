@@ -4,6 +4,7 @@ import { PageLoading } from "./components/PageLoading";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { BrandingProvider } from "./context/BrandingContext";
 import { DialogHost } from "./components/ui/dialogs";
+import { PunchReminder } from "./components/employee/PunchReminder";
 import { RequireAuth, RequirePermission } from "./permissions/guards";
 import { homePath, isStaffEmployee } from "./permissions/roles";
 
@@ -84,6 +85,7 @@ export default function App() {
     <AuthProvider>
       <BrandingProvider>
       <DialogHost />
+      <PunchReminder />
       <Suspense fallback={<PageLoading full />}>
       <Routes>
         <Route path="/login" element={<Login />} />

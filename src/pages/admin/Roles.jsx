@@ -69,7 +69,7 @@ const HR_PRESET = [
   { doctype: "Employee Promotion", perms: ["read", "write", "create", "submit"], why: "Promotions" },
   { doctype: "Employee Transfer", perms: ["read", "write", "create", "submit"], why: "Transfers" },
   { doctype: "Employee Separation", perms: ["read", "write", "create", "submit"], why: "Exits" },
-  { doctype: "Employee Separation Template", perms: ["read"], why: "Exit checklists" },
+  { doctype: "Employee Separation Template", perms: ["read", "write"], why: "Exit checklists and their documents" },
   { doctype: "Employee Grade", perms: ["read"], why: "Grades on promotions" },
   { doctype: "Appraisal Cycle", perms: ["read", "write", "create"], why: "Appraisal cycles" },
   { doctype: "Appraisal", perms: ["read", "write", "create", "submit"], why: "Appraisals" },

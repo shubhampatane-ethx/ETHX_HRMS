@@ -390,9 +390,16 @@ export const getMyAssets = (emp) =>
   listTry("Asset", { filters: [["custodian", "=", emp], ["docstatus", "=", 1]], fields: ["name", "asset_name", "asset_category", "status", "location", "purchase_date", "custom_asset_code", "custom_serial_number", "custom_assigned_on", "custom_condition", "custom_other_assets"], orderBy: "purchase_date desc" },
     ["name", "asset_name", "asset_category", "status", "location", "purchase_date"]);
 
+/** The server method, or the direct way until setup has installed it. */
+const viaServer = (method, params, direct) => frappe.callMethod(method, params).catch((e) => {
+  const d = e?.response?.data || {};
+  if (e?.response?.status === 404 || DOCS_NOT_READY.test(String(d.exception || d.exc || d._server_messages || ""))) return direct();
+  throw e;
+});
+
 /** HR/IT/document/asset requests are raised as ERPNext Issues so they reach the support queue. */
-export const createRequest = ({ category, subject, description, user }) =>
-  frappe.createDoc("Issue", { subject: `[${category}] ${subject}`, description: description || subject, raised_by: user, priority: "Medium" });
+export const createRequest = ({ category, subject, description, user }) => viaServer("ethx_my_request", { action: "create", category, subject, description }, () =>
+  frappe.createDoc("Issue", { subject: `[${category}] ${subject}`, description: description || subject, raised_by: user, priority: "Medium" }));
 
 /** "[HR Support] Laptop slow" -> { category: "HR Support", title: "Laptop slow" } */
 export function splitRequest(subject = "") {
@@ -401,8 +408,8 @@ export function splitRequest(subject = "") {
 }
 
 /** Only requests nobody has picked up yet can be changed or withdrawn by the person who raised them. */
-export const updateRequest = (name, { category, subject, description }) => frappe.updateDoc("Issue", name, { subject: `[${category}] ${subject}`, description });
-export const withdrawRequest = (name) => frappe.updateDoc("Issue", name, { status: "Closed" });
+export const updateRequest = (name, { category, subject, description }) => viaServer("ethx_my_request", { action: "edit", name, category, subject, description }, () => frappe.updateDoc("Issue", name, { subject: `[${category}] ${subject}`, description }));
+export const withdrawRequest = (name) => viaServer("ethx_my_request", { action: "withdraw", name }, () => frappe.updateDoc("Issue", name, { status: "Closed" }));
 
 /** Birthdays in the next 30 days: [{ name, date, days_away }]. Empty until ERPNext Setup has run. */
 export const getUpcomingBirthdays = () => frappe.callMethod("ethx_upcoming_birthdays").catch(() => []);
@@ -433,8 +440,10 @@ export async function uploadMyDocument(file, type) {
 
 export const removeMyDocument = (name) => frappe.callMethod("ethx_remove_my_document", { file: name }).catch((e) => { throw docsError(e); });
 
-export const getRequests = (user, prefix) =>
-  frappe.getList("Issue", { filters: [["raised_by", "=", user], ...(prefix ? [["subject", "like", `[${prefix}%`]] : [])], fields: ["name", "subject", "description", "status", "priority", "creation"], orderBy: "creation desc", limit: 50 });
+export const getRequests = async (user, prefix) => {
+  const rows = await viaServer("ethx_my_requests", {}, () => frappe.getList("Issue", { filters: [["raised_by", "=", user]], fields: ["name", "subject", "description", "status", "priority", "creation"], orderBy: "creation desc", limit: 200 }));
+  return prefix ? rows.filter((r) => r.subject.startsWith(`[${prefix}`)) : rows;
+};
 
 /* ------------------------------ growth & benefits ------------------------------ */
 
@@ -467,6 +476,9 @@ export const getBenefitClaims = (emp) =>
       return frappe.getList("Employee Benefit Claim", { filters: [["employee", "=", emp], ["docstatus", "<", 2]], fields: ["name", "payroll_date", "earning_component", "claimed_amount", "docstatus"], orderBy: "creation desc", limit: 20 })
         .then((rows) => rows.map((r) => ({ ...r, claim_date: r.payroll_date })));
     });
+
+/** Insurance, benefits and claims. Until setup has run, only the claims the person's role can read. */
+export const getMyBenefits = (emp) => viaServer("ethx_my_benefits", {}, async () => ({ insurance: null, benefits: [], claims: await getBenefitClaims(emp) }));
 
 export const getHelpArticles = (q) =>
   frappe.getList("Help Article", { filters: [["title", "like", `%${q}%`], ["published", "=", 1]], fields: ["name", "title", "category", "route"], limit: 10 });

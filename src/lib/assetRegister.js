@@ -380,6 +380,30 @@ export async function reassignAsset(asset, toEmployee, location) {
   if (toEmployee && asset.custodian !== toEmployee) await move(asset, asset.company, "Issue", { source: here, to: toEmployee });
 }
 
+/** Add one asset typed in by HR. Goes through the same steps as a register row, so a later import matches it by code or serial. */
+export async function addAsset(form, employees) {
+  const holder = employees.find((e) => e.name === form.custodian);
+  const code = form.code.trim();
+  const serial = form.serial.trim();
+  const key = code ? `code:${norm(code)}`
+    : serial ? `serial:${norm(serial)}${holder ? `:${norm(holder.employee_name)}` : ""}`
+      : `manual:${norm(form.name)}:${Date.now()}`;
+  const want = {
+    custom_asset_code: code,
+    custom_serial_number: serial,
+    custom_condition: form.condition,
+    custom_assigned_on: holder ? form.assignedOn : "",
+    custom_assigned_by: holder ? form.assignedBy.trim() : "",
+    custom_other_assets: form.other.trim(),
+    custom_register_notes: form.notes.trim(),
+    location: form.location.trim(),
+  };
+  const item = { key, assetName: form.name.trim(), type: form.type.trim(), holder: form.custodian, existing: null, want };
+  const [result] = await applyRegister([item], { company: form.company, location: want.location, value: form.value, purchaseDate: form.purchaseDate }, employees);
+  if (!result.ok) throw new Error(result.text);
+  return result;
+}
+
 /**
  * Apply the chosen items. `opts`: { company, location, purchaseDate, value }: defaults for new assets.
  * Reports progress per item through onStep({ key, ok, text }).

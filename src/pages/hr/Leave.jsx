@@ -1,4 +1,5 @@
-// HR › Leave: approve / reject applications, apply on an employee's behalf, see balances and allocate leave.
+// HR › Leave: see every application, change approvers, apply on an employee's behalf, see balances and allocate leave.
+// Only an application's assigned approver can approve or reject it, here and on the server.
 // Approval follows HRMS: set status Approved / Rejected, then submit (HRMS only submits decided applications).
 // Each application shows its approver (by name) and business unit; approvers who are on leave today are flagged and
 // their applications can be moved to the next available approver of the same business unit.
@@ -19,7 +20,7 @@ export default function Leave() {
   const [tab, setTab] = useState("applications");
   return (
     <div className="space-y-5">
-      <PageHeader icon={CalendarDays} title="Leave" subtitle="Approve or reject applications, apply for an employee, and manage balances and allocations" />
+      <PageHeader icon={CalendarDays} title="Leave" subtitle="Track applications, change approvers, apply for an employee, and manage balances and allocations" />
       <Tabs value={tab} onChange={setTab} tabs={[{ id: "applications", label: "Applications" }, { id: "balances", label: "Balances & Allocations" }]} />
       {tab === "applications" ? <Applications /> : <Balances />}
     </div>
@@ -85,8 +86,12 @@ function Applications() {
           { key: "_a", label: "", render: (a) => a.docstatus === 0 && a.status === "Open" ? (a.employee === me.data?.name ? <span className="text-[11px] text-[var(--color-text-faint)]">Your request</span> : (
             <div className="flex justify-end gap-1">
               <button type="button" title="Change approver" onClick={() => setModal({ kind: "reassign", app: a })} className="rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]"><UserCog size={14} /></button>
-              <button type="button" title="Approve" onClick={() => setModal({ kind: "decide", app: a, to: "Approved" })} className="rounded p-1 text-[var(--color-green)] hover:bg-[var(--color-surface-2)]"><Check size={14} /></button>
-              <button type="button" title="Reject" onClick={() => setModal({ kind: "decide", app: a, to: "Rejected" })} className="rounded p-1 text-[var(--color-text-muted)] hover:text-[var(--color-red-hover)]"><X size={14} /></button>
+              {a.leave_approver === user.email ? (
+                <>
+                  <button type="button" title="Approve" onClick={() => setModal({ kind: "decide", app: a, to: "Approved" })} className="rounded p-1 text-[var(--color-green)] hover:bg-[var(--color-surface-2)]"><Check size={14} /></button>
+                  <button type="button" title="Reject" onClick={() => setModal({ kind: "decide", app: a, to: "Rejected" })} className="rounded p-1 text-[var(--color-text-muted)] hover:text-[var(--color-red-hover)]"><X size={14} /></button>
+                </>
+              ) : <span className="self-center whitespace-nowrap text-[11px] text-[var(--color-text-faint)]">{a.leave_approver ? "With Approver" : "Set an Approver"}</span>}
             </div>
           )) : null },
         ]} />}
@@ -129,7 +134,7 @@ function DecideModal({ app, to, onClose, onSaved }) {
 }
 
 function ApplyModal({ onClose, onSaved }) {
-  const [f, setF] = useState({ employee: "", leave_type: "", from: isoDate(), to: isoDate(), half: false, reason: "", approveNow: true });
+  const [f, setF] = useState({ employee: "", leave_type: "", from: isoDate(), to: isoDate(), half: false, reason: "" });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   async function submit(e) {
@@ -140,8 +145,7 @@ function ApplyModal({ onClose, onSaved }) {
     try {
       const emp = await frappe.getDoc("Employee", f.employee);
       const approver = pickApprover(await getApprovers(emp, "Leave Application").catch(() => []));
-      const doc = await frappe.createDoc("Leave Application", { employee: f.employee, leave_type: f.leave_type, from_date: f.from, to_date: f.to, half_day: f.half ? 1 : 0, ...(f.half ? { half_day_date: f.from } : {}), description: f.reason || `Entered by HR`, company: emp.company, ...(approver ? { leave_approver: approver.email } : {}), posting_date: isoDate(), status: "Open" });
-      if (f.approveNow) await decideLeaveDirect(doc.name, "Approved");
+      await frappe.createDoc("Leave Application", { employee: f.employee, leave_type: f.leave_type, from_date: f.from, to_date: f.to, half_day: f.half ? 1 : 0, ...(f.half ? { half_day_date: f.from } : {}), description: f.reason || `Entered by HR`, company: emp.company, ...(approver ? { leave_approver: approver.email } : {}), posting_date: isoDate(), status: "Open" });
       onSaved();
     } catch (x) {
       setErr(errMsg(x, "Couldn't create the leave application."));
@@ -156,7 +160,7 @@ function ApplyModal({ onClose, onSaved }) {
         <div className="grid grid-cols-2 gap-3"><DateField label="From" value={f.from} onChange={(v) => setF({ ...f, from: v, to: f.to < v ? v : f.to })} required /><DateField label="To" value={f.to} onChange={(v) => setF({ ...f, to: v })} required /></div>
         <label className="flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><input type="checkbox" checked={f.half} onChange={(e) => setF({ ...f, half: e.target.checked })} /> Half day (on the start date)</label>
         <Field label="Reason"><input className={inputCls} value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} /></Field>
-        <label className="flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><input type="checkbox" checked={f.approveNow} onChange={(e) => setF({ ...f, approveNow: e.target.checked })} /> Approve straight away</label>
+        <p className="text-[11px] text-[var(--color-text-faint)]">It goes to the employee's leave approver to decide.</p>
         {err && <Notice>{err}</Notice>}
         <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Saving…" : "Save"}</Button></div>
       </form>

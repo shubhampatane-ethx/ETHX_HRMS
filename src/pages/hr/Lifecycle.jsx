@@ -1,8 +1,8 @@
 // HR › Lifecycle: promotions, transfers and exits on HRMS's own records (Employee Promotion, Employee Transfer,
 // Employee Separation). Submitting a promotion / transfer updates the Employee record (HRMS does this on its
 // effective date); an exit runs the separation checklist, then HR marks the employee as Left.
-import { useState } from "react";
-import { LogOut, Plus, TrendingUp } from "lucide-react";
+import { useRef, useState } from "react";
+import { ExternalLink, LogOut, Paperclip, Plus, Trash2, TrendingUp, Upload } from "lucide-react";
 import { frappe } from "../../lib/api/frappeClient";
 import { Button, DateField, LinkField } from "../../components/ui/primitives";
 import { Async, Field, Grid, inputCls, Modal, Notice, PageHeader, Panel, StatusPill, Tabs } from "../../components/employee/EmployeeShell";
@@ -157,7 +157,7 @@ function Exits() {
   const [msg, setMsg] = useState(null);
 
   return (
-    <Panel action={<Button onClick={() => setModal({ kind: "new" })}><Plus size={14} /> Start Exit</Button>}>
+    <Panel action={<div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={() => setModal({ kind: "templates" })}><Paperclip size={14} /> Template Documents</Button><Button onClick={() => setModal({ kind: "new" })}><Plus size={14} /> Start Exit</Button></div>}>
       {msg && <div className="mb-3"><Notice tone={msg.ok ? "info" : "error"}>{msg.text}</Notice></div>}
       <Async state={list}>
         {(rows) => <Grid rows={rows} empty="No exits in progress." columns={[
@@ -170,19 +170,100 @@ function Exits() {
             const e = emps.data?.[r.employee];
             return <div className="flex justify-end gap-1">
               {r.docstatus === 0 && <Button variant="secondary" className="!px-2 !py-1 text-[11px]" onClick={async () => { if (!(await confirmDialog(`Start the separation checklist for ${r.employee_name || r.employee}?`))) return; try { await frappe.submitDoc(await frappe.getDoc("Employee Separation", r.name)); list.reload(); } catch (x) { setMsg({ ok: false, text: errMsg(x, "Couldn't start the checklist.") }); } }}>Start Checklist</Button>}
+              <Button variant="ghost" className="!px-2 !py-1 text-[11px]" onClick={() => setModal({ kind: "documents", row: r })}><Paperclip size={12} /> Documents</Button>
               {e && e.status !== "Left" && <Button variant="ghost" className="!px-2 !py-1 text-[11px]" onClick={() => setModal({ kind: "left", row: r, emp: e })}><LogOut size={12} /> Mark as Left</Button>}
             </div>;
           } },
         ]} />}
       </Async>
-      {modal?.kind === "new" && <ExitModal onClose={() => setModal(null)} onSaved={() => { setModal(null); list.reload(); }} />}
+      {modal?.kind === "new" && <ExitModal onClose={() => setModal(null)} onSaved={(warning) => { setModal(null); if (warning) setMsg({ ok: false, text: warning }); list.reload(); }} />}
+      {modal?.kind === "documents" && <Modal title={`Exit Documents · ${modal.row.employee_name || modal.row.employee}`} onClose={() => setModal(null)} wide><AttachedDocuments doctype="Employee Separation" name={modal.row.name} empty="No documents on this exit yet." /></Modal>}
+      {modal?.kind === "templates" && <TemplateDocumentsModal onClose={() => setModal(null)} />}
       {modal?.kind === "left" && <LeftModal row={modal.row} emp={modal.emp} onClose={() => setModal(null)} onSaved={(text) => { setModal(null); setMsg({ ok: true, text }); list.reload(); emps.reload(); }} />}
     </Panel>
   );
 }
 
+const MAX_ATTACHMENT_MB = 10;
+
+const listAttached = (doctype, name) => frappe.getList("File", { filters: [["attached_to_doctype", "=", doctype], ["attached_to_name", "=", name]], fields: ["name", "file_name", "file_url", "is_private", "creation"], orderBy: "creation asc", limit: 0 });
+const tooLarge = (file) => file.size > MAX_ATTACHMENT_MB * 1024 * 1024;
+
+/** The files on a record: open, add and remove. */
+function AttachedDocuments({ doctype, name, empty }) {
+  const files = useAsync(() => listAttached(doctype, name), [doctype, name]);
+  const input = useRef(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function upload(list) {
+    const picked = [...(list || [])];
+    if (input.current) input.current.value = "";
+    if (!picked.length) return;
+    setErr("");
+    if (picked.some(tooLarge)) return setErr(`Each document must be ${MAX_ATTACHMENT_MB} MB or smaller.`);
+    setBusy(true);
+    try {
+      for (const file of picked) await frappe.uploadFile(file, { doctype, docname: name, isPrivate: true });
+      files.reload();
+    } catch (x) {
+      setErr(errMsg(x, "Couldn't upload this document."));
+    }
+    setBusy(false);
+  }
+
+  async function remove(file) {
+    if (!(await confirmDialog({ message: `Remove "${file.file_name}"?`, danger: true, confirmLabel: "Remove" }))) return;
+    setErr("");
+    try {
+      await frappe.deleteDoc("File", file.name);
+      files.reload();
+    } catch (x) {
+      setErr(errMsg(x, "Couldn't remove this document."));
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <input ref={input} type="file" multiple className="hidden" aria-label="Choose documents" onChange={(e) => upload(e.target.files)} />
+      <Button type="button" variant="secondary" disabled={busy} onClick={() => input.current?.click()}><Upload size={14} /> {busy ? "Uploading…" : "Add Documents"}</Button>
+      {err && <Notice>{err}</Notice>}
+      <Async state={files}>
+        {(rows) => (rows.length === 0 ? <p className="text-[13px] text-[var(--color-text-muted)]">{empty}</p> : (
+          <ul className="divide-y divide-[var(--color-border)]">
+            {rows.map((d) => (
+              <li key={d.name} className="flex flex-wrap items-center justify-between gap-3 py-2.5 text-[13px]">
+                <span className="flex min-w-0 items-center gap-2 text-[var(--color-text)]"><Paperclip size={14} className="shrink-0 text-[var(--color-text-muted)]" /><span className="truncate">{d.file_name}</span><span className="shrink-0 text-[11px] text-[var(--color-text-faint)]">{dmy(d.creation)}</span></span>
+                <span className="flex shrink-0 items-center gap-3 text-[12px]">
+                  <a href={d.file_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-[var(--color-text-muted)] hover:text-[var(--color-text)]"><ExternalLink size={13} /> Open</a>
+                  <button type="button" onClick={() => remove(d)} className="flex items-center gap-1 text-[var(--color-text-muted)] hover:text-[var(--color-red-hover)]"><Trash2 size={13} /> Remove</button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        ))}
+      </Async>
+    </div>
+  );
+}
+
+/** Documents kept on an exit checklist template. Each new exit that uses the template gets a copy of them. */
+function TemplateDocumentsModal({ onClose }) {
+  const [template, setTemplate] = useState("");
+  return (
+    <Modal title="Exit Checklist Template Documents" onClose={onClose} wide>
+      <div className="space-y-4">
+        <LinkField label="Exit Checklist Template" linkDoctype="Employee Separation Template" value={template} onChange={setTemplate} frappe={frappe} />
+        {template ? <AttachedDocuments key={template} doctype="Employee Separation Template" name={template} empty="No documents on this template yet." /> : <p className="text-[13px] text-[var(--color-text-muted)]">Choose a template to add its documents. Every new exit that uses it gets a copy.</p>}
+      </div>
+    </Modal>
+  );
+}
+
 function ExitModal({ onClose, onSaved }) {
   const [f, setF] = useState({ employee: "", resigned: isoDate(), last: "", template: "", reason: "" });
+  const [files, setFiles] = useState([]);
+  const templateFiles = useAsync(() => (f.template ? listAttached("Employee Separation Template", f.template) : Promise.resolve([])), [f.template]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   async function submit(e) {
@@ -198,8 +279,12 @@ function ExitModal({ onClose, onSaved }) {
       }
       // Record the notice on the employee first: the separation copies the resignation date from the employee.
       try { await frappe.updateDoc("Employee", f.employee, { resignation_letter_date: f.resigned, relieving_date: f.last, reason_for_leaving: f.reason || undefined }); } catch { /* not allowed - HR can set it later */ }
-      await frappe.createDoc("Employee Separation", { employee: f.employee, company: emp.company, department: emp.department, designation: emp.designation, resignation_letter_date: f.resigned, boarding_begins_on: f.last, employee_separation_template: f.template || undefined, activities });
-      onSaved();
+      const exit = await frappe.createDoc("Employee Separation", { employee: f.employee, company: emp.company, department: emp.department, designation: emp.designation, resignation_letter_date: f.resigned, boarding_begins_on: f.last, employee_separation_template: f.template || undefined, activities });
+      // The exit is saved by now, so a document that fails is reported rather than undoing it.
+      let failed = 0;
+      for (const file of files) await frappe.uploadFile(file, { doctype: "Employee Separation", docname: exit.name, isPrivate: true }).catch(() => { failed += 1; });
+      for (const d of templateFiles.data || []) await frappe.createDoc("File", { file_name: d.file_name, file_url: d.file_url, is_private: d.is_private, attached_to_doctype: "Employee Separation", attached_to_name: exit.name }).catch(() => { failed += 1; });
+      onSaved(failed ? `The exit was started, but ${failed} document(s) couldn't be attached. Add them from Documents on the exit.` : "");
     } catch (x) {
       setErr(errMsg(x, "Couldn't start the exit."));
       setBusy(false);
@@ -211,6 +296,8 @@ function ExitModal({ onClose, onSaved }) {
         <LinkField label="Employee" linkDoctype="Employee" value={f.employee} onChange={(v) => setF({ ...f, employee: v })} required frappe={frappe} />
         <div className="grid grid-cols-2 gap-3"><DateField label="Resignation Date" value={f.resigned} onChange={(v) => setF({ ...f, resigned: v })} required /><DateField label="Last Working Day" value={f.last} onChange={(v) => setF({ ...f, last: v })} required /></div>
         <LinkField label="Exit Checklist Template (Optional)" linkDoctype="Employee Separation Template" value={f.template} onChange={(v) => setF({ ...f, template: v })} frappe={frappe} />
+        {templateFiles.data?.length > 0 && <p className="text-[11px] text-[var(--color-text-faint)]">From the template: {templateFiles.data.map((d) => d.file_name).join(", ")}</p>}
+        <Field label="Attach Documents (Optional)"><input type="file" multiple className={inputCls} onChange={(e) => { const picked = [...e.target.files]; if (picked.some(tooLarge)) { setErr(`Each document must be ${MAX_ATTACHMENT_MB} MB or smaller.`); e.target.value = ""; setFiles([]); } else { setErr(""); setFiles(picked); } }} /></Field>
         <Field label="Reason for Leaving"><input className={inputCls} value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} /></Field>
         {err && <Notice>{err}</Notice>}
         <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Saving…" : "Start Exit"}</Button></div>

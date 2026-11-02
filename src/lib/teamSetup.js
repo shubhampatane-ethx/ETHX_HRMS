@@ -1,6 +1,6 @@
 // Manager self-service: employee logins are restricted to their own Employee record, so a line manager can't read
 // their team directly. These server methods return only the manager's own team (employees whose Reports To is the
-// manager, or whose Leave Approver is the manager) and let them decide only those leave applications.
+// manager, or whose Leave Approver is the manager). Only a leave application's assigned approver can decide it.
 const TEAM_API = `
 user = frappe.session.user
 me = frappe.db.get_value("Employee", {"user_id": user, "status": "Active"}, ["name", "employee_name"], as_dict=True)
@@ -11,13 +11,6 @@ ids = []
 for t in team:
     ids.append(t.name)
 apps = frappe.get_all("Leave Application", filters={"docstatus": 0, "status": "Open", "leave_approver": user}, fields=["name", "employee", "employee_name", "leave_type", "from_date", "to_date", "total_leave_days", "half_day", "description", "posting_date"], order_by="from_date asc")
-if ids:
-    seen = []
-    for a in apps:
-        seen.append(a.name)
-    for a in frappe.get_all("Leave Application", filters={"docstatus": 0, "status": "Open", "employee": ["in", ids]}, fields=["name", "employee", "employee_name", "leave_type", "from_date", "to_date", "total_leave_days", "half_day", "description", "posting_date"], order_by="from_date asc"):
-        if a.name not in seen:
-            apps.append(a)
 today = frappe.utils.nowdate()
 soon = frappe.utils.add_days(today, 14)
 away = []
@@ -43,19 +36,15 @@ if status == "Rejected" and not note:
 doc = frappe.get_doc("Leave Application", name)
 if doc.docstatus != 0 or doc.status != "Open":
     frappe.throw("This leave application has already been decided.")
-me = frappe.db.get_value("Employee", {"user_id": user}, "name")
 owner_user = frappe.db.get_value("Employee", doc.employee, "user_id")
 if owner_user == user:
     frappe.throw("You can't decide on your own leave.")
-manager = frappe.db.get_value("Employee", doc.employee, "reports_to")
-if doc.leave_approver != user and not (me and manager == me):
-    frappe.throw("You're not this employee's manager or leave approver.")
+if doc.leave_approver != user:
+    frappe.throw("Only the assigned leave approver can approve or reject this leave.")
 doc.status = "Approved" if status == "Approved" else "Rejected"
-if not doc.leave_approver:
-    doc.leave_approver = user
 doc.flags.ignore_permissions = True
 doc.submit()
-frappe.get_doc({"doctype": "Comment", "comment_type": "Info", "reference_doctype": "Leave Application", "reference_name": name, "content": "Leave " + status.lower() + " by manager " + user + (": " + note if note else "")}).insert(ignore_permissions=True)
+frappe.get_doc({"doctype": "Comment", "comment_type": "Info", "reference_doctype": "Leave Application", "reference_name": name, "content": "Leave " + status.lower() + " by " + user + (": " + note if note else "")}).insert(ignore_permissions=True)
 frappe.response["message"] = {"status": doc.status}
 `;
 
@@ -142,11 +131,101 @@ frappe.delete_doc("File", row.name, ignore_permissions=True)
 frappe.response["message"] = {"file": row.name}
 `;
 
+// Insurance from the employee's record, benefits from their application and salary structure, and their claims.
+const MY_BENEFITS_API = `
+emp = frappe.db.get_value("Employee", {"user_id": frappe.session.user}, ["name", "health_insurance_provider", "health_insurance_no"], as_dict=True)
+if not emp:
+    frappe.throw("No employee record is linked to your login.")
+benefits = []
+try:
+    for app in frappe.get_all("Employee Benefit Application", filters={"employee": emp.name, "docstatus": 1}, fields=["name"], order_by="creation desc", limit=1):
+        for row in frappe.get_all("Employee Benefit Application Detail", filters={"parent": app.name}, fields=["earning_component", "amount", "max_benefit_amount"]):
+            benefits.append({"benefit": row.earning_component, "amount": row.amount, "limit": row.max_benefit_amount, "source": "Benefit Application"})
+except Exception:
+    pass
+try:
+    for ssa in frappe.get_all("Salary Structure Assignment", filters={"employee": emp.name, "docstatus": 1}, fields=["salary_structure"], order_by="from_date desc", limit=1):
+        for row in frappe.get_all("Salary Detail", filters={"parent": ssa.salary_structure, "parenttype": "Salary Structure", "parentfield": "earnings", "is_flexible_benefit": 1}, fields=["salary_component", "amount"]):
+            taken = False
+            for b in benefits:
+                if b["benefit"] == row.salary_component:
+                    taken = True
+            if not taken:
+                benefits.append({"benefit": row.salary_component, "amount": row.amount, "limit": None, "source": "Salary Structure"})
+except Exception:
+    pass
+claims = []
+for date_field in ["claim_date", "payroll_date"]:
+    try:
+        for c in frappe.get_all("Employee Benefit Claim", filters={"employee": emp.name, "docstatus": ["<", 2]}, fields=["name", date_field, "earning_component", "claimed_amount", "docstatus"], order_by="creation desc", limit=20):
+            claims.append({"name": c.name, "claim_date": c.get(date_field), "earning_component": c.earning_component, "claimed_amount": c.claimed_amount, "docstatus": c.docstatus})
+        break
+    except Exception:
+        pass
+frappe.response["message"] = {"insurance": {"provider": emp.health_insurance_provider, "number": emp.health_insurance_no}, "benefits": benefits, "claims": claims}
+`;
+
+// A person's own requests: the ones they raised or created, whatever their role can read in ERPNext.
+const MY_REQUESTS_API = `
+user = frappe.session.user
+frappe.response["message"] = frappe.get_all("Issue", or_filters={"raised_by": user, "owner": user}, fields=["name", "subject", "description", "status", "priority", "creation"], order_by="creation desc", limit=200)
+`;
+
+// Raise, edit or withdraw your own request. Once HR has picked one up it can't be changed.
+const MY_REQUEST_API = `
+user = frappe.session.user
+args = frappe.form_dict
+action = args.get("action")
+category = (args.get("category") or "").strip()
+subject = (args.get("subject") or "").strip()
+description = (args.get("description") or "").strip()
+if action in ("create", "edit") and (not subject or not category):
+    frappe.throw("Enter a subject for the request.")
+title = "[" + category + "] " + subject
+if action == "create":
+    doc = frappe.get_doc({"doctype": "Issue", "subject": title, "description": description or subject, "raised_by": user, "priority": "Medium"})
+    doc.insert(ignore_permissions=True)
+    frappe.response["message"] = {"name": doc.name}
+elif action in ("edit", "withdraw"):
+    name = args.get("name")
+    row = frappe.db.get_value("Issue", name or "__none__", ["name", "raised_by", "owner", "status"], as_dict=True)
+    if not row or (row.raised_by != user and row.owner != user):
+        frappe.throw("You can only change your own requests.")
+    if row.status != "Open":
+        frappe.throw("HR has already picked up this request, so it can't be changed.")
+    if action == "edit":
+        frappe.db.set_value("Issue", row.name, {"subject": title, "description": description or subject})
+    else:
+        frappe.db.set_value("Issue", row.name, "status", "Closed")
+        frappe.get_doc({"doctype": "Comment", "comment_type": "Info", "reference_doctype": "Issue", "reference_name": row.name, "content": "Withdrawn by " + user}).insert(ignore_permissions=True)
+    frappe.response["message"] = {"name": row.name}
+else:
+    frappe.throw("Unknown action.")
+`;
+
+// Today's shift times for the punch reminder: an active shift assignment, then the employee's default shift.
+const MY_SHIFT_API = `
+today = frappe.utils.nowdate()
+emp = frappe.db.get_value("Employee", {"user_id": frappe.session.user}, ["name", "default_shift"], as_dict=True)
+shift = emp.default_shift if emp else None
+if emp:
+    for a in frappe.get_all("Shift Assignment", filters={"employee": emp.name, "docstatus": 1, "status": "Active", "start_date": ["<=", today]}, fields=["shift_type", "end_date"], order_by="start_date desc"):
+        if not a.end_date or str(a.end_date) >= today:
+            shift = a.shift_type
+            break
+times = frappe.db.get_value("Shift Type", shift, ["start_time", "end_time"], as_dict=True) if shift else None
+frappe.response["message"] = {"shift": shift, "start": str(times.start_time), "end": str(times.end_time)} if times else None
+`;
+
 export const TEAM_SCRIPTS = [
+  { name: "ETHX - My benefits", script_type: "API", api_method: "ethx_my_benefits", script: MY_BENEFITS_API, what: "Employees see their own insurance, benefits and benefit claims" },
+  { name: "ETHX - My requests", script_type: "API", api_method: "ethx_my_requests", script: MY_REQUESTS_API, what: "Employees see the requests they raised" },
+  { name: "ETHX - My request", script_type: "API", api_method: "ethx_my_request", script: MY_REQUEST_API, what: "Employees raise, edit and withdraw their own requests until HR picks them up" },
+  { name: "ETHX - My shift", script_type: "API", api_method: "ethx_my_shift", script: MY_SHIFT_API, what: "Today's shift times for the punch reminder" },
   { name: "ETHX - Upcoming birthdays", script_type: "API", api_method: "ethx_upcoming_birthdays", script: BIRTHDAYS_API, what: "Birthday reminders on the calendar and dashboard" },
   { name: "ETHX - Attach my document", script_type: "API", api_method: "ethx_attach_my_document", script: ATTACH_DOCUMENT_API, what: "Employees upload their own documents (PAN, Aadhaar, bank)" },
   { name: "ETHX - Remove my document", script_type: "API", api_method: "ethx_remove_my_document", script: REMOVE_DOCUMENT_API, what: "Employees remove documents they uploaded" },
   { name: "ETHX - Update my contact details", script_type: "API", api_method: "ethx_update_my_contact", script: MY_CONTACT_API, what: "Employees update their own personal details, emergency contact and passport" },
   { name: "ETHX - My team", script_type: "API", api_method: "ethx_my_team", script: TEAM_API, what: "Managers see their direct reports, who's in today, upcoming leave and leave waiting for them" },
-  { name: "ETHX - Team leave decision", script_type: "API", api_method: "ethx_team_leave_decision", script: LEAVE_DECISION_API, what: "Managers approve / reject leave only for their own reports (or where they're the leave approver), never their own" },
+  { name: "ETHX - Team leave decision", script_type: "API", api_method: "ethx_team_leave_decision", script: LEAVE_DECISION_API, what: "Only the assigned leave approver approves or rejects leave, never their own" },
 ];

@@ -175,11 +175,15 @@ if doc.approval_status == "Rejected" and len((doc.remark or "").strip()) < 5:
     frappe.throw("State the reason for rejecting this claim (in Remark) - the employee sees it.")
 `;
 
-/** Before Submit on Leave Application: nobody - HR included - approves or rejects their own leave. */
+/** Before Submit on Leave Application: only the assigned approver decides. HR can change the approver, not decide for them. */
 const LEAVE_NOT_OWN = `
 if doc.status in ("Approved", "Rejected") and frappe.session.user != "Administrator":
     if frappe.db.get_value("Employee", doc.employee, "user_id") == frappe.session.user:
         frappe.throw("You can't approve or reject your own leave - it goes to " + (doc.leave_approver_name or doc.leave_approver or "your approver") + ".")
+    if not doc.leave_approver:
+        frappe.throw("This leave has no approver yet. Set one first.")
+    if frappe.session.user != doc.leave_approver:
+        frappe.throw("Only the assigned approver (" + (doc.leave_approver_name or doc.leave_approver) + ") can approve or reject this leave.")
 `;
 
 // Moves pending leave applications / expense claims from approvers on leave today to the next available approver.
@@ -229,7 +233,7 @@ frappe.response["message"] = {"moved": moved}
 export const APPROVAL_SCRIPTS = [
   { name: "ETHX - Approvers", script_type: "API", api_method: "ethx_approvers", script: APPROVERS_API, what: "Approver lookup: business-unit leave approvers, expense-type approvers, availability" },
   { name: "ETHX - Leave approver assign", script_type: "DocType Event", reference_doctype: "Leave Application", doctype_event: "Before Insert", script: LEAVE_ASSIGN, what: "New leave goes to an available business-unit approver" },
-  { name: "ETHX - Leave not own", script_type: "DocType Event", reference_doctype: "Leave Application", doctype_event: "Before Submit", script: LEAVE_NOT_OWN, what: "Nobody, HR included, approves their own leave" },
+  { name: "ETHX - Leave not own", script_type: "DocType Event", reference_doctype: "Leave Application", doctype_event: "Before Submit", script: LEAVE_NOT_OWN, what: "Only the assigned approver approves or rejects leave, and never their own" },
   { name: "ETHX - Expense claim prepare", script_type: "DocType Event", reference_doctype: "Expense Claim", doctype_event: "Before Validate", script: EXPENSE_PREPARE, what: "Expense claims get currency, exchange rate and the expense type's approver" },
   { name: "ETHX - Expense claim decision", script_type: "DocType Event", reference_doctype: "Expense Claim", doctype_event: "Before Submit", script: EXPENSE_DECIDE, what: "Only the approver decides; approval needs a bill, rejection needs a reason" },
   { name: "ETHX - Reroute approvals", script_type: "API", api_method: "ethx_reroute_approvals", script: REROUTE_API, what: "HR moves pending requests away from approvers on leave" },

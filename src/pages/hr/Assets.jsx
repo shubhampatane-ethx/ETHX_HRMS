@@ -1,11 +1,11 @@
 import { useMemo, useRef, useState } from "react";
-import { AlertTriangle, ArrowRightLeft, CheckCircle2, Download, ExternalLink, FileSpreadsheet, Laptop, Loader2, Search, Upload, XCircle } from "lucide-react";
+import { AlertTriangle, ArrowRightLeft, CheckCircle2, Download, ExternalLink, FileSpreadsheet, Laptop, Loader2, Plus, Search, Upload, XCircle } from "lucide-react";
 import { Async, chipCls, Empty, Field, Grid, inputCls, Modal, Notice, PageHeader, Panel, StatusPill, Tabs } from "../../components/employee/EmployeeShell";
 import { Button } from "../../components/ui/primitives";
 import { ASSET_FOLDER, dmy, ensureAssetFolder, errMsg, getAssetLists, isoDate, useAsync } from "../../lib/employeePortal";
 import { frappe } from "../../lib/api/frappeClient";
 import { fieldsReady } from "../../lib/siteSetup";
-import { applyRegister, loadAssets, loadEmployees, planRegister, readRegister, reassignAsset } from "../../lib/assetRegister";
+import { addAsset, applyRegister, loadAssets, loadEmployees, norm, planRegister, readRegister, reassignAsset } from "../../lib/assetRegister";
 import { confirmDialog } from "../../components/ui/dialogs";
 
 // Same columns as the company's Excel register, so HR can keep maintaining it in Excel and re-upload it.
@@ -30,6 +30,7 @@ export default function Assets() {
   const [importing, setImporting] = useState(null); // { file, reg }
   const [reading, setReading] = useState(false);
   const [moving, setMoving] = useState(null);
+  const [adding, setAdding] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
@@ -79,9 +80,10 @@ export default function Assets() {
         <>
           <Button type="button" variant="secondary" onClick={downloadTemplate}><Download size={14} /> Register Template</Button>
           <input ref={fileRef} type="file" accept=".xlsx,.csv" className="hidden" onChange={(e) => pick(e.target.files?.[0])} />
-          <Button type="button" onClick={() => fileRef.current?.click()} disabled={reading || !data.data}>
+          <Button type="button" variant="secondary" onClick={() => fileRef.current?.click()} disabled={reading || !data.data}>
             {reading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} {reading ? "Reading…" : "Import Register"}
           </Button>
+          <Button type="button" onClick={() => { setError(""); setMessage(""); setAdding(true); }} disabled={!data.data}><Plus size={14} /> Add Asset</Button>
         </>
       } />
       {data.data && !data.data.ready && (
@@ -90,7 +92,7 @@ export default function Assets() {
       {error && <Notice>{error}</Notice>}
       {message && <Notice tone="info">{message}</Notice>}
 
-      <Panel title="Asset Register" hint="Upload a revised register at any time - changes are shown for review before anything is saved.">
+      <Panel title="Asset Register" hint="Add assets one at a time, or upload a register - uploaded changes are shown for review before anything is saved.">
         <Async state={data}>
           {({ assets }) => {
             const c = counts(assets);
@@ -104,7 +106,7 @@ export default function Assets() {
                     <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search code, serial, person…" aria-label="Search assets" className={`${inputCls} pl-8`} />
                   </label>
                 </div>
-                {assets.length === 0 ? <Empty icon={FileSpreadsheet} text="No assets yet. Import your asset register to get started." /> : (
+                {assets.length === 0 ? <Empty icon={FileSpreadsheet} text="No assets yet. Add one, or import your asset register." /> : (
                   <Grid rows={rows} empty="No assets match." columns={[
                     { key: "custom_asset_code", label: "Code", render: (a) => <span className="font-medium">{a.custom_asset_code || "—"}</span> },
                     { key: "asset_name", label: "Asset", render: (a) => <span>{a.asset_name}<span className="block text-[11px] text-[var(--color-text-faint)]">{a.asset_category}{a.custom_serial_number ? ` · ${a.custom_serial_number}` : ""}</span></span> },
@@ -140,6 +142,7 @@ export default function Assets() {
           onClose={() => setImporting(null)}
           onDone={(text) => { setImporting(null); setMessage(text); data.reload(); files.reload(); }} />
       )}
+      {adding && data.data && <AddAssetModal employees={employees} assets={data.data.assets} onClose={() => setAdding(false)} onDone={(text) => { setAdding(false); setMessage(text); data.reload(); }} />}
       {moving && <MoveModal asset={moving} employees={employees} onClose={() => setMoving(null)} onDone={(text) => { setMoving(null); setMessage(text); data.reload(); }} />}
     </div>
   );
@@ -289,6 +292,68 @@ function ImportModal({ file, reg, employees, assets, onClose, onDone }) {
           </div>
         </div>
       </div>
+    </Modal>
+  );
+}
+
+const ASSET_TYPES = ["Laptop", "Desktop", "Monitor", "Mobile", "Furniture", "Electronic", "Mechanical", "Office Equipment"];
+const ASSET_CONDITIONS = ["Working", "Damaged", "Out of Service"];
+
+/** Add one asset directly, without a template. */
+function AddAssetModal({ employees, assets, onClose, onDone }) {
+  const companies = useMemo(() => [...new Set(employees.map((e) => e.company).filter(Boolean))], [employees]);
+  const types = useMemo(() => [...new Set([...ASSET_TYPES, ...assets.map((a) => a.asset_category).filter(Boolean)])], [assets]);
+  const [f, setF] = useState({ name: "", type: "Laptop", code: "", serial: "", custodian: "", assignedOn: isoDate(), assignedBy: "", location: "Office", condition: "Working", company: companies[0] || "", purchaseDate: isoDate(), value: "", other: "", notes: "" });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+
+  async function submit(e) {
+    e.preventDefault();
+    setErr("");
+    if (f.code.trim() && assets.some((a) => norm(a.custom_asset_code) === norm(f.code))) return setErr(`Asset code ${f.code.trim()} is already in the register.`);
+    if (f.serial.trim() && assets.some((a) => norm(a.custom_serial_number) === norm(f.serial))) return setErr(`Serial number ${f.serial.trim()} is already in the register.`);
+    setBusy(true);
+    try {
+      const result = await addAsset(f, employees);
+      onDone(`${f.name.trim()}: ${result.text}.`);
+    } catch (x) {
+      setErr(errMsg(x, "ERPNext refused this asset."));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title="Add Asset" onClose={onClose} wide>
+      <form onSubmit={submit} className="space-y-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Field label="Asset Name"><input required className={inputCls} value={f.name} onChange={set("name")} placeholder="e.g. Dell Latitude 5420" /></Field>
+          <Field label="Asset Type">
+            <input required list="asset-types" className={inputCls} value={f.type} onChange={set("type")} />
+            <datalist id="asset-types">{types.map((t) => <option key={t} value={t} />)}</datalist>
+          </Field>
+          <Field label="Asset Code (Optional)"><input className={inputCls} value={f.code} onChange={set("code")} /></Field>
+          <Field label="Serial Number (Optional)"><input className={inputCls} value={f.serial} onChange={set("serial")} /></Field>
+          <Field label="Assign To (Optional)">
+            <select className={inputCls} value={f.custodian} onChange={set("custodian")}>
+              <option value="">Nobody - keep in the office</option>
+              {employees.filter((e) => e.status !== "Left").map((e) => <option key={e.name} value={e.name}>{e.employee_name} ({e.employee_number || e.name})</option>)}
+            </select>
+          </Field>
+          {f.custodian
+            ? <Field label="Assigned On"><input required type="date" className={inputCls} value={f.assignedOn} onChange={set("assignedOn")} /></Field>
+            : <Field label="Company"><select required className={inputCls} value={f.company} onChange={set("company")}>{companies.map((c) => <option key={c}>{c}</option>)}</select></Field>}
+          {f.custodian && <Field label="Assigned By (Optional)"><input className={inputCls} value={f.assignedBy} onChange={set("assignedBy")} /></Field>}
+          <Field label="Location"><input required className={inputCls} value={f.location} onChange={set("location")} /></Field>
+          <Field label="Condition"><select className={inputCls} value={f.condition} onChange={set("condition")}>{ASSET_CONDITIONS.map((c) => <option key={c}>{c}</option>)}</select></Field>
+          <Field label="Purchase Date" hint="Uses the assigned date when the asset is assigned"><input required type="date" className={inputCls} value={f.purchaseDate} onChange={set("purchaseDate")} /></Field>
+          <Field label="Value (₹, Optional)" hint="Blank records ₹1 as a placeholder - ERPNext needs some value"><input type="number" min="1" className={inputCls} value={f.value} onChange={set("value")} /></Field>
+          <Field label="Other Assets With It (Optional)"><input className={inputCls} value={f.other} onChange={set("other")} placeholder="e.g. Charger, Mouse" /></Field>
+        </div>
+        <Field label="Notes (Optional)"><textarea rows={2} className={inputCls} value={f.notes} onChange={set("notes")} /></Field>
+        {err && <Notice>{err}</Notice>}
+        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Saving…" : "Add Asset"}</Button></div>
+      </form>
     </Modal>
   );
 }
