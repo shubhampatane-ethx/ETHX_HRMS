@@ -107,6 +107,22 @@ const ROLE_MAP = {
   "Projects Manager": "PROJECT_MANAGER", // ERPNext's standard Projects Manager role
 };
 
+/**
+ * The app roles an account's ERPNext roles give it. Every role the person holds counts, so the Administrator can combine
+ * them freely. HR staff also use the employee portal for their own records, unless they are a contractor.
+ */
+export function appRolesFor(erpRoles = []) {
+  if (erpRoles.includes("System Manager")) return ["System Manager"];
+  const hr = erpRoles.some((r) => r === "HR Manager" || r === "HR User");
+  const contractor = erpRoles.includes("Contractor");
+  return [
+    ...(hr ? ["HR User"] : []),
+    ...(erpRoles.includes("Projects Manager") ? ["Projects Manager"] : []),
+    ...(erpRoles.includes("Employee") || (hr && !contractor) ? ["Employee"] : []),
+    ...(contractor ? ["Contractor"] : []),
+  ];
+}
+
 export function rolesToPermissions(erpRoles = []) {
   const perms = new Set();
   for (const role of erpRoles) {
@@ -121,8 +137,8 @@ export function primaryAppRole(erpRoles = []) {
   if (erpRoles.includes("System Manager")) return "admin";
   if (erpRoles.some((r) => ["HR Manager", "HR User"].includes(r))) return "hr";
   if (erpRoles.includes("Projects Manager")) return "pm";
-  if (erpRoles.includes("Contractor")) return "contractor";
   if (erpRoles.includes("Employee")) return "employee";
+  if (erpRoles.includes("Contractor")) return "contractor";
   return null;
 }
 

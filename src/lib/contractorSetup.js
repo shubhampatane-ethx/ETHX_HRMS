@@ -80,11 +80,12 @@ frappe.response["message"] = {"employee": emp.name, "name": emp.employee_name, "
 `;
 
 // HR can now edit contractors like employees, and ERPNext adds the Employee role to the login whenever an
-// Employee record is saved. This keeps a contractor's login limited to the Contractor role.
+// Employee record is saved. This keeps a contractor's login limited to the Contractor role, unless the Administrator
+// gave them the Employee role in Access Control.
 const STAYS_CONTRACTOR = `
 if doc.get("custom_is_contractor") and doc.user_id:
     held = frappe.get_all("Has Role", filters={"parent": doc.user_id, "parenttype": "User"}, pluck="role")
-    if "Employee" in held and "${CONTRACTOR_ROLE}" in held:
+    if "Employee" in held and "${CONTRACTOR_ROLE}" in held and not frappe.db.get_value("User", doc.user_id, "custom_keep_employee_role"):
         u = frappe.get_doc("User", doc.user_id)
         u.roles = [r for r in u.roles if r.role != "Employee"]
         u.flags.ignore_permissions = True
@@ -110,6 +111,9 @@ kept = []
 for email in emails:
     emp = frappe.db.get_value("Employee", {"user_id": email, "custom_is_contractor": 1}, ["name", "employee_name"], as_dict=True)
     if not emp:
+        continue
+    # The Administrator took them off the Contractor role, so they stay when the project ends.
+    if "${CONTRACTOR_ROLE}" not in frappe.get_all("Has Role", filters={"parent": email, "parenttype": "User"}, pluck="role"):
         continue
     theirs = frappe.get_all("ToDo", filters={"reference_type": "Task", "allocated_to": email}, pluck="reference_name")
     busy = False
@@ -168,7 +172,7 @@ if "${CONTRACTOR_ROLE}" in held and "Projects Manager" not in held and "HR Manag
 
 export const CONTRACTOR_SCRIPTS = [
   { name: "ETHX - Add contractor", script_type: "API", api_method: "ethx_add_contractor", script: ADD_API, what: "HR and the Administrator create contractors" },
-  { name: "ETHX - Contractor stays contractor", script_type: "DocType Event", reference_doctype: "Employee", doctype_event: "After Save", script: STAYS_CONTRACTOR, what: "Editing a contractor keeps their login limited to the Contractor role" },
+  { name: "ETHX - Contractor stays contractor", script_type: "DocType Event", reference_doctype: "Employee", doctype_event: "After Save", script: STAYS_CONTRACTOR, what: "Editing a contractor keeps their login limited to the roles the Administrator gave them" },
   { name: "ETHX - End project", script_type: "API", api_method: "ethx_end_project", script: END_PROJECT_API, what: "The Administrator ends a project; its contractors' logins and details are deleted" },
   { name: "ETHX - Contractor timesheets", script_type: "DocType Event", reference_doctype: "Timesheet", doctype_event: "Before Validate", script: TIMESHEET_GUARD, what: "Contractors log time only on their own projects" },
 ];

@@ -110,6 +110,14 @@ function accountMenu(user, roleLabel) {
   } else if (roleLabel === "Project Manager" && hasPermission(user, "dashboard.employee")) {
     items.push({ to: "/employee/profile", label: "My Profile", icon: UserRound });
   }
+  // Contractors given other roles move between the contractor pages and the rest.
+  if (roleLabel === "Contractor") {
+    if (hasPermission(user, "dashboard.employee")) items.push({ to: "/employee", label: "Employee Self-Service", icon: UserRound });
+    if (hasPermission(user, "dashboard.hr")) items.push({ to: "/hr", label: "HR Workspace", icon: Briefcase });
+    if (hasPermission(user, "dashboard.pm")) items.push({ to: "/pm", label: "Project Manager Workspace", icon: Briefcase });
+  } else if (hasPermission(user, "dashboard.contractor")) {
+    items.push({ to: "/contractor", label: "My Projects", icon: Briefcase });
+  }
   return items;
 }
 

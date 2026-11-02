@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { frappe } from "../lib/api/frappeClient";
-import { ADMIN_USERNAME, effectiveRolesForUser, rolesToPermissions } from "../permissions/roles";
+import { ADMIN_USERNAME, appRolesFor, effectiveRolesForUser, rolesToPermissions } from "../permissions/roles";
 
 const AuthContext = createContext(null);
 
@@ -29,23 +29,12 @@ async function resolveAccount(email) {
     // A System Manager is a platform admin (Admin workspace, which also opens the HR and PM workspaces) - not HR.
     // HR users created from Admin › Users only get HR Manager / HR User, so they stay in the HR workspace.
     if (erpRoles.includes("System Manager")) return { roles: ["System Manager"], mustChangePassword: false, erpRoles };
-    if (erpRoles.some((r) => r === "HR Manager" || r === "HR User")) {
-      // HR users also use the employee self-service portal for their own records.
-      // A project-based manager role (Projects Manager) stays with them too.
-      return { roles: ["HR User", "Employee", ...(erpRoles.includes("Projects Manager") ? ["Projects Manager"] : [])], mustChangePassword: false, erpRoles };
-    }
-    const isPm = erpRoles.includes("Projects Manager");
-    // A contractor gets only the contractor pages, even if ERPNext has added the Employee role to their login.
-    if (erpRoles.includes("Contractor") && !isPm) {
-      let done = false;
-      try { done = localStorage.getItem(`pwchanged:${email}`) === "1"; } catch { /* ignore */ }
-      return { roles: ["Contractor"], mustChangePassword: !doc.last_password_reset_date && !done, erpRoles };
-    }
-    if (isPm || erpRoles.includes("Employee")) {
+    const roles = appRolesFor(erpRoles);
+    if (roles.includes("HR User")) return { roles, mustChangePassword: false, erpRoles };
+    if (roles.length) {
       // Admin gave them a temporary password: they must set their own first
       let flagged = false;
       try { flagged = localStorage.getItem(`pwchanged:${email}`) === "1"; } catch { /* ignore */ }
-      const roles = [...(isPm ? ["Projects Manager"] : []), ...(erpRoles.includes("Employee") ? ["Employee"] : [])];
       return { roles, mustChangePassword: !doc.last_password_reset_date && !flagged, erpRoles };
     }
   } catch {

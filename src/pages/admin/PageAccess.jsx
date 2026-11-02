@@ -8,7 +8,7 @@ import { frappe } from "../../lib/api/frappeClient";
 import { errMsg, useAsync } from "../../lib/employeePortal";
 import { confirmDialog } from "../../components/ui/dialogs";
 import { ALWAYS_ALLOWED } from "../../permissions/pageAccess";
-import { rolesToPermissions } from "../../permissions/roles";
+import { appRolesFor } from "../../permissions/roles";
 
 const SETUP_MISSING = /Failed to get method|not whitelisted|has no attribute|No module named/i;
 
@@ -33,19 +33,23 @@ function toGroups(items) {
   return [...(general.length ? [{ label: "General", pages: general }] : []), ...groups];
 }
 
-/** The pages this person's role allows, taken from the real menus so this list can't drift from what they see. */
-function workspacesFor(roles) {
-  const contractorOnly = roles.includes("Contractor") && !roles.includes("Projects Manager");
-  const out = [];
-  if (contractorOnly) return [{ title: "Contractor Pages", groups: toGroups(CONTRACTOR_NAV) }];
-  const perms = rolesToPermissions(roles);
-  if (perms.includes("dashboard.employee")) out.push({ title: "Employee Self-Service", groups: toGroups(roles.includes("Interviewer") ? [...EMPLOYEE_NAV, { to: "/employee/interviews", label: "My Interviews" }] : EMPLOYEE_NAV) });
-  if (perms.includes("dashboard.hr")) out.push({ title: "HR Workspace", groups: toGroups(hrNav({ permissions: ["dashboard.hr"] })) });
-  if (perms.includes("dashboard.pm")) out.push({ title: "Project Manager Workspace", groups: toGroups(pmNav({ permissions: ["dashboard.pm"] })) });
-  return out;
-}
+// The roles the Administrator can give anyone. The server accepts only these.
+const ROLES = ["Employee", "HR Manager", "HR User", "Projects Manager", "Contractor", "Interviewer", "Leave Approver", "Expense Approver"];
 
-const roleLabel = (roles) => roles.filter((r) => ["HR Manager", "HR User", "Projects Manager", "Employee", "Contractor"].includes(r)).join(", ") || "No workspace role";
+/**
+ * Every workspace, taken from the real menus so this list can't drift from what people see. `appRole` says who already has
+ * the workspace, and `grant` is the role that ticking one of its pages gives.
+ */
+const WORKSPACES = (roles) => [
+  { title: "Employee Self-Service", appRole: "Employee", grant: "Employee", groups: toGroups(roles.has("Interviewer") ? [...EMPLOYEE_NAV, { to: "/employee/interviews", label: "My Interviews" }] : EMPLOYEE_NAV) },
+  { title: "HR Workspace", appRole: "HR User", grant: "HR User", groups: toGroups(hrNav({ permissions: ["dashboard.hr"] })) },
+  { title: "Project Manager Workspace", appRole: "Projects Manager", grant: "Projects Manager", groups: toGroups(pmNav({ permissions: ["dashboard.pm"] })) },
+  { title: "Contractor Pages", appRole: "Contractor", grant: "Contractor", groups: toGroups(CONTRACTOR_NAV) },
+];
+const pagesOf = (workspace) => workspace.groups.flatMap((g) => g.pages);
+
+const roleLabel = (roles) => roles.filter((r) => ROLES.includes(r)).join(", ") || "No role";
+const sameSet = (set, list) => set.size === list.length && list.every((x) => set.has(x));
 
 export default function PageAccess() {
   const data = useAsync(loadPeople, []);
@@ -57,7 +61,7 @@ export default function PageAccess() {
   return (
     <div className="space-y-5">
       <PageHeader icon={ListChecks} title="Access Control" subtitle="Choose what each person can open" />
-      <Notice tone="info">Every page a person's role allows is ticked by default. Untick a page to remove it from their menu and block it. To open pages outside their role (such as HR pages), give them that role. Changes apply the next time they sign in.</Notice>
+      <Notice tone="info">A new login starts with the pages of the role it was created with. After that you can give anyone any role or page: ticking a page outside their roles also gives them that workspace's role. Changes apply the next time they sign in.</Notice>
       <Async state={data}>
         {({ ready }) => (!ready ? <Notice>Access Control isn't set up yet. Run <b>System Setup › Run setup</b> first.</Notice> : (
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
@@ -79,7 +83,7 @@ export default function PageAccess() {
                 </ul>
               )}
             </Panel>
-            {person ? <AccessEditor key={person.email} person={person} onSaved={() => data.reload()} /> : <Panel><Empty icon={ShieldCheck} text="Choose a person to set what they can open." /></Panel>}
+            {person ? <AccessEditor key={person.email} person={person} onSaved={() => data.reload()} /> : <Panel><Empty icon={ShieldCheck} text="Choose a person to set their roles and pages." /></Panel>}
           </div>
         ))}
       </Async>
@@ -88,30 +92,60 @@ export default function PageAccess() {
 }
 
 function AccessEditor({ person, onSaved }) {
+  const heldRoles = person.roles.filter((r) => ROLES.includes(r));
+  const [roles, setRoles] = useState(() => new Set(heldRoles));
   const [denied, setDenied] = useState(() => new Set(person.denied));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
-  const workspaces = useMemo(() => workspacesFor(person.roles), [person.roles]);
-  const dirty = denied.size !== person.denied.length || person.denied.some((p) => !denied.has(p));
+  const workspaces = useMemo(() => WORKSPACES(roles), [roles]);
+  const appRoles = appRolesFor([...roles]);
+  const hasWorkspace = (w) => appRoles.includes(w.appRole);
+  const dirty = !sameSet(denied, person.denied) || !sameSet(roles, heldRoles);
 
-  const change = (pages, allow) => {
+  /** Tick or untick pages. A page in a workspace they don't have gives them its role, with only the ticked pages open. */
+  const change = (workspace, pages, allow) => {
     setSaved(false);
+    const opening = allow && !hasWorkspace(workspace);
+    if (opening) setRoles((r) => new Set(r).add(workspace.grant));
     setDenied((d) => {
       const next = new Set(d);
+      if (opening) pagesOf(workspace).forEach((p) => next.add(p.to));
       pages.forEach((p) => { if (allow) next.delete(p.to); else next.add(p.to); });
       return next;
     });
   };
 
+  /** A role ticked on its own opens all of its workspace's pages; losing a workspace forgets which of its pages were blocked. */
+  const changeRole = (role, on) => {
+    setSaved(false);
+    const next = new Set(roles);
+    if (on) next.add(role); else next.delete(role);
+    setRoles(next);
+    const nextApp = appRolesFor([...next]);
+    const changed = WORKSPACES(next).filter((w) => appRoles.includes(w.appRole) !== nextApp.includes(w.appRole));
+    if (changed.length) setDenied((d) => {
+      const left = new Set(d);
+      changed.forEach((w) => pagesOf(w).forEach((p) => left.delete(p.to)));
+      return left;
+    });
+  };
+
   async function save() {
-    if (!(await confirmDialog({ title: "Save Access", message: `Block ${denied.size} page(s) for ${person.name}? This applies the next time they sign in.`, confirmLabel: "Save" }))) return;
+    const roleText = [...roles].join(", ") || "no role";
+    const warning = appRoles.length ? "" : " With no workspace role they won't be able to open anything.";
+    if (!(await confirmDialog({ title: "Save Access", message: `Give ${person.name} ${roleText}, with ${denied.size} page(s) blocked? This applies the next time they sign in.${warning}`, confirmLabel: "Save" }))) return;
     setBusy(true);
     setError("");
     try {
-      await frappe.callMethod("ethx_set_page_access", { user: person.email, denied: JSON.stringify([...denied]) });
-      setSaved(true);
-      onSaved();
+      const result = await frappe.callMethod("ethx_set_page_access", { user: person.email, denied: JSON.stringify([...denied]), roles: JSON.stringify([...roles]) });
+      if (!result?.roles) setError("Access Control needs updating. Run System Setup › Run setup, then save again.");
+      else {
+        const dropped = [...roles].filter((r) => !result.roles.includes(r));
+        if (dropped.length) setError(`ERPNext didn't keep ${dropped.join(", ")} for ${person.name}. The Employee role needs a linked employee profile, so create one first.`);
+        else setSaved(true);
+        onSaved();
+      }
     } catch (e) {
       setError(errMsg(e, "Couldn't save access."));
     }
@@ -122,25 +156,35 @@ function AccessEditor({ person, onSaved }) {
     <Panel title={person.name} hint={`${person.email} · ${roleLabel(person.roles)}`} action={<Button type="button" onClick={save} disabled={busy || !dirty}>{busy ? "Saving…" : "Save Access"}</Button>}>
       {error && <div className="mb-3"><Notice>{error}</Notice></div>}
       {saved && !dirty && <div className="mb-3"><Notice tone="info">Saved. It applies the next time {person.name} signs in.</Notice></div>}
-      {workspaces.length === 0 && <Empty text="This login has no workspace role, so there is nothing to set." />}
       <div className="space-y-6">
-        {workspaces.map((w) => (
+        <section>
+          <h3 className="mb-3 text-[13px] font-semibold text-[var(--color-text)]">Roles</h3>
+          <div className="grid grid-cols-1 gap-x-4 gap-y-1.5 rounded-lg border border-[var(--color-border)] p-3 sm:grid-cols-2 xl:grid-cols-4">
+            {ROLES.map((r) => (
+              <label key={r} className="flex items-center gap-2 text-[12.5px] text-[var(--color-text)]">
+                <input type="checkbox" checked={roles.has(r)} onChange={(e) => changeRole(r, e.target.checked)} />
+                {r}
+              </label>
+            ))}
+          </div>
+        </section>
+        {workspaces.map((w) => { const on = hasWorkspace(w); return (
           <section key={w.title}>
-            <h3 className="mb-3 text-[13px] font-semibold text-[var(--color-text)]">{w.title}</h3>
+            <h3 className="mb-3 text-[13px] font-semibold text-[var(--color-text)]">{w.title}{!on && <span className="ml-2 text-[11px] font-normal text-[var(--color-text-faint)]">Not Assigned</span>}</h3>
             <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
               {w.groups.map((g) => {
                 const open = g.pages.filter((p) => !ALWAYS_ALLOWED.has(p.to));
-                const allOn = open.every((p) => !denied.has(p.to));
+                const allOn = on && open.every((p) => !denied.has(p.to));
                 return (
                   <fieldset key={g.label} className="rounded-lg border border-[var(--color-border)] p-3">
                     <legend className="px-1 text-[12px] font-medium text-[var(--color-text-muted)]">{g.label}</legend>
-                    {open.length > 1 && <button type="button" onClick={() => change(open, !allOn)} className={`${chipCls(false)} mb-2`}>{allOn ? "Untick All" : "Tick All"}</button>}
+                    {open.length > 1 && <button type="button" onClick={() => change(w, open, !allOn)} className={`${chipCls(false)} mb-2`}>{allOn ? "Untick All" : "Tick All"}</button>}
                     <div className="space-y-1.5">
                       {g.pages.map((p) => (ALWAYS_ALLOWED.has(p.to) ? (
-                        <p key={p.to} className="flex items-center gap-2 text-[12.5px] text-[var(--color-text-muted)]"><Lock size={12} /> {p.label} (always on)</p>
+                        <p key={p.to} className="flex items-center gap-2 text-[12.5px] text-[var(--color-text-muted)]"><Lock size={12} /> {p.label} ({on ? "always on" : "comes with this workspace"})</p>
                       ) : (
                         <label key={p.to} className="flex items-center gap-2 text-[12.5px] text-[var(--color-text)]">
-                          <input type="checkbox" checked={!denied.has(p.to)} onChange={(e) => change([p], e.target.checked)} />
+                          <input type="checkbox" checked={on && !denied.has(p.to)} onChange={(e) => change(w, [p], e.target.checked)} />
                           {p.label}
                         </label>
                       )))}
@@ -150,7 +194,7 @@ function AccessEditor({ person, onSaved }) {
               })}
             </div>
           </section>
-        ))}
+        ); })}
       </div>
     </Panel>
   );
