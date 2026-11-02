@@ -7,7 +7,7 @@ import { useAuth } from "../../context/AuthContext";
 import { frappe } from "../../lib/api/frappeClient";
 import { dmy, errMsg, friendlyError, getAssignedTasks, getHolidays, getTimesheets, isoDate, MONTHS_LONG, pad, parseWorkNote, useAsync, WEEKDAYS } from "../../lib/employeePortal";
 import { getMyAssignments, parseAssignment } from "../../lib/assignments";
-import { composeDescription, csvToEntries, DAY_MINUTES, getEntriesBetween, getLeaveDays, getProjects, matchTask, minutesOf, parseCsv, projectResolver, roundHours, slotDay, submitTimesheet, withActivityType } from "../../lib/timesheets";
+import { composeDescription, csvToEntries, DAY_MINUTES, getEntriesBetween, getLeaveDays, getProjects, matchTask, minutesOf, parseCsv, projectResolver, roundHours, slotDay, submitTimesheet, weekSunday, canSubmitWeek, withActivityType } from "../../lib/timesheets";
 import { confirmDialog } from "../../components/ui/dialogs";
 
 /** Review state pill: Draft / Returned / Pending Review / Approved (+ ERPNext's own status when it says more). */
@@ -74,7 +74,7 @@ export function EmpTimesheet() {
                     key: "_a", label: "", render: (r) => r.docstatus === 0 ? (
                       <span className="flex items-center gap-3 text-[11px]">
                         <button type="button" disabled={Boolean(busy)} onClick={() => setEditor({ name: r.name })} className="flex items-center gap-1 text-[var(--color-text-muted)] hover:text-[var(--color-text)] disabled:opacity-50"><Pencil size={12} /> Edit</button>
-                        <button type="button" disabled={Boolean(busy)} onClick={() => submitSheet(r.name)} className="flex items-center gap-1 text-[var(--color-red-hover)] hover:underline disabled:opacity-50"><Send size={12} /> {busy === r.name ? "Working…" : "Submit"}</button>
+                        {!canSubmitWeek(r.end_date || r.start_date, isoDate()) ? <span className="text-[var(--color-text-faint)]" title="Drafts are submitted automatically after the week ends">Submit opens {dmy(weekSunday(r.end_date || r.start_date))}</span> : <button type="button" disabled={Boolean(busy)} onClick={() => submitSheet(r.name)} className="flex items-center gap-1 text-[var(--color-red-hover)] hover:underline disabled:opacity-50"><Send size={12} /> {busy === r.name ? "Working…" : "Submit"}</button>}
                         <button type="button" disabled={Boolean(busy)} onClick={() => deleteSheet(r.name)} title="Delete draft" className="text-[var(--color-text-muted)] hover:text-[var(--color-red-hover)] disabled:opacity-50"><Trash2 size={12} /></button>
                       </span>
                     ) : null,
@@ -212,14 +212,18 @@ function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, on
   const projectLabel = (p) => (p.project_name && p.project_name !== p.name ? p.project_name : p.name);
   const labelOf = (id) => { const p = (projects.data || []).find((x) => x.name === id); return p ? projectLabel(p) : id; };
 
+  const sunday = weekSunday(ws);
+  const submitOpen = canSubmitWeek(ws, today);
   const days = Array.from({ length: 7 }, (_, i) => {
     const date = addDays(ws, i);
     const wd = fromIso(date).getDay();
     const h = holidayMap[date];
     const off = Boolean(h) || (!listHasWeeklyOffs && (wd === 0 || wd === 6));
+    const weekend = off && (!h || h.weeklyOff);
     const lv = leave.data?.[date] || null;
-    const label = h ? (h.weeklyOff ? "Weekly off" : h.description) : off ? "Weekend" : lv ? (lv.half ? "Half-day leave" : "On leave") : "";
-    return { date, wd, off, label, leave: lv, logged: existing.data?.[date] || null, future: date > today };
+    // Weekends can be filled for billing like any other day; they just don't count towards the expected hours.
+    const label = weekend ? "Optional" : h ? h.description : lv ? (lv.half ? "Half-day leave" : "On leave") : "";
+    return { date, wd, off, weekend, label, leave: lv, logged: existing.data?.[date] || null, future: date > today };
   });
   const expected = days.reduce((s, d) => s + (d.off ? 0 : d.leave ? (d.leave.half ? DAY_HOURS / 2 : 0) : DAY_HOURS), 0);
   const cell = (r, date) => Number(r.hours[date]) || 0;
@@ -391,6 +395,7 @@ function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, on
     if (built.error) return setErr(built.error);
     if (!built.logs.length) return setErr(savedName ? "This timesheet has no hours left for this week - use Delete on the list instead." : "Enter hours for at least one day.");
     if (built.onLeave.length && !(await confirmDialog(`You entered hours on leave day(s): ${built.onLeave.join(", ")}. Save anyway?`))) return;
+    if (submit && !submitOpen) return setErr(`You can submit this week from ${dmy(sunday)}. Until then, save it as a draft.`);
     if (submit && !(await confirmDialog(`Submit the week of ${weekLabel(ws)} (${fmt(weekTotal)} h of ${fmt(expected)} h expected)? You won't be able to edit it unless it's returned to you.`))) return;
     if (!submit && !(await confirmDialog(`Save the week of ${weekLabel(ws)} as a draft (${fmt(weekTotal)} h)? You can still edit it before submitting.`))) return;
     remember(rows.map((r) => r.project.trim()));
@@ -461,7 +466,7 @@ function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, on
                 <tr className="border-b border-[var(--color-border)] text-[var(--color-text-muted)]">
                   <th className="px-3 py-2 text-left font-medium">Project · Task · Work Done</th>
                   {days.map((d) => (
-                    <th key={d.date} title={d.label || undefined} className={`px-1 py-2 text-center font-medium ${d.date === today ? "text-[var(--color-red-hover)]" : ""} ${d.off || (d.leave && !d.leave.half) ? "bg-[var(--color-surface-2)]" : ""}`}>
+                    <th key={d.date} title={d.label || undefined} className={`px-1 py-2 text-center font-medium ${d.date === today ? "text-[var(--color-red-hover)]" : ""} ${(d.off && !d.weekend) || (d.leave && !d.leave.half) ? "bg-[var(--color-surface-2)]" : ""}`}>
                       <span className="block">{WEEKDAYS[d.wd]} {fromIso(d.date).getDate()}</span>
                       <span className="block h-3.5 truncate text-[10px] font-normal text-[var(--color-text-faint)]">{d.label || (d.logged ? `+${fmt(d.logged.hours)} h logged` : "")}</span>
                     </th>
@@ -485,7 +490,7 @@ function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, on
                       </td>
                       {days.map((d) => {
                         const blocked = d.future;
-                        const grey = d.off || (d.leave && !d.leave.half);
+                        const grey = (d.off && !d.weekend) || (d.leave && !d.leave.half);
                         return (
                           <td key={d.date} className={`px-1 py-2 text-center ${grey ? "bg-[var(--color-surface-2)]" : ""}`}>
                             <input type="number" min="0" max="24" step="0.25" inputMode="decimal" disabled={blocked} value={r.hours[d.date] ?? ""} onChange={(e) => setHours(r.id, d.date, e.target.value)}
@@ -529,7 +534,7 @@ function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, on
           <input ref={fileInput} type="file" accept=".csv,text/csv" className="hidden" onChange={importCsv} />
           <Button type="button" variant="ghost" onClick={() => fileInput.current?.click()}><Upload size={14} /> Import CSV</Button>
           <Button type="button" variant="ghost" onClick={async () => { if (!dirty || (await confirmDialog("Clear every line for this week?"))) change(() => [newRow()]); }}>Clear</Button>
-          <span className="text-[11px] text-[var(--color-text-faint)]">Amber totals are under the expected {DAY_HOURS} h; greyed days are weekly offs, holidays or leave.</span>
+          <span className="text-[11px] text-[var(--color-text-faint)]">Amber totals are under the expected {DAY_HOURS} h. Greyed days are holidays or leave. Weekends are optional. Days open for entry as they arrive.</span>
         </div>
 
         {assignments.length > 0 && (
@@ -537,10 +542,11 @@ function WeeklyEditor({ employee, tasks, editName, doc, recentNames, onClose, on
         )}
         {info && <Notice tone="info">{info}</Notice>}
         {err && <Notice>{err}</Notice>}
+        {!submitOpen && <p className="text-[11.5px] text-[var(--color-text-muted)]">Save your hours as a draft during the week. You can submit from Sunday {dmy(sunday)}; if you don't, the draft is submitted automatically once the week has ended.</p>}
         <div className="flex justify-end gap-2 border-t border-[var(--color-border)] pt-3">
           <Button type="button" variant="ghost" onClick={async () => { if (!dirty || (await confirmDialog("Close without saving your changes?"))) onClose(); }}>Cancel</Button>
           <Button type="button" variant="secondary" disabled={Boolean(busy) || waiting} onClick={() => save(false)}>{busy === "draft" ? "Saving…" : "Save Draft"}</Button>
-          <Button type="button" disabled={Boolean(busy) || waiting} onClick={() => save(true)}><Send size={14} /> {busy === "submit" ? "Submitting…" : "Submit Week"}</Button>
+          <Button type="button" disabled={Boolean(busy) || waiting || !submitOpen} title={submitOpen ? undefined : `Opens on Sunday ${dmy(sunday)}`} onClick={() => save(true)}><Send size={14} /> {busy === "submit" ? "Submitting…" : "Submit Week"}</Button>
         </div>
       </div>
     </Modal>

@@ -91,6 +91,17 @@ export async function withActivityType(logs) {
   return logs.map((l) => (l.activity_type ? l : { ...l, activity_type: activity }));
 }
 
+/** The Sunday of the Monday-to-Sunday week an ISO date falls in. */
+export function weekSunday(iso) {
+  const [y, m, d] = String(iso).slice(0, 10).split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  date.setDate(date.getDate() + ((7 - date.getDay()) % 7));
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+/** A week can be submitted from its Sunday; until then it stays a draft. The server enforces this too. */
+export const canSubmitWeek = (iso, today) => weekSunday(iso) <= today;
+
 /**
  * Submit a draft timesheet. Drafts saved before entries carried an Activity Type are patched
  * first, so older drafts submit without the "Activity Type is mandatory" error.

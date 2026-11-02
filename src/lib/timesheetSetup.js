@@ -216,7 +216,51 @@ else:
     frappe.response["message"] = out
 `;
 
+// A week's timesheet can be saved as a draft all week, and submitted from its Sunday onwards.
+const SUBMIT_FROM_SUNDAY = `
+last = doc.end_date or doc.start_date
+if last:
+    last = frappe.utils.getdate(last)
+    sunday = frappe.utils.getdate(frappe.utils.add_days(last, 6 - last.weekday()))
+    if frappe.utils.getdate(frappe.utils.nowdate()) < sunday:
+        frappe.throw("This week's timesheet can be submitted from Sunday " + str(sunday) + ". Until then, save it as a draft.")
+`;
+
+// Every night: drafts whose week has finished are submitted. A sheet HR returned for correction waits for the employee,
+// and an empty one stays a draft. If a sheet can't be submitted, the reason is noted on it and the others carry on.
+const AUTO_SUBMIT_WEEKS = `
+today = frappe.utils.getdate(frappe.utils.nowdate())
+activity = None
+if frappe.db.exists("Activity Type", "Execution"):
+    activity = "Execution"
+else:
+    types = frappe.get_all("Activity Type", filters={"disabled": 0}, pluck="name", limit=1)
+    if types:
+        activity = types[0]
+for s in frappe.get_all("Timesheet", filters={"docstatus": 0, "employee": ["is", "set"]}, fields=["name", "start_date", "end_date", "total_hours", "custom_review_status"]):
+    last = s.end_date or s.start_date
+    if not last or s.custom_review_status == "Returned" or not frappe.utils.flt(s.total_hours) > 0:
+        continue
+    last = frappe.utils.getdate(last)
+    sunday = frappe.utils.getdate(frappe.utils.add_days(last, 6 - last.weekday()))
+    if today <= sunday:
+        continue
+    text = "Submitted automatically after the week ended"
+    try:
+        ts = frappe.get_doc("Timesheet", s.name)
+        for row in ts.time_logs:
+            if not row.activity_type:
+                row.activity_type = activity
+        ts.flags.ignore_permissions = True
+        ts.submit()
+    except Exception as e:
+        text = "Couldn't be submitted automatically: " + str(e)[:200]
+    frappe.get_doc({"doctype": "Comment", "comment_type": "Info", "reference_doctype": "Timesheet", "reference_name": s.name, "content": text}).insert(ignore_permissions=True)
+`;
+
 export const TIMESHEET_SCRIPTS = [
+  { name: "ETHX - Submit timesheet from Sunday", script_type: "DocType Event", reference_doctype: "Timesheet", doctype_event: "Before Submit", script: SUBMIT_FROM_SUNDAY, what: "A week's timesheet can be submitted from its Sunday" },
+  { name: "ETHX - Auto-submit timesheets", script_type: "Scheduler Event", event_frequency: "Daily", script: AUTO_SUBMIT_WEEKS, what: "Drafts are submitted automatically once their week has ended" },
   { name: "ETHX - Timesheet submit", reference_doctype: "Timesheet", doctype_event: "Before Submit", script: ON_SUBMIT, what: "Submitting a timesheet puts every line in Pending review" },
   { name: "ETHX - Timesheet draft", reference_doctype: "Timesheet", doctype_event: "Before Save", script: ON_SAVE, what: "New timesheets start as Draft" },
   { name: "ETHX - Timesheet lock", reference_doctype: "Timesheet", doctype_event: "Before Cancel", script: BEFORE_CANCEL, what: "Finalized timesheets are locked; approved ones can only be returned through the app" },
