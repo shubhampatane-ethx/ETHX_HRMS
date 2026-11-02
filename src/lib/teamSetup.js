@@ -165,10 +165,22 @@ for date_field in ["claim_date", "payroll_date"]:
 frappe.response["message"] = {"insurance": {"provider": emp.health_insurance_provider, "number": emp.health_insurance_no}, "benefits": benefits, "claims": claims}
 `;
 
-// A person's own requests: the ones they raised or created, whatever their role can read in ERPNext.
+// A person's own requests: the ones they raised or created, whatever their role can read in ERPNext,
+// each with HR's latest note (their own comments, like "Withdrawn by", aren't notes from HR).
 const MY_REQUESTS_API = `
 user = frappe.session.user
-frappe.response["message"] = frappe.get_all("Issue", or_filters={"raised_by": user, "owner": user}, fields=["name", "subject", "description", "status", "priority", "creation"], order_by="creation desc", limit=200)
+rows = frappe.get_all("Issue", or_filters={"raised_by": user, "owner": user}, fields=["name", "subject", "description", "status", "priority", "creation"], order_by="creation desc", limit=200)
+names = []
+for r in rows:
+    names.append(r.name)
+notes = {}
+if names:
+    for c in frappe.get_all("Comment", filters={"reference_doctype": "Issue", "reference_name": ["in", names], "comment_type": "Info", "owner": ["!=", user]}, fields=["reference_name", "content"], order_by="creation asc"):
+        notes[c.reference_name] = c.content
+out = []
+for r in rows:
+    out.append({"name": r.name, "subject": r.subject, "description": r.description, "status": r.status, "priority": r.priority, "creation": r.creation, "hr_note": notes.get(r.name)})
+frappe.response["message"] = out
 `;
 
 // Raise, edit or withdraw your own request. Once HR has picked one up it can't be changed.

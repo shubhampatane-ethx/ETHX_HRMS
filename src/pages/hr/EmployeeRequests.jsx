@@ -54,7 +54,7 @@ export default function EmployeeRequests() {
     const note = await promptDialog({
       title: `${action.title} · ${r.name}`,
       message: `"${r.title}" from ${name}.${r.status === "Open" ? "\nThe employee will no longer be able to edit or withdraw it." : ""}`,
-      label: action.noteRequired ? "Note" : "Note (Optional)",
+      label: action.noteRequired ? "Note (Visible to the Employee)" : "Note (Optional, Visible to the Employee)",
       required: Boolean(action.noteRequired),
       placeholder: action.noteRequired ? "What was done, or why it is being closed" : "",
       confirmLabel: action.label === "Close" ? "Close Request" : `Move to ${action.label}`,

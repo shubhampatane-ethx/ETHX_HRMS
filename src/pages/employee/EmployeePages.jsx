@@ -829,6 +829,7 @@ export function EmpHelp() {
       alertDialog({ tone: "error", message: errMsg(e, "Couldn't withdraw this request.") });
     }
   }
+  const requestStatus = (r) => <span><StatusPill status={r.status} />{r.hr_note && <span className="mt-1 block max-w-[18rem] break-words text-[11px] text-[var(--color-text-muted)]">Note from HR: {stripHtml(r.hr_note)}</span>}</span>;
   const requestActions = (r) => (r.status === "Open" ? (
     <div className="flex justify-end gap-3 whitespace-nowrap text-[12px]">
       <button type="button" onClick={() => setModal({ edit: r, ...splitRequest(r.subject), letter: isLetter(r) })} className="flex items-center gap-1 text-[var(--color-text-muted)] hover:text-[var(--color-text)]"><Pencil size={13} /> Edit</button>
@@ -843,7 +844,7 @@ export function EmpHelp() {
 
       {tab === "requests" && (
         <Panel title="My Requests">
-          <Async state={requests}>{(rows) => <Grid rows={rows} empty="You haven't raised any requests." columns={[{ key: "name", label: "Ref" }, { key: "category", label: "Type", render: (r) => splitRequest(r.subject).category || "—" }, { key: "subject", label: "Subject", render: (r) => splitRequest(r.subject).title }, { key: "creation", label: "Raised", render: (r) => dmy(r.creation) }, { key: "status", label: "Status", render: (r) => <StatusPill status={r.status} /> }, { key: "_a", label: "", render: requestActions }]} />}</Async>
+          <Async state={requests}>{(rows) => <Grid rows={rows} empty="You haven't raised any requests." columns={[{ key: "name", label: "Ref" }, { key: "category", label: "Type", render: (r) => splitRequest(r.subject).category || "—" }, { key: "subject", label: "Subject", render: (r) => splitRequest(r.subject).title }, { key: "creation", label: "Raised", render: (r) => dmy(r.creation) }, { key: "status", label: "Status", render: requestStatus }, { key: "_a", label: "", render: requestActions }]} />}</Async>
         </Panel>
       )}
 
@@ -858,7 +859,7 @@ export function EmpHelp() {
             ))}
           </div>
           <Panel title="My Letter Requests" hint="Issued letters appear under Policies & Documents > My documents">
-            <Async state={requests}>{(rows) => <Grid rows={rows.filter(isLetter)} empty="No letter requests yet." columns={[{ key: "subject", label: "Letter", render: (r) => r.subject.replace(/^\[Letter\]\s*/, "") }, { key: "creation", label: "Requested", render: (r) => dmy(r.creation) }, { key: "status", label: "Status", render: (r) => <StatusPill status={r.status} /> }, { key: "_a", label: "", render: requestActions }]} />}</Async>
+            <Async state={requests}>{(rows) => <Grid rows={rows.filter(isLetter)} empty="No letter requests yet." columns={[{ key: "subject", label: "Letter", render: (r) => r.subject.replace(/^\[Letter\]\s*/, "") }, { key: "creation", label: "Requested", render: (r) => dmy(r.creation) }, { key: "status", label: "Status", render: requestStatus }, { key: "_a", label: "", render: requestActions }]} />}</Async>
           </Panel>
         </>
       )}
