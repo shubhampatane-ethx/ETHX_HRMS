@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { isLightTheme } from "../lib/theme";
 
-const LIGHT_THEMES = new Set(["daylight", "pink"]);
 const FALLBACK_LOGO = "/ethx-logo.svg";
 const MAX_SIDE = 1200; // big uploads are scaled down before processing
 
@@ -9,13 +9,19 @@ const MAX_SIDE = 1200; // big uploads are scaled down before processing
  *  - a solid background around the logo (white box, black box…) is removed, so it sits on the theme's colours;
  *  - empty margins are trimmed, so every logo fills the space it is given the same way;
  *  - black / white artwork (text, outlines) is flipped to stay readable on dark or light themes.
+ * `src` is the light-theme logo and `darkSrc` the dark-theme one. A logo uploaded for the theme in use is shown
+ * with its colours as they are; when only one was uploaded, it is used on both and its black / white is flipped.
  * `mode` forces "light" or "dark" (previews); by default it follows the active theme.
  */
-export function AdaptiveLogo({ src, alt, className = "", mode = "auto" }) {
+export function AdaptiveLogo({ src = "", darkSrc = "", alt, className = "", mode = "auto" }) {
   const canvasRef = useRef(null);
+  const isLight = useLightTheme(mode);
+  const own = isLight ? src : darkSrc;
+  const chosen = own || src || darkSrc || FALLBACK_LOGO;
   const [failedSource, setFailedSource] = useState("");
   const [unavailableSource, setUnavailableSource] = useState("");
-  const imageSource = failedSource === src ? FALLBACK_LOGO : src;
+  const imageSource = failedSource === chosen ? FALLBACK_LOGO : chosen;
+  const flip = !own || imageSource === FALLBACK_LOGO;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -45,8 +51,7 @@ export function AdaptiveLogo({ src, alt, className = "", mode = "auto" }) {
       }
       const px = frame.data;
       removeBackground(px, w, h);
-      const isLight = mode === "light" || (mode === "auto" && LIGHT_THEMES.has(document.documentElement.dataset.theme));
-      recolor(px, isLight);
+      if (flip) recolor(px, isLight);
       ctx.putImageData(frame, 0, 0);
 
       const box = contentBox(px, w, h);
@@ -61,22 +66,30 @@ export function AdaptiveLogo({ src, alt, className = "", mode = "auto" }) {
     image.onload = render;
     image.onerror = () => {
       if (disposed) return;
-      if (imageSource !== FALLBACK_LOGO) setFailedSource(src);
-      else setUnavailableSource(src);
+      if (imageSource !== FALLBACK_LOGO) setFailedSource(chosen);
+      else setUnavailableSource(chosen);
     };
     image.src = imageSource;
     if (image.complete && image.naturalWidth) render();
+    return () => { disposed = true; };
+  }, [chosen, imageSource, isLight, flip]);
 
-    const observer = mode === "auto" ? new MutationObserver(render) : null;
-    observer?.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
-    return () => {
-      disposed = true;
-      observer?.disconnect();
-    };
-  }, [src, imageSource, mode]);
-
-  if (unavailableSource === src) return <img src={imageSource} alt={alt} className={className} />;
+  if (unavailableSource === chosen) return <img src={imageSource} alt={alt} className={className} />;
   return <canvas ref={canvasRef} role="img" aria-label={alt} className={className} />;
+}
+
+const readLight = () => isLightTheme(document.documentElement.dataset.theme);
+
+/** Whether the logo is on a light theme: the forced `mode`, or the active theme (followed as it changes). */
+function useLightTheme(mode) {
+  const [light, setLight] = useState(readLight);
+  useEffect(() => {
+    if (mode !== "auto") return undefined;
+    const observer = new MutationObserver(() => setLight(readLight()));
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => observer.disconnect();
+  }, [mode]);
+  return mode === "auto" ? light : mode === "light";
 }
 
 const near = (px, i, c, tol) => Math.abs(px[i] - c[0]) <= tol && Math.abs(px[i + 1] - c[1]) <= tol && Math.abs(px[i + 2] - c[2]) <= tol;

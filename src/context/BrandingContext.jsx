@@ -7,6 +7,7 @@ import { applySavedTheme, hasSavedTheme, saveTheme, THEME_OPTIONS } from "../lib
 const BrandingContext = createContext({ company: null, loading: true, refresh: () => {}, selectCompany: () => {} });
 const SELECTED_COMPANY_KEY = "hrms-branding-company";
 const LOGO_CACHE_KEY = "hrms-branding-logo";
+const DARK_LOGO_CACHE_KEY = "hrms-branding-logo-dark";
 const COMPANY_NAME_CACHE_KEY = "hrms-branding-name";
 
 function readStorage(key) {
@@ -15,6 +16,10 @@ function readStorage(key) {
 
 export function getCachedBrandLogo() {
   return readStorage(LOGO_CACHE_KEY);
+}
+
+export function getCachedBrandDarkLogo() {
+  return readStorage(DARK_LOGO_CACHE_KEY);
 }
 
 export function getCachedBrandName() {
@@ -29,6 +34,8 @@ export function cacheBranding(company) {
   try {
     if (company?.company_logo) localStorage.setItem(LOGO_CACHE_KEY, company.company_logo);
     else localStorage.removeItem(LOGO_CACHE_KEY);
+    if (company?.custom_hrms_dark_logo) localStorage.setItem(DARK_LOGO_CACHE_KEY, company.custom_hrms_dark_logo);
+    else localStorage.removeItem(DARK_LOGO_CACHE_KEY);
     if (company?.company_name) localStorage.setItem(COMPANY_NAME_CACHE_KEY, company.company_name);
     else localStorage.removeItem(COMPANY_NAME_CACHE_KEY);
   } catch {

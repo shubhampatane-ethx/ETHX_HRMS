@@ -4,7 +4,7 @@ import { useBranding, cacheBranding, getSelectedBrandCompany } from "../../conte
 import { Button, Card } from "../../components/ui/primitives";
 import { errMsg, useAsync } from "../../lib/employeePortal";
 import { frappe } from "../../lib/api/frappeClient";
-import { getSavedTheme, saveTheme, THEME_OPTIONS } from "../../lib/theme";
+import { getSavedTheme, isLightTheme, saveTheme, THEME_OPTIONS } from "../../lib/theme";
 import { Brand } from "../../components/Brand";
 import { confirmDialog } from "../../components/ui/dialogs";
 
@@ -12,28 +12,36 @@ async function loadCompanies() {
   return frappe.getList("Company", { fields: ["name", "company_name"], limit: 0, orderBy: "company_name asc" });
 }
 
-async function ensureSharedThemeField() {
+/** Adds a field to Company the first time it is needed (and keeps a Select's options current). */
+async function ensureCompanyField(fieldname, props) {
   const existing = await frappe.getList("Custom Field", {
-    filters: [["dt", "=", "Company"], ["fieldname", "=", "custom_hrms_theme"]],
+    filters: [["dt", "=", "Company"], ["fieldname", "=", fieldname]],
     fields: ["name"],
     limit: 1,
   });
-  const options = THEME_OPTIONS.map((theme) => theme.id).join("\n");
   if (existing.length) {
+    if (!props.options) return;
     const field = await frappe.getDoc("Custom Field", existing[0].name);
-    if (field.options !== options) await frappe.updateDoc("Custom Field", field.name, { options });
+    if (field.options !== props.options) await frappe.updateDoc("Custom Field", field.name, { options: props.options });
     return;
   }
-  await frappe.createDoc("Custom Field", {
-    dt: "Company",
-    fieldname: "custom_hrms_theme",
-    label: "HRMS Theme",
-    fieldtype: "Select",
-    options,
-    insert_after: "company_logo",
-    default: THEME_OPTIONS[0].id,
-  });
+  await frappe.createDoc("Custom Field", { dt: "Company", fieldname, insert_after: "company_logo", ...props });
 }
+
+const ensureSharedThemeField = () => ensureCompanyField("custom_hrms_theme", {
+  label: "HRMS Theme",
+  fieldtype: "Select",
+  options: THEME_OPTIONS.map((theme) => theme.id).join("\n"),
+  default: THEME_OPTIONS[0].id,
+});
+
+const themeNames = (light) => THEME_OPTIONS.filter((theme) => isLightTheme(theme.id) === light).map((theme) => theme.name).join(" and ");
+
+// The light-theme logo is the Company's own logo field; the dark-theme one is an added field.
+const LOGO_SLOTS = [
+  { field: "company_logo", mode: "light", title: "Light Theme Logo", themes: themeNames(true), other: "dark", background: "#ffffff", caption: "#6b6b75" },
+  { field: "custom_hrms_dark_logo", mode: "dark", title: "Dark Theme Logo", themes: themeNames(false), other: "light", background: "#0f0f12", caption: "#9a9aa3" },
+];
 
 function ThemePreview({ theme, selected, onClick, disabled }) {
   const [base, accent, foreground] = theme.swatches;
@@ -69,7 +77,7 @@ export default function BrandStudio() {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const fileRef = useRef(null);
+  const fileRefs = useRef({});
 
   const companies = companiesQuery.data || [];
   const validSelectedCompany = !companies.length || companies.some((item) => item.name === selectedCompany) ? selectedCompany : "";
@@ -109,44 +117,48 @@ export default function BrandStudio() {
     }
   }
 
-  async function uploadLogo(file) {
+  async function saveLogo(slot, url) {
+    if (slot.field !== "company_logo") await ensureCompanyField(slot.field, { label: "HRMS Dark Theme Logo", fieldtype: "Attach Image" });
+    const saved = await frappe.updateDoc("Company", companyName, { [slot.field]: url });
+    cacheBranding(saved || { ...currentCompany, [slot.field]: url });
+    companyQuery.reload();
+    refreshBranding();
+  }
+
+  async function uploadLogo(slot, file) {
+    const clearInput = () => { if (fileRefs.current[slot.field]) fileRefs.current[slot.field].value = ""; };
     if (!file || !companyName) return;
-    if (!file.type.startsWith("image/")) return setError("Choose an image file for the company logo.");
-    if (file.size > 3 * 1024 * 1024) return setError("Logo files must be 3 MB or smaller.");
-    if (!(await confirmDialog({ title: "Upload Company Logo", message: `Use "${file.name}" as the logo for ${currentCompany?.company_name || companyName}?` }))) { if (fileRef.current) fileRef.current.value = ""; return; }
-    setBusy("logo");
+    if (!file.type.startsWith("image/")) { clearInput(); return setError("Choose an image file for the logo."); }
+    if (file.size > 3 * 1024 * 1024) { clearInput(); return setError("Logo files must be 3 MB or smaller."); }
+    if (!(await confirmDialog({ title: `Upload ${slot.title}`, message: `Use "${file.name}" as the ${slot.mode}-theme logo of ${currentCompany?.company_name || companyName}? It is shown on ${slot.themes}.` }))) { clearInput(); return; }
+    setBusy(slot.field);
     setError("");
     setMessage("");
     try {
       const uploaded = await frappe.uploadFile(file, { doctype: "Company", docname: companyName, isPrivate: false });
       if (!uploaded?.file_url) throw new Error("The upload did not return a public file URL.");
-      const saved = await frappe.updateDoc("Company", companyName, { company_logo: uploaded.file_url });
-      cacheBranding(saved || { ...currentCompany, company_logo: uploaded.file_url });
-      companyQuery.reload();
-      refreshBranding();
-      setMessage(`Logo updated for ${currentCompany?.company_name || companyName}.`);
+      await saveLogo(slot, uploaded.file_url);
+      setMessage(`${slot.title} updated for ${currentCompany?.company_name || companyName}.`);
     } catch (e) {
-      setError(errMsg(e, "Could not upload the company logo. Check Company write and File upload permissions."));
+      setError(errMsg(e, "Could not upload the logo. Check Company write and File upload permissions."));
     } finally {
       setBusy("");
-      if (fileRef.current) fileRef.current.value = "";
+      clearInput();
     }
   }
 
-  async function removeLogo() {
-    if (!companyName || !currentCompany?.company_logo) return;
-    if (!(await confirmDialog({ message: `Remove the logo of ${currentCompany?.company_name || companyName}? The default logo is shown instead.`, danger: true, confirmLabel: "Remove" }))) return;
-    setBusy("logo");
+  async function removeLogo(slot) {
+    if (!companyName || !currentCompany?.[slot.field]) return;
+    const fallback = currentCompany?.[LOGO_SLOTS.find((s) => s.mode === slot.other).field] ? `the ${slot.other}-theme logo is adjusted to fit` : "the default logo is shown";
+    if (!(await confirmDialog({ title: `Remove ${slot.title}`, message: `Remove the ${slot.mode}-theme logo of ${currentCompany?.company_name || companyName}? On ${slot.themes}, ${fallback} instead.`, danger: true, confirmLabel: "Remove" }))) return;
+    setBusy(slot.field);
     setError("");
     setMessage("");
     try {
-      const saved = await frappe.updateDoc("Company", companyName, { company_logo: "" });
-      cacheBranding(saved || { ...currentCompany, company_logo: "" });
-      companyQuery.reload();
-      refreshBranding();
-      setMessage(`Company logo removed for ${currentCompany.company_name || companyName}.`);
+      await saveLogo(slot, "");
+      setMessage(`${slot.title} removed for ${currentCompany.company_name || companyName}.`);
     } catch (e) {
-      setError(errMsg(e, "Could not remove the company logo."));
+      setError(errMsg(e, "Could not remove the logo."));
     } finally {
       setBusy("");
     }
@@ -190,43 +202,41 @@ export default function BrandStudio() {
         </section>
 
         <section className="space-y-3">
-          <div><h2 className="text-[14px] font-semibold text-[var(--color-text)]">Company Logo</h2><p className="mt-0.5 text-[12px] text-[var(--color-text-muted)]">Any shape works: empty margins and solid backgrounds are removed so it fits and matches every theme.</p></div>
-          <Card className="overflow-hidden">
-            {companyQuery.loading && !currentCompany ? <div className="flex min-h-40 items-center justify-center bg-[var(--color-surface-2)]"><Loader2 size={18} className="animate-spin text-[var(--color-text-muted)]" /></div> : (
-              <div className="space-y-4 bg-[var(--color-surface-2)] p-4">
-                {/* The logo alone, as it appears in navigation, on a dark and a light theme. */}
-                <div>
-                  <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">Logo</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {[["dark", "#0f0f12", "Dark themes"], ["light", "#ffffff", "Light themes"]].map(([mode, bg, label]) => (
-                      <div key={mode} className="rounded-lg border border-[var(--color-border)] p-3" style={{ background: bg }}>
-                        <Brand size="compact" showName={false} logo={currentCompany?.company_logo || "/ethx-logo.svg"} mode={mode} />
-                        <p className="mt-2 text-[10px]" style={{ color: mode === "dark" ? "#9a9aa3" : "#6b6b75" }}>{label}</p>
-                      </div>
-                    ))}
+          <div><h2 className="text-[14px] font-semibold text-[var(--color-text)]">Company Logos</h2><p className="mt-0.5 text-[12px] text-[var(--color-text-muted)]">Upload one logo for light themes and one for dark themes. With only one uploaded, it is adjusted to fit the other themes.</p></div>
+          {LOGO_SLOTS.map((slot) => {
+            const uploaded = currentCompany?.[slot.field] || "";
+            const loading = companyQuery.loading && !currentCompany;
+            return (
+              <Card key={slot.field} className="overflow-hidden">
+                {/* The logo as it appears in navigation on these themes - its own upload, or the other one adjusted. */}
+                <div className="flex min-h-24 items-center p-4" style={{ background: slot.background }}>
+                  {loading ? <Loader2 size={18} className="mx-auto animate-spin" style={{ color: slot.caption }} /> : <Brand size="compact" showName={false} logo={currentCompany?.company_logo || ""} darkLogo={currentCompany?.custom_hrms_dark_logo || ""} mode={slot.mode} />}
+                </div>
+                <div className="space-y-3 p-4">
+                  <div>
+                    <p className="text-[13px] font-semibold text-[var(--color-text)]">{slot.title}</p>
+                    <p className="mt-0.5 text-[11px] text-[var(--color-text-muted)]">Shown on {slot.themes}.{!loading && !uploaded && " Not uploaded yet: the preview shows what is used instead."}</p>
+                  </div>
+                  <input ref={(node) => { fileRefs.current[slot.field] = node; }} type="file" accept="image/*" className="hidden" onChange={(event) => uploadLogo(slot, event.target.files?.[0])} />
+                  <Button type="button" className="w-full" disabled={!companyName || Boolean(busy)} onClick={() => fileRefs.current[slot.field]?.click()}>{busy === slot.field ? <Loader2 size={14} className="animate-spin" /> : <ImagePlus size={14} />}{busy === slot.field ? "Uploading Logo…" : uploaded ? `Replace ${slot.title}` : `Upload ${slot.title}`}</Button>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] text-[var(--color-text-faint)]">PNG, JPG, WebP or SVG · max 3 MB</span>
+                    {uploaded && <button type="button" disabled={Boolean(busy)} onClick={() => removeLogo(slot)} className="flex shrink-0 items-center gap-1 text-[11px] text-[var(--color-text-muted)] hover:text-[var(--color-red-hover)] disabled:opacity-50"><Trash2 size={12} /> Remove</button>}
                   </div>
                 </div>
-                {/* The company name is separate text from the Company record - never part of the logo image. */}
-                <div>
-                  <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">Company Name</p>
-                  <p className="break-words text-[15px] font-bold text-[var(--color-text)]">{currentCompany?.company_name || currentCompany?.name || "Your company"}</p>
-                </div>
-              </div>
-            )}
-            <div className="space-y-3 p-4">
-              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(event) => uploadLogo(event.target.files?.[0])} />
-              <Button type="button" className="w-full" disabled={!companyName || Boolean(busy)} onClick={() => fileRef.current?.click()}>{busy === "logo" ? <Loader2 size={14} className="animate-spin" /> : <ImagePlus size={14} />}{busy === "logo" ? "Uploading logo…" : "Upload company logo"}</Button>
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] text-[var(--color-text-faint)]">PNG, JPG, WebP or SVG · max 3 MB</span>
-                {currentCompany?.company_logo && <button type="button" disabled={Boolean(busy)} onClick={removeLogo} className="flex shrink-0 items-center gap-1 text-[11px] text-[var(--color-text-muted)] hover:text-[var(--color-red-hover)] disabled:opacity-50"><Trash2 size={12} /> Remove</button>}
-              </div>
-            </div>
+              </Card>
+            );
+          })}
+          {/* The company name is separate text from the Company record - never part of the logo image. */}
+          <Card className="px-4 py-3">
+            <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">Company Name</p>
+            <p className="break-words text-[15px] font-bold text-[var(--color-text)]">{currentCompany?.company_name || currentCompany?.name || "Your company"}</p>
           </Card>
         </section>
       </div>
 
       <Card className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-        <span className="flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><Check size={14} className="text-[var(--color-green)]" /> Company logo and theme are stored with the selected company.</span>
+        <span className="flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><Check size={14} className="text-[var(--color-green)]" /> Company logos and theme are stored with the selected company.</span>
         <Button type="button" variant="ghost" disabled={Boolean(busy)} onClick={() => { companiesQuery.reload(); companyQuery.reload(); refreshBranding(); }}><RefreshCw size={13} /> Refresh</Button>
       </Card>
     </div>

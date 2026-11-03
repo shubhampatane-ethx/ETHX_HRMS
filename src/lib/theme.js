@@ -25,6 +25,10 @@ export const THEME_OPTIONS = [
   },
 ];
 
+// Themes with light surfaces: they show the company's light-theme logo, the others its dark-theme logo.
+const LIGHT_THEMES = new Set(["daylight", "pink"]);
+export const isLightTheme = (id) => LIGHT_THEMES.has(id);
+
 const DEFAULT_THEME = THEME_OPTIONS[0].id;
 const isTheme = (value) => THEME_OPTIONS.some((theme) => theme.id === value);
 const themeKey = (company) => company ? `hrms-theme:${company}` : "hrms-theme";

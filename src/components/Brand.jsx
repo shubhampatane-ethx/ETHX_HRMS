@@ -1,14 +1,14 @@
-import { getCachedBrandLogo, getCachedBrandName, useBranding } from "../context/BrandingContext";
+import { getCachedBrandDarkLogo, getCachedBrandLogo, getCachedBrandName, useBranding } from "../context/BrandingContext";
 import { AdaptiveLogo } from "./AdaptiveLogo";
 
-const DEFAULT_LOGO = "/ethx-logo.svg";
 const DEFAULT_NAME = "ETHX Softcon";
 
-/** The company's logo and name - from the Company record, or the last one seen on this browser (sign-in page). */
+/** The company's light / dark theme logos and name - from the Company record, or the last one seen on this browser (sign-in page). */
 export function useCompanyBrand() {
   const { company } = useBranding();
   return {
-    logo: company?.company_logo || getCachedBrandLogo() || DEFAULT_LOGO,
+    logo: company?.company_logo || getCachedBrandLogo(),
+    darkLogo: company?.custom_hrms_dark_logo || getCachedBrandDarkLogo(),
     name: company?.company_name || getCachedBrandName() || DEFAULT_NAME,
   };
 }
@@ -24,17 +24,19 @@ const SIZES = {
 /**
  * Logo with the company name as its own line underneath - never squeezed into one row with it.
  * `align`: "start" (sidebar) or "center" (sign-in screens). `mode` forces a light / dark rendering (previews).
+ * `logo` / `darkLogo` override the company's logos ("" = none uploaded).
  */
-export function Brand({ size = "sidebar", align = "start", showName = true, logo, name, mode, className = "" }) {
+export function Brand({ size = "sidebar", align = "start", showName = true, logo, darkLogo, name, mode, className = "" }) {
   const brand = useCompanyBrand();
-  const src = logo || brand.logo;
+  const src = logo ?? brand.logo;
+  const darkSrc = darkLogo ?? brand.darkLogo;
   const title = name || brand.name;
   const s = SIZES[size] || SIZES.sidebar;
   const center = align === "center";
   return (
     <div className={`flex min-w-0 flex-col ${center ? "items-center text-center" : "items-start"} ${className}`}>
       <div className={`flex w-full ${s.frame} ${center ? "justify-center" : "justify-start"}`}>
-        <AdaptiveLogo src={src} alt={`${title} logo`} mode={mode} className={`h-full w-auto max-w-full object-contain ${center ? "object-center" : "object-left"}`} />
+        <AdaptiveLogo src={src} darkSrc={darkSrc} alt={`${title} logo`} mode={mode} className={`h-full w-auto max-w-full object-contain ${center ? "object-center" : "object-left"}`} />
       </div>
       {showName && <p className={`mt-2.5 max-w-full break-words font-bold leading-tight tracking-tight text-[var(--color-text)] ${s.name}`}>{title}</p>}
     </div>
