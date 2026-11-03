@@ -3,7 +3,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, BadgeCheck, Briefcase, Bell, Cake, CalendarCheck, CalendarClock, CalendarDays, CheckCheck, ChevronLeft, ChevronRight, ClipboardCheck, Download, ExternalLink, FileText, GraduationCap, HeartPulse, KeyRound, Laptop, LifeBuoy, LogIn, LogOut, Mail, Megaphone, Paperclip, Pencil, Phone, Plus, Receipt, Search, ShieldAlert, Target, Trash2, Undo2, Upload, UserRound, Users, Wallet } from "lucide-react";
 import { Async, ChangePasswordForm, chipCls, Empty, ErrorState, Field, Grid, inputCls, KeyValue, Loading, Modal, Notice, PageHeader, Panel, Skeleton, Stat, StatusPill, Tabs, useEmployee } from "../../components/employee/EmployeeShell";
-import { CONTACTS, createRequest, daysBetween, daysUntil, dmy, dmyHm, errMsg, EXPIRY_WARN_DAYS, getAcknowledged, getAnnouncements, getAppraisals, getApprovals, getAttendanceHistory, getAttendanceRequests, getCheckinsBetween, getEvents, getExpenseClaims, getFeedback, getGoals, getHelpArticles, getHolidays, getLeaveApplications, getLeaveBalance, getLeaveTypes, getMyAssets, getMyBenefits, getMyDocuments, getMyLeavesBetween, getMyTraining, getNotifications, getPayslips, getPolicies, getRequests, getShiftAssignments, getTeamAvailability, getTodayAttendance, getUpcomingBirthdays, hm, hoursLabel, isoDate, LETTER_TYPES, money, MONTHS, MONTHS_LONG, nowStamp, pad, removeMyDocument, REQUEST_CATEGORIES, splitRequest, stripHtml, updateRequest, uploadMyDocument, withdrawRequest, summariseCheckins, useAsync, WEEKDAYS } from "../../lib/employeePortal";
+import { CONTACTS, createRequest, daysBetween, daysUntil, dmy, dmyHm, errMsg, EXPIRY_WARN_DAYS, getAcknowledged, getAnnouncements, attReqStatus, getAppraisals, getApprovals, getAttendanceHistory, getAttendanceRequests, getCheckinsBetween, getEvents, getExpenseClaims, getFeedback, getGoals, getHelpArticles, getHolidays, getLeaveApplications, getLeaveBalance, getLeaveTypes, getMyAssets, getMyBenefits, getMyDocuments, getMyLeavesBetween, getMyTraining, getNotifications, getPayslips, getPolicies, getRequests, getShiftAssignments, getTeamAvailability, getTodayAttendance, getUpcomingBirthdays, hm, hoursLabel, isoDate, LETTER_TYPES, money, MONTHS, MONTHS_LONG, nowStamp, pad, removeMyDocument, REQUEST_CATEGORIES, splitRequest, stripHtml, updateRequest, uploadMyDocument, withdrawRequest, summariseCheckins, useAsync, WEEKDAYS } from "../../lib/employeePortal";
 import { useAuth } from "../../context/AuthContext";
 import { hasPermission } from "../../permissions/roles";
 import { isPageBlocked } from "../../permissions/pageAccess";
@@ -29,7 +29,7 @@ export function EmpApprovals() {
   const [tab, setTab] = useState("mine");
   const [type, setType] = useState("All");
   const [onlyPending, setOnlyPending] = useState(false);
-  const waitingCount = waiting.data ? waiting.data.leaves.length + waiting.data.expenses.length : undefined;
+  const waitingCount = waiting.data ? waiting.data.leaves.length + waiting.data.expenses.length + (waiting.data.attendance?.length || 0) : undefined;
 
   return (
     <>
@@ -94,7 +94,6 @@ export function EmpAssets() {
 }
 
 /* ===== EmpAttendance.jsx ===== */
-const ATT_REQ_STATUS = { 0: "Pending", 1: "Approved", 2: "Cancelled" };
 
 function workedToday(logs, nowMs) {
   let total = 0;
@@ -217,7 +216,8 @@ export function EmpAttendance() {
             { key: "from_date", label: "Period", render: (r) => `${dmy(r.from_date)}${r.to_date !== r.from_date ? ` – ${dmy(r.to_date)}` : ""}` },
             { key: "reason", label: "Reason" },
             { key: "explanation", label: "Details", render: (r) => <span className="text-[var(--color-text-muted)]">{stripHtml(r.explanation || "") || "—"}</span> },
-            { key: "docstatus", label: "Status", render: (r) => <StatusPill status={ATT_REQ_STATUS[r.docstatus]} /> },
+            { key: "custom_approver", label: "Approver", render: (r) => r.custom_approver || "—" },
+            { key: "docstatus", label: "Status", render: (r) => <span><StatusPill status={attReqStatus(r)} />{r.custom_decision === "Rejected" && r.custom_decision_note && <span className="mt-0.5 block text-[11px] text-[var(--color-red-hover)]">{stripHtml(r.custom_decision_note)}</span>}</span> },
           ]} />}
         </Async>
       </Panel>
@@ -228,16 +228,21 @@ export function EmpAttendance() {
   );
 }
 
+/** Attendance correction request; it goes to the same approver as leave (business unit, else the manager). */
 function CorrectionModal({ employee, initial, onClose, onSaved }) {
   const [f, setF] = useState({ ...initial, reason: "Work From Home", explanation: "" });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const approvers = useAsync(() => getApprovers(employee, "Leave Application"), [employee.name]);
+  const [chosen, setChosen] = useState("");
+  const list = approvers.data || [];
+  const approver = list.find((a) => a.email === chosen && !a.on_leave)?.email || pickApprover(list)?.email || "";
   async function submit(e) {
     e.preventDefault();
     setBusy(true);
     setErr("");
     try {
-      await frappe.createDoc("Attendance Request", { employee: employee.name, company: employee.company, from_date: f.from_date, to_date: f.to_date, reason: f.reason, explanation: f.explanation });
+      await frappe.createDoc("Attendance Request", { employee: employee.name, company: employee.company, from_date: f.from_date, to_date: f.to_date, reason: f.reason, explanation: f.explanation, custom_approver: approver || undefined });
       onSaved();
     } catch (x) {
       setErr(errMsg(x));
@@ -251,6 +256,11 @@ function CorrectionModal({ employee, initial, onClose, onSaved }) {
         <div className="grid grid-cols-2 gap-3"><DateField label="From" value={f.from_date} onChange={(v) => setF({ ...f, from_date: v })} required /><DateField label="To" value={f.to_date} onChange={(v) => setF({ ...f, to_date: v })} required /></div>
         <Field label="Reason"><select className={inputCls} value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })}><option>Work From Home</option><option>On Duty</option></select></Field>
         <Field label="Explanation"><textarea rows={3} required className={inputCls} value={f.explanation} onChange={(e) => setF({ ...f, explanation: e.target.value })} placeholder="e.g. Forgot to punch out, worked at client site" /></Field>
+        <Field label="Approver">
+          {approvers.loading && !approvers.data ? <p className="py-2 text-[13px] text-[var(--color-text-muted)]">Finding your approver…</p> : list.length === 0 ? <p className="py-2 text-[13px] text-[var(--color-amber)]">No approver is set for you yet - it goes to your manager, or HR assigns one.</p> : (
+            <select className={inputCls} value={approver} onChange={(e) => setChosen(e.target.value)}>{list.map((a) => <option key={a.email} value={a.email} disabled={a.on_leave}>{a.name}{a.on_leave ? " (on leave)" : ""}</option>)}</select>
+          )}
+        </Field>
         {err && <Notice>{err}</Notice>}
         <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy || !f.from_date || !f.to_date}>{busy ? "Sending…" : "Send Request"}</Button></div>
       </form>
@@ -928,6 +938,7 @@ export function EmpLeave() {
   const balance = useAsync(() => getLeaveBalance(emp), [emp]);
   const apps = useAsync(() => getLeaveApplications(emp), [emp]);
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState(null);
 
   async function withdraw(row) {
     if (!(await confirmDialog(`Withdraw this leave request (${dmy(row.from_date)} – ${dmy(row.to_date)})?`))) return;
@@ -968,19 +979,29 @@ export function EmpLeave() {
             { key: "description", label: "Reason", render: (r) => <span className="text-[var(--color-text-muted)]">{r.description?.replace(/<[^>]*>/g, "") || "—"}</span> },
             { key: "leave_approver_name", label: "Approver", render: (r) => r.leave_approver_name || r.leave_approver || "—" },
             { key: "status", label: "Status", render: (r) => <StatusPill status={r.status} /> },
-            { key: "_a", label: "", render: (r) => r.status === "Open" && r.docstatus === 0 ? <button type="button" title="Withdraw" onClick={() => withdraw(r)} className="flex items-center gap-1 text-[11px] text-[var(--color-red-hover)] hover:underline"><Undo2 size={12} /> Withdraw</button> : null },
+            // Until it's decided, a request can be changed (dates, type, reason, approver) or withdrawn.
+            { key: "_a", label: "", render: (r) => r.status === "Open" && r.docstatus === 0 ? (
+              <span className="flex items-center justify-end gap-3">
+                <button type="button" title="Edit" onClick={() => setEditing(r)} className="flex items-center gap-1 text-[11px] text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:underline"><Pencil size={12} /> Edit</button>
+                <button type="button" title="Withdraw" onClick={() => withdraw(r)} className="flex items-center gap-1 text-[11px] text-[var(--color-red-hover)] hover:underline"><Undo2 size={12} /> Withdraw</button>
+              </span>
+            ) : null },
           ]} />}
         </Async>
       </Panel>
 
       {open && <ApplyModal employee={employee} balance={balance.data || []} onClose={() => setOpen(false)} onSaved={() => { setOpen(false); apps.reload(); balance.reload(); }} />}
+      {editing && <ApplyModal employee={employee} balance={balance.data || []} leave={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); apps.reload(); balance.reload(); }} />}
     </>
   );
 }
 
-function ApplyModal({ employee, balance, onClose, onSaved }) {
+/** Apply for leave, or change an open request (`leave`). */
+function ApplyModal({ employee, balance, leave, onClose, onSaved }) {
   const types = useAsync(async () => (balance.length ? balance.map((b) => b.leave_type) : (await getLeaveTypes()).map((t) => t.name)), []);
-  const [f, setF] = useState({ leave_type: "", from_date: isoDate(), to_date: isoDate(), half_day: false, description: "" });
+  const [f, setF] = useState(() => leave
+    ? { leave_type: leave.leave_type || "", from_date: leave.from_date, to_date: leave.to_date, half_day: Boolean(Number(leave.half_day)), description: stripHtml(leave.description || "") }
+    : { leave_type: "", from_date: isoDate(), to_date: isoDate(), half_day: false, description: "" });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const days = daysBetween(f.from_date, f.to_date) - (f.half_day ? 0.5 : 0);
@@ -988,7 +1009,7 @@ function ApplyModal({ employee, balance, onClose, onSaved }) {
 
   // Approver = the employee's business unit (Department) approvers, then the Employee record's; anyone on leave today is skipped
   const approvers = useAsync(() => getApprovers(employee, "Leave Application"), [employee.name]);
-  const [chosen, setChosen] = useState("");
+  const [chosen, setChosen] = useState(leave?.leave_approver || "");
   const list = approvers.data || [];
   const auto = pickApprover(list);
   const approver = list.find((a) => a.email === chosen && !a.on_leave)?.email || auto?.email || "";
@@ -1000,17 +1021,22 @@ function ApplyModal({ employee, balance, onClose, onSaved }) {
     setBusy(true);
     setErr("");
     try {
+      if (leave) {
+        await frappe.updateDoc("Leave Application", leave.name, { leave_type: f.leave_type, from_date: f.from_date, to_date: f.to_date, half_day: f.half_day ? 1 : 0, half_day_date: f.half_day ? f.from_date : null, description: f.description, ...(approver ? { leave_approver: approver } : {}) });
+        onSaved();
+        return;
+      }
       await frappe.createDoc("Leave Application", { employee: employee.name, leave_type: f.leave_type, from_date: f.from_date, to_date: f.to_date, half_day: f.half_day ? 1 : 0, ...(f.half_day ? { half_day_date: f.from_date } : {}), description: f.description, posting_date: isoDate(), status: "Open", leave_approver: approver || undefined });
       onSaved();
     } catch (x) {
-      setErr(errMsg(x, "Couldn't submit your leave application."));
+      setErr(errMsg(x, leave ? "Couldn't save the changes." : "Couldn't submit your leave application."));
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <Modal title="Apply for Leave" onClose={onClose}>
+    <Modal title={leave ? "Edit Leave Request" : "Apply for Leave"} onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
         <Field label="Leave Type" hint={left != null ? `${left} day(s) available` : undefined}>
           <select required className={inputCls} value={f.leave_type} onChange={(e) => setF({ ...f, leave_type: e.target.value })}><option value="">Select…</option>{(types.data || []).map((t) => <option key={t}>{t}</option>)}</select>
@@ -1027,7 +1053,7 @@ function ApplyModal({ employee, balance, onClose, onSaved }) {
         <Field label="Reason"><textarea rows={3} className={inputCls} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} /></Field>
         <p className="text-[12px] text-[var(--color-text-muted)]">Requesting about <b className="text-[var(--color-text)]">{Math.max(days, 0)}</b> day(s). Weekly offs and holidays are excluded automatically.</p>
         {err && <Notice>{err}</Notice>}
-        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy || !f.leave_type}>{busy ? "Submitting…" : "Submit"}</Button></div>
+        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy || !f.leave_type}>{busy ? "Saving…" : leave ? "Save Changes" : "Submit"}</Button></div>
       </form>
     </Modal>
   );
@@ -1181,12 +1207,15 @@ const EDIT_SECTIONS = [
   ]],
   ["Emergency contact", [["person_to_be_contacted", "Name"], ["relation", "Relation"], ["emergency_phone_number", "Phone", "tel"]]],
   ["Passport", [["passport_number", "Passport number"], ["valid_upto", "Valid until", "date"]]],
+  ["Identity", [["custom_pan_number", "PAN number", "pan"], ["custom_aadhaar_number", "Aadhaar number", "aadhaar"]]],
 ];
+const maskAadhaar = (v) => (v ? `XXXX XXXX ${String(v).slice(-4)}` : "");
 const EDITABLE = EDIT_SECTIONS.flatMap(([, fields]) => fields);
 
 const DOCUMENT_TYPES = ["PAN Card", "Aadhaar Card", "Bank Details", "Passport", "Education Certificate", "Other"];
 const EXPECTED_DOCUMENTS = ["PAN Card", "Aadhaar Card", "Bank Details"];
-const MAX_DOCUMENT_MB = 5;
+const MAX_DOCUMENT_MB = 10; // PDFs; photos are scaled down before upload, so they may be bigger
+const MAX_PHOTO_MB = 25;
 
 /** Upload identity and bank documents. Stored privately on the employee's own record, for them and HR. */
 function MyDocumentsPanel({ employee }) {
@@ -1201,8 +1230,9 @@ function MyDocumentsPanel({ employee }) {
     if (input.current) input.current.value = "";
     if (!file) return;
     setErr("");
-    if (!/\.(pdf|png|jpe?g|webp)$/i.test(file.name)) return setErr("Upload a PDF or an image (PNG, JPG, WebP).");
-    if (file.size > MAX_DOCUMENT_MB * 1024 * 1024) return setErr(`Documents must be ${MAX_DOCUMENT_MB} MB or smaller.`);
+    const photo = /\.(png|jpe?g|webp)$/i.test(file.name);
+    if (!photo && !/\.pdf$/i.test(file.name)) return setErr(/\.hei[cf]$/i.test(file.name) ? "iPhone HEIC photos can't be uploaded. Change the camera format to JPG (Most Compatible), or upload a PDF." : "Upload a PDF or a photo (JPG, PNG, WebP).");
+    if (file.size > (photo ? MAX_PHOTO_MB : MAX_DOCUMENT_MB) * 1024 * 1024) return setErr(photo ? `Photos must be ${MAX_PHOTO_MB} MB or smaller.` : `PDFs must be ${MAX_DOCUMENT_MB} MB or smaller.`);
     if (!(await confirmDialog({ title: `Upload ${type}`, message: `Upload "${file.name}" as your ${type}? It's stored privately on your record for HR to see.`, confirmLabel: "Upload" }))) return;
     setBusy(true);
     try {
@@ -1315,6 +1345,7 @@ export function EmpProfile() {
         <KeyValue items={[
           ["Date of birth", dmy(e.date_of_birth)], ["Gender", e.gender], ["Blood group", e.blood_group], ["Marital status", e.marital_status],
           ["Mobile", e.cell_number], ["Personal email", e.personal_email], ["Current address", e.current_address], ["Permanent address", e.permanent_address],
+          ["PAN number", e.custom_pan_number], ["Aadhaar number", maskAadhaar(e.custom_aadhaar_number)],
         ]} />
       </Panel>
 
@@ -1330,7 +1361,8 @@ export function EmpProfile() {
       {editing && (
         <Modal title="Edit My Details" onClose={() => setEditing(false)} wide>
           <form onSubmit={save} className="space-y-3">
-            {EDIT_SECTIONS.map(([title, fields]) => (
+            {/* PAN / Aadhaar can be entered once ERPNext Setup has added those fields. */}
+            {EDIT_SECTIONS.filter(([title]) => title !== "Identity" || e.idFields).map(([title, fields]) => (
               <fieldset key={title} className="space-y-3">
                 <legend className="mb-1 text-[12px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{title}</legend>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -1342,7 +1374,9 @@ export function EmpProfile() {
                         <Field label={label}>
                           {type === "area" ? <textarea rows={2} className={inputCls} value={form[key]} onChange={(ev) => set(ev.target.value)} />
                             : Array.isArray(type) ? <select className={inputCls} value={form[key]} onChange={(ev) => set(ev.target.value)}><option value="">—</option>{type.map((o) => <option key={o}>{o}</option>)}</select>
-                              : <input className={inputCls} type={type || "text"} max={key === "date_of_birth" ? isoDate() : undefined} value={form[key]} onChange={(ev) => set(ev.target.value)} />}
+                              : type === "pan" ? <input className={inputCls} value={form[key]} maxLength={10} placeholder="ABCDE1234F" onChange={(ev) => set(ev.target.value.toUpperCase())} />
+                                : type === "aadhaar" ? <input className={inputCls} value={form[key]} maxLength={14} inputMode="numeric" placeholder="12 digits" onChange={(ev) => set(ev.target.value.replace(/[^d ]/g, ""))} />
+                                  : <input className={inputCls} type={type || "text"} max={key === "date_of_birth" ? isoDate() : undefined} value={form[key]} onChange={(ev) => set(ev.target.value)} />}
                         </Field>
                       </div>
                     );

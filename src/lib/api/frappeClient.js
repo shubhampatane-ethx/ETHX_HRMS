@@ -216,6 +216,15 @@ async function uploadFile(file, { doctype, docname, isPrivate = true, folder } =
   return res.data.message;
 }
 
+/**
+ * Ask ERPNext to email a password reset link (works signed out). Returns ERPNext's answer: "not found" or "disabled"
+ * for an unknown / disabled account, otherwise the link was sent.
+ */
+async function resetPassword(user) {
+  const res = await client.post("/method/frappe.core.doctype.user.user.reset_password", { user });
+  return res.data.message;
+}
+
 /** Change the signed-in user's own password (needs the current password). */
 async function changePassword(oldPassword, newPassword) {
   const res = await client.post("/method/frappe.core.doctype.user.user.update_password", {
@@ -242,5 +251,6 @@ export const frappe = {
   submitDoc,
   cancelDoc,
   uploadFile,
+  resetPassword,
   changePassword,
 };

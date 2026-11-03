@@ -129,9 +129,11 @@ async function leavesWaitingFor(email) {
 }
 
 export async function getWaitingForMe(email) {
-  const [leaves, expenses] = await Promise.allSettled([
+  const [leaves, expenses, attendance] = await Promise.allSettled([
     leavesWaitingFor(email),
     listTry("Expense Claim", { filters: [["expense_approver", "=", email], ["approval_status", "=", "Draft"], ["docstatus", "=", 0]], fields: ["name", "employee", "employee_name", "posting_date", "total_claimed_amount", "currency"], orderBy: "posting_date asc" }, ["name", "employee_name", "posting_date", "total_claimed_amount"]),
+    // Attendance requests assigned to me (empty until ERPNext Setup has added the approver rule).
+    frappe.callMethod("ethx_attendance_requests").catch(() => []),
   ]);
   let bills = {};
   let types = {};
@@ -147,10 +149,18 @@ export async function getWaitingForMe(email) {
   return {
     leaves: leaves.status === "fulfilled" ? leaves.value : [],
     expenses: expenses.status === "fulfilled" ? expenses.value : [],
+    attendance: attendance.status === "fulfilled" ? attendance.value || [] : [],
     bills,
     lines: types,
     failed: [leaves.status === "rejected" && "leave", expenses.status === "rejected" && "expense"].filter(Boolean),
   };
+}
+
+/** Approve (HRMS then marks the days) or reject (with a reason) an attendance request assigned to me. */
+export async function decideAttendance(name, status, note = "") {
+  note = note.trim();
+  if (status === "Rejected" && note.length < 3) throw new Error("Please give the reason for rejecting this request.");
+  return frappe.callMethod("ethx_attendance_decision", { request: name, status, note });
 }
 
 /** Approve / reject a leave application. A rejection must carry a reason (stored as a comment on the application). */

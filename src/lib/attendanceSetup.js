@@ -78,7 +78,67 @@ for e in frappe.get_all("Employee", filters=filters, fields=["name", "user_id", 
         frappe.get_doc({"doctype": "Notification Log", "for_user": e.user_id, "type": "Alert", "subject": subject, "document_type": "Employee", "document_name": e.name}).insert(ignore_permissions=True)
 `;
 
+// Attendance correction requests go to an approver (the employee's leave approver, else their manager), who approves
+// them (the request is submitted and HRMS marks the days) or rejects them with a reason.
+const ATTENDANCE_REQUEST_ASSIGN = `
+owner = frappe.db.get_value("Employee", doc.employee, ["user_id", "leave_approver", "reports_to"], as_dict=True)
+if owner:
+    if not doc.get("custom_approver"):
+        approver = owner.leave_approver
+        if not approver and owner.reports_to:
+            approver = frappe.db.get_value("Employee", owner.reports_to, "user_id")
+        doc.custom_approver = approver
+    if doc.get("custom_approver") and doc.custom_approver == owner.user_id:
+        doc.custom_approver = None
+`;
+
+const ATTENDANCE_REQUESTS_API = `
+rows = frappe.get_all("Attendance Request", filters={"docstatus": 0, "custom_approver": frappe.session.user}, fields=["name", "employee", "employee_name", "from_date", "to_date", "reason", "explanation", "custom_decision", "creation"], order_by="from_date asc")
+out = []
+for r in rows:
+    if r.custom_decision != "Rejected":
+        out.append(r)
+frappe.response["message"] = out
+`;
+
+const ATTENDANCE_DECISION_API = `
+user = frappe.session.user
+name = frappe.form_dict.get("request")
+status = frappe.form_dict.get("status")
+note = (frappe.form_dict.get("note") or "").strip()
+if status not in ("Approved", "Rejected"):
+    frappe.throw("Choose Approved or Rejected.")
+if status == "Rejected" and not note:
+    frappe.throw("Give the reason for rejecting.")
+doc = frappe.get_doc("Attendance Request", name)
+if doc.docstatus != 0 or doc.get("custom_decision") == "Rejected":
+    frappe.throw("This request has already been decided.")
+owner = frappe.db.get_value("Employee", doc.employee, "user_id")
+if owner == user:
+    frappe.throw("You can't decide on your own request.")
+if doc.get("custom_approver") != user:
+    frappe.throw("Only the assigned approver can approve or reject this request.")
+if status == "Approved":
+    doc.flags.ignore_permissions = True
+    doc.submit()
+else:
+    frappe.db.set_value("Attendance Request", name, {"custom_decision": "Rejected", "custom_decision_note": note})
+frappe.get_doc({"doctype": "Comment", "comment_type": "Info", "reference_doctype": "Attendance Request", "reference_name": name, "content": "Attendance request " + status.lower() + " by " + user + (": " + note if note else "")}).insert(ignore_permissions=True)
+if owner:
+    frappe.get_doc({"doctype": "Notification Log", "for_user": owner, "type": "Alert", "subject": "Your attendance request was " + status.lower() + (": " + note if note else "."), "document_type": "Attendance Request", "document_name": name}).insert(ignore_permissions=True)
+frappe.response["message"] = {"status": status}
+`;
+
+export const ATTENDANCE_FIELDS = [
+  { dt: "Attendance Request", fieldname: "custom_approver", label: "Approver", fieldtype: "Link", options: "User", insert_after: "employee_name" },
+  { dt: "Attendance Request", fieldname: "custom_decision", label: "Decision", fieldtype: "Select", options: "\nRejected", read_only: 1, insert_after: "custom_approver" },
+  { dt: "Attendance Request", fieldname: "custom_decision_note", label: "Decision Note", fieldtype: "Small Text", read_only: 1, insert_after: "custom_decision" },
+];
+
 export const ATTENDANCE_SCRIPTS = [
+  { name: "ETHX - Attendance request approver", script_type: "DocType Event", reference_doctype: "Attendance Request", doctype_event: "Before Insert", script: ATTENDANCE_REQUEST_ASSIGN, what: "Attendance requests go to the employee's leave approver (else their manager)" },
+  { name: "ETHX - Attendance requests for me", script_type: "API", api_method: "ethx_attendance_requests", script: ATTENDANCE_REQUESTS_API, what: "Approvers see the attendance requests waiting for them" },
+  { name: "ETHX - Attendance request decision", script_type: "API", api_method: "ethx_attendance_decision", script: ATTENDANCE_DECISION_API, what: "Only the assigned approver approves or rejects an attendance request" },
   { name: "ETHX - Punch reminders", script_type: "Scheduler Event", event_frequency: "Hourly", script: PUNCH_REMINDERS, what: "Employees are notified when they haven't punched in or out on time" },
   { name: "ETHX - Attendance from punches", script_type: "Scheduler Event", event_frequency: "Daily", script: MARK_FROM_PUNCHES, what: `Every night, days with punches but no attendance are marked Present (Half Day under ${HALF_DAY_HOURS} h)` },
 ];

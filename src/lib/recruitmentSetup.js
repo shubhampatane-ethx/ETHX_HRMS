@@ -5,11 +5,18 @@
 import { frappe } from "./api/frappeClient";
 
 const sel = (...o) => o.join("\n");
+// Must match ALL_STAGES in recruitment.js.
+const STAGE_OPTIONS = ["Applied", "Screening", "Shortlisted", "Interview", "Selected", "Offer", "Hired", "Hold", "Rejected", "Withdrawn"];
+
+// Sites set up before "Selected" existed get it added to the stage list.
+export const RECRUITMENT_PROPERTIES = [
+  { doc_type: "Job Applicant", field_name: "custom_ethx_stage", property: "options", property_type: "Text", value: sel(...STAGE_OPTIONS), what: "Job Applicant › stage can be Selected" },
+];
 
 export const RECRUITMENT_FIELDS = [
   // Job Applicant - pipeline, screening, consent, retention
   { dt: "Job Applicant", fieldname: "custom_ethx_section", label: "ETHX Pipeline", fieldtype: "Section Break", insert_after: "upper_range" },
-  { dt: "Job Applicant", fieldname: "custom_ethx_stage", label: "Pipeline Stage", fieldtype: "Select", options: sel("Applied", "Screening", "Shortlisted", "Interview", "Offer", "Hired", "Hold", "Rejected", "Withdrawn"), default: "Applied", in_list_view: 1, in_standard_filter: 1, insert_after: "custom_ethx_section" },
+  { dt: "Job Applicant", fieldname: "custom_ethx_stage", label: "Pipeline Stage", fieldtype: "Select", options: sel(...STAGE_OPTIONS), default: "Applied", in_list_view: 1, in_standard_filter: 1, insert_after: "custom_ethx_section" },
   { dt: "Job Applicant", fieldname: "custom_stage_since", label: "In Stage Since", fieldtype: "Datetime", read_only: 1, insert_after: "custom_ethx_stage" },
   { dt: "Job Applicant", fieldname: "custom_reject_reason", label: "Rejection / Withdrawal Reason", fieldtype: "Small Text", insert_after: "custom_stage_since" },
   { dt: "Job Applicant", fieldname: "custom_ethx_col1", fieldtype: "Column Break", insert_after: "custom_reject_reason" },

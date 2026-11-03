@@ -100,7 +100,8 @@ export function DoctypeCrud({ item }) {
     }
   }
 
-  const columns = [
+  // Some records (punches) are never deleted from here; the server refuses too.
+  const columns = item.noDelete ? DEFAULT_COLUMNS : [
     ...DEFAULT_COLUMNS,
     {
       key: "_actions",

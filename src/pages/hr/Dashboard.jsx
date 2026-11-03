@@ -2,10 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowRight, Building2, CalendarCheck, CalendarClock, ClipboardList, GraduationCap,
-  LineChart, Plus, UserCheck, UserPlus, UserSearch, Users, Wallet,
+  Bell, BellRing, Cake, Clock3, LifeBuoy, LineChart, Plus, Receipt, UserCheck, UserPlus, UserSearch, Users, Wallet,
 } from "lucide-react";
 import { frappe } from "../../lib/api/frappeClient";
-import { getCheckinsBetween, summariseCheckins } from "../../lib/employeePortal";
+import { getCheckinsBetween, getNotifications, getUpcomingBirthdays, listTry, summariseCheckins } from "../../lib/employeePortal";
+import { getWaitingForMe } from "../../lib/approvals";
+import { isStaffEmployee } from "../../permissions/roles";
 import { useAuth } from "../../context/AuthContext";
 import { Card } from "../../components/ui/primitives";
 import { greetingName } from "../../lib/names";
@@ -39,6 +41,80 @@ const QUICK_LINKS = [
   { to: "/hr/performance", label: "Performance", hint: "Reviews & goals", icon: LineChart },
   { to: "/hr/training", label: "Training", hint: "Programs", icon: GraduationCap },
 ];
+
+const ago = (stamp) => {
+  const mins = Math.max(0, Math.round((Date.now() - new Date(String(stamp).replace(" ", "T")).getTime()) / 60000));
+  return mins < 60 ? `${mins || 1} min ago` : mins < 1440 ? `${Math.round(mins / 60)} h ago` : `${Math.round(mins / 1440)} d ago`;
+};
+
+/**
+ * Everything waiting for HR, first thing on the dashboard: requests to act on (each links to its page), the
+ * signed-in person's unread notifications and the week's birthdays.
+ */
+function NeedsAttention({ user }) {
+  const [d, setD] = useState(null);
+  useEffect(() => {
+    let live = true;
+    const count = (p) => p.then((rows) => rows.length).catch(() => null);
+    Promise.all([
+      count(frappe.getList("Leave Application", { filters: [["status", "=", "Open"], ["docstatus", "=", 0]], fields: ["name"], limit: 0 })),
+      count(frappe.getList("Expense Claim", { filters: [["approval_status", "=", "Draft"], ["docstatus", "=", 0]], fields: ["name"], limit: 0 })),
+      listTry("Attendance Request", { filters: [["docstatus", "=", 0]], fields: ["name", "custom_decision"], limit: 0 }, ["name"]).then((rows) => rows.filter((r) => r.custom_decision !== "Rejected").length).catch(() => null),
+      count(frappe.getList("Issue", { filters: [["status", "in", ["Open", "In Progress"]]], fields: ["name"], limit: 0 })),
+      getWaitingForMe(user.email).then((w) => w.leaves.length + w.expenses.length + (w.attendance?.length || 0)).catch(() => null),
+      getNotifications(user.email, 30).then((rows) => rows.filter((n) => !Number(n.read))).catch(() => []),
+      getUpcomingBirthdays().then((rows) => rows.filter((b) => b.days_away <= 7)).catch(() => []),
+    ]).then(([leave, expense, attendance, requests, mine, unread, birthdays]) => {
+      if (live) setD({ leave, expense, attendance, requests, mine, unread, birthdays });
+    });
+    return () => { live = false; };
+  }, [user.email]);
+
+  const staff = isStaffEmployee(user);
+  const items = d ? [
+    { to: "/hr/leave", icon: CalendarClock, label: "Leave Requests", n: d.leave },
+    { to: "/hr/expenses", icon: Receipt, label: "Expense Claims", n: d.expense },
+    { to: "/hr/setup/attendance-request", icon: Clock3, label: "Attendance Requests", n: d.attendance },
+    { to: "/hr/requests", icon: LifeBuoy, label: "Employee Requests", n: d.requests },
+    ...(staff ? [{ to: "/employee/approvals", icon: UserCheck, label: "Waiting for My Approval", n: d.mine }] : []),
+  ].filter((i) => i.n != null) : [];
+  const total = items.reduce((s, i) => s + i.n, 0);
+
+  return (
+    <Card className="rounded-xl p-5">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h2 className="flex items-center gap-2 text-[13px] font-semibold text-[var(--color-text)]"><BellRing size={15} className="text-[var(--color-red-hover)]" /> Needs Your Attention</h2>
+        {d && <span className="text-[12px] text-[var(--color-text-muted)]">{total ? `${total} pending` : "Nothing pending"}</span>}
+      </div>
+      {!d ? <Skeleton className="h-24 w-full" /> : (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:col-span-2">
+            {items.map(({ to, icon: Icon, label, n }) => (
+              <Link key={label} to={to} className={`flex items-center justify-between gap-3 rounded-lg border px-3.5 py-3 transition-colors hover:border-[var(--color-border-strong)] ${n ? "border-[var(--color-red-deep)] bg-[var(--color-red-wash)]" : "border-[var(--color-border)]"}`}>
+                <span className="flex items-center gap-2.5 text-[13px] text-[var(--color-text)]"><Icon size={15} className={n ? "text-[var(--color-red-hover)]" : "text-[var(--color-text-muted)]"} />{label}</span>
+                <span className={`text-[15px] font-semibold ${n ? "text-[var(--color-red-hover)]" : "text-[var(--color-text-faint)]"}`}>{n}</span>
+              </Link>
+            ))}
+          </div>
+          <div className="space-y-3">
+            <div>
+              <p className="mb-1.5 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]"><span className="flex items-center gap-1.5"><Bell size={12} /> Notifications</span>{staff && <Link to="/employee/notifications" className="normal-case tracking-normal text-[var(--color-red-hover)] hover:underline">View all</Link>}</p>
+              {d.unread.length === 0 ? <p className="text-[12px] text-[var(--color-text-faint)]">No unread notifications.</p> : (
+                <ul className="space-y-1.5">{d.unread.slice(0, 4).map((n) => <li key={n.name} className="text-[12px] leading-snug text-[var(--color-text)]">{n.subject?.replace(/<[^>]*>/g, "")}<span className="ml-1.5 text-[10.5px] text-[var(--color-text-faint)]">{ago(n.creation)}</span></li>)}</ul>
+              )}
+            </div>
+            {d.birthdays.length > 0 && (
+              <div>
+                <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]"><Cake size={12} /> Birthdays This Week</p>
+                <ul className="space-y-1 text-[12px] text-[var(--color-text)]">{d.birthdays.slice(0, 4).map((b) => <li key={`${b.name}-${b.date}`}>{b.name}<span className="ml-1.5 text-[var(--color-text-faint)]">{b.days_away === 0 ? "Today" : b.days_away === 1 ? "Tomorrow" : dmy(b.date)}</span></li>)}</ul>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
 
 function greeting(hour) {
   return hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
@@ -196,6 +272,8 @@ export default function HRDashboard() {
           {actions}
         </div>
       </section>
+
+      {user && <NeedsAttention user={user} />}
 
       {/* Stats */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">

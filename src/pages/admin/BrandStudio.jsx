@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Building2, Check, ImagePlus, Loader2, Palette, RefreshCw, Save, Trash2 } from "lucide-react";
+import { Building2, Check, Headset, ImagePlus, Loader2, Palette, RefreshCw, Save, Trash2 } from "lucide-react";
 import { useBranding, brandName, cacheBranding, getSelectedBrandCompany } from "../../context/BrandingContext";
 import { Button, Card } from "../../components/ui/primitives";
 import { errMsg, useAsync } from "../../lib/employeePortal";
@@ -81,6 +81,7 @@ export default function BrandStudio() {
   const [message, setMessage] = useState("");
   const fileRefs = useRef({});
   const [nameDraft, setNameDraft] = useState(null); // { companyName, value } while editing
+  const [supportDraft, setSupportDraft] = useState(null); // { companyName, email, phone } while editing
 
   const companies = companiesQuery.data || [];
   const validSelectedCompany = !companies.length || companies.some((item) => item.name === selectedCompany) ? selectedCompany : "";
@@ -93,6 +94,9 @@ export default function BrandStudio() {
   const legalName = currentCompany?.company_name || currentCompany?.name || "";
   const nameValue = nameDraft?.companyName === companyName ? nameDraft.value : shownName;
   const nameChanged = nameValue.trim() !== shownName;
+  const savedSupport = { email: currentCompany?.custom_hrms_support_email || "", phone: currentCompany?.custom_hrms_support_phone || "" };
+  const support = supportDraft?.companyName === companyName ? supportDraft : { companyName, ...savedSupport };
+  const supportChanged = support.email.trim() !== savedSupport.email || support.phone.trim() !== savedSupport.phone;
 
   function changeCompany(name) {
     setSelectedCompany(name);
@@ -148,6 +152,29 @@ export default function BrandStudio() {
       setMessage(`Company name is now shown as "${display || legalName}".`);
     } catch (e) {
       setError(errMsg(e, "Could not save the company name. Check Company write and Customize Form permissions."));
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function saveSupport() {
+    const email = support.email.trim();
+    const phone = support.phone.trim();
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setError("Enter a valid support email address.");
+    if (phone && !/^[+\d][\d\s()-]{5,}$/.test(phone)) return setError("Enter a valid support phone number.");
+    if (!(await confirmDialog({ title: "Save Support Contact", message: `Show ${[email, phone].filter(Boolean).join(" and ") || "no support contact"} on the sign-in page under Contact IT Support?`, confirmLabel: "Save" }))) return;
+    setBusy("support");
+    setError("");
+    setMessage("");
+    try {
+      await ensureCompanyField("custom_hrms_support_email", { label: "HRMS Support Email", fieldtype: "Data", options: "Email" });
+      await ensureCompanyField("custom_hrms_support_phone", { label: "HRMS Support Phone", fieldtype: "Data" });
+      await frappe.updateDoc("Company", companyName, { custom_hrms_support_email: email, custom_hrms_support_phone: phone });
+      setSupportDraft(null);
+      companyQuery.reload();
+      setMessage("Support contact saved. It shows on the sign-in page under Contact IT Support.");
+    } catch (e) {
+      setError(errMsg(e, "Could not save the support contact."));
     } finally {
       setBusy("");
     }
@@ -263,6 +290,18 @@ export default function BrandStudio() {
               </Card>
             );
           })}
+          <Card className="space-y-3 p-4">
+            <div>
+              <p className="flex items-center gap-1.5 text-[13px] font-semibold text-[var(--color-text)]"><Headset size={14} /> Sign-In Help</p>
+              <p className="mt-0.5 text-[11px] text-[var(--color-text-muted)]">Shown on the sign-in page under Contact IT Support, for people who can't sign in.</p>
+            </div>
+            <input type="email" value={support.email} disabled={!currentCompany || Boolean(busy)} onChange={(e) => setSupportDraft({ ...support, email: e.target.value })} placeholder="Support email, e.g. it@company.com" aria-label="Support email" className="w-full rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-3 py-2 text-[13px] text-[var(--color-text)] outline-none focus:border-[var(--color-red)] disabled:opacity-60" />
+            <input type="tel" value={support.phone} disabled={!currentCompany || Boolean(busy)} onChange={(e) => setSupportDraft({ ...support, phone: e.target.value })} placeholder="Support phone (optional)" aria-label="Support phone" className="w-full rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-3 py-2 text-[13px] text-[var(--color-text)] outline-none focus:border-[var(--color-red)] disabled:opacity-60" />
+            <div className="flex justify-end gap-2">
+              {supportChanged && <Button type="button" variant="ghost" disabled={Boolean(busy)} onClick={() => setSupportDraft(null)}>Cancel</Button>}
+              <Button type="button" disabled={!supportChanged || Boolean(busy)} onClick={saveSupport}>{busy === "support" ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}Save Contact</Button>
+            </div>
+          </Card>
           {/* The company name is separate text from the Company record - never part of the logo image. */}
           <Card className="space-y-3 p-4">
             <div>

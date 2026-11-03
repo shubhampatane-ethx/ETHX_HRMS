@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { AlertCircle, CalendarCheck, Eye, EyeOff, Loader2, Lock, Users, UserRound, Wallet, CalendarClock, ArrowRight } from "lucide-react";
+import { AlertCircle, ArrowLeft, CalendarCheck, CheckCircle2, Eye, EyeOff, Headset, KeyRound, Loader2, Lock, Mail, Phone, Users, UserRound, Wallet, CalendarClock, ArrowRight } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { homePath } from "../permissions/roles";
 import { Brand } from "../components/Brand";
+import { useBranding } from "../context/BrandingContext";
+import { frappe } from "../lib/api/frappeClient";
 
 /** The company's logo and name (same component as the sidebar), with a clearly visible HRMS tag. */
 function LoginBrand() {
@@ -38,6 +40,7 @@ export default function Login() {
   const [showPwd, setShowPwd] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [panel, setPanel] = useState("signin"); // signin | forgot | help
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -118,6 +121,9 @@ export default function Login() {
         <div className="relative w-full max-w-[400px]">
           <div className="mb-8 min-[800px]:hidden"><LoginBrand /></div>
 
+          {panel === "forgot" && <ForgotPassword initialEmail={usr.includes("@") ? usr : ""} onBack={() => setPanel("signin")} onHelp={() => setPanel("help")} />}
+          {panel === "help" && <ContactSupport onBack={() => setPanel("signin")} />}
+          {panel === "signin" && <>
           <h1 className="text-2xl font-semibold tracking-tight text-[var(--color-text)]">Welcome Back</h1>
           <p className="mt-1.5 text-[14px] text-[var(--color-text-muted)]">Sign in with your work account to continue.</p>
 
@@ -131,7 +137,7 @@ export default function Login() {
             </label>
 
             <label className="block">
-              <span className="mb-1.5 block text-[12px] font-medium text-[var(--color-text-muted)]">Password</span>
+              <span className="mb-1.5 flex items-center justify-between text-[12px] font-medium text-[var(--color-text-muted)]">Password<button type="button" onClick={() => setPanel("forgot")} className="font-medium text-[var(--color-red-hover)] hover:underline">Forgot Password?</button></span>
               <div className="relative">
                 <Lock size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--color-text-faint)]" />
                 <input type={showPwd ? "text" : "password"} value={pwd} onChange={(e) => setPwd(e.target.value)} placeholder="Enter your password" autoComplete="current-password" required className={`${inputClass} pr-11`} />
@@ -152,9 +158,94 @@ export default function Login() {
             </button>
           </form>
 
-          <p className="mt-6 text-center text-[12px] text-[var(--color-text-faint)]">Trouble signing in? Contact your system administrator.</p>
+          <p className="mt-6 text-center text-[12px] text-[var(--color-text-faint)]">Trouble signing in? <button type="button" onClick={() => setPanel("help")} className="inline-flex items-center gap-1 font-medium text-[var(--color-red-hover)] hover:underline"><Headset size={13} /> Contact IT Support</button></p>
+          </>}
         </div>
       </main>
+    </div>
+  );
+}
+
+function BackLink({ onClick }) {
+  return <button type="button" onClick={onClick} className="mb-5 inline-flex items-center gap-1 text-[12px] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"><ArrowLeft size={14} /> Back to Sign In</button>;
+}
+
+/** Emails a reset link through ERPNext; the link opens ERPNext's own page for choosing a new password. */
+function ForgotPassword({ initialEmail, onBack, onHelp }) {
+  const [email, setEmail] = useState(initialEmail);
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState("");
+  const [error, setError] = useState("");
+
+  async function submit(e) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      const answer = await frappe.resetPassword(email.trim());
+      if (answer === "not found") setError("No account uses this email. Check it, or contact IT support.");
+      else if (answer === "disabled") setError("This account is disabled. Contact IT support to enable it.");
+      else setSent(email.trim());
+    } catch (err) {
+      const status = err?.response?.status;
+      const text = String(err?.response?.data?._server_messages || err?.response?.data?.exception || "");
+      setError(!err?.response ? "Can't reach the sign-in service. Check your connection and try again."
+        : status === 429 || /too many/i.test(text) ? "Too many attempts. Wait a few minutes and try again."
+        : /outgoing|email account/i.test(text) ? "Reset emails can't be sent yet because email isn't set up on the server. Contact IT support."
+        : "Couldn't send the reset link. Try again, or contact IT support.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <BackLink onClick={onBack} />
+      <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-[var(--color-text)]"><KeyRound size={22} className="text-[var(--color-red-hover)]" /> Forgot Password</h1>
+      {sent ? (
+        <div role="status" className="mt-6 flex items-start gap-2.5 rounded-lg border border-[var(--color-green)]/30 bg-[color-mix(in_srgb,var(--color-green)_10%,transparent)] px-4 py-3 text-[13px] text-[var(--color-text)]">
+          <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-[var(--color-green)]" />
+          <span>If <b>{sent}</b> has an account, a password reset link has been sent to it. Open the link to choose a new password, then sign in here. Check your spam folder if it doesn't arrive in a few minutes.</span>
+        </div>
+      ) : (
+        <>
+          <p className="mt-1.5 text-[14px] text-[var(--color-text-muted)]">Enter your work email and we'll send you a link to set a new password.</p>
+          <form data-no-preview onSubmit={submit} className="mt-6 space-y-4">
+            <label className="block">
+              <span className="mb-1.5 block text-[12px] font-medium text-[var(--color-text-muted)]">Work Email</span>
+              <div className="relative">
+                <Mail size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--color-text-faint)]" />
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@company.com" autoComplete="email" required autoFocus className={inputClass} />
+              </div>
+            </label>
+            {error && <div role="alert" className="flex items-center gap-2 rounded-lg border border-[var(--color-red-deep)] bg-[var(--color-red-wash)] px-3.5 py-2.5 text-[13px] text-[var(--color-red-hover)]"><AlertCircle size={15} className="shrink-0" /> {error}</div>}
+            <button type="submit" disabled={busy || !email.trim()} className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--color-red)] py-3 text-[14px] font-medium text-[var(--color-on-accent)] transition-all hover:bg-[var(--color-red-hover)] disabled:cursor-not-allowed disabled:opacity-70">
+              {busy ? <><Loader2 size={16} className="animate-spin" /> Sending…</> : "Send Reset Link"}
+            </button>
+          </form>
+        </>
+      )}
+      <p className="mt-6 text-center text-[12px] text-[var(--color-text-faint)]">Still stuck? <button type="button" onClick={onHelp} className="font-medium text-[var(--color-red-hover)] hover:underline">Contact IT Support</button></p>
+    </div>
+  );
+}
+
+/** The support email and phone the Administrator set in Brand Studio. */
+function ContactSupport({ onBack }) {
+  const { company } = useBranding();
+  const email = company?.custom_hrms_support_email || "";
+  const phone = company?.custom_hrms_support_phone || "";
+  const row = "flex items-center gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-[13px] text-[var(--color-text)] transition-colors hover:border-[var(--color-border-strong)]";
+  return (
+    <div>
+      <BackLink onClick={onBack} />
+      <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-[var(--color-text)]"><Headset size={22} className="text-[var(--color-red-hover)]" /> Contact IT Support</h1>
+      <p className="mt-1.5 text-[14px] text-[var(--color-text-muted)]">Can't sign in, locked out or your account isn't working? Reach the administrator here.</p>
+      <div className="mt-6 space-y-2.5">
+        {email && <a href={`mailto:${email}?subject=${encodeURIComponent("HRMS sign-in help")}`} className={row}><Mail size={16} className="shrink-0 text-[var(--color-red-hover)]" /><span className="min-w-0"><span className="block text-[11px] text-[var(--color-text-muted)]">Email</span><span className="break-all font-medium">{email}</span></span></a>}
+        {phone && <a href={`tel:${phone.replace(/[^\d+]/g, "")}`} className={row}><Phone size={16} className="shrink-0 text-[var(--color-red-hover)]" /><span><span className="block text-[11px] text-[var(--color-text-muted)]">Phone</span><span className="font-medium">{phone}</span></span></a>}
+        {!email && !phone && <p className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-[13px] text-[var(--color-text-muted)]">Support contact details haven't been added yet. Ask your HR team or manager to reach the administrator.</p>}
+      </div>
     </div>
   );
 }

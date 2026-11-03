@@ -9,7 +9,7 @@ import { Async, Empty, Field, Grid, inputCls, KeyValue, Modal, Notice, PageHeade
 import { dmy, dmyHm, errMsg, money, useAsync } from "../../../lib/employeePortal";
 import {
   addComment, ALL_STAGES, anonymise, employeeForApplicant, feedbackFor, findSamePerson, fmtTime, interviewersOf, isClosedStage, listInterviews, listOffers, offerStage,
-  roundsOf, stageOf, timelineOf, toStars, fromStars,
+  roundsOf, stageLabel, stageOf, timelineOf, toStars, fromStars,
 } from "../../../lib/recruitment";
 import { CandidateModal, candidateUrl, DecideModal, FeedbackMatrix, IcsButton, MoveStageModal, OfferModal, ScheduleModal, SetupHint, StageBadge, Stars } from "./shared";
 import { useAuth } from "../../../context/AuthContext";
@@ -142,7 +142,7 @@ export default function CandidateProfile() {
                   <div className="flex gap-2">
                     <select className={inputCls} value={moveTo} onChange={(e) => setMoveTo(e.target.value)}>
                       <option value="">Choose…</option>
-                      {ALL_STAGES.filter((s) => s.id !== stage && s.id !== "Hired").map((s) => <option key={s.id} value={s.id}>{s.id}</option>)}
+                      {ALL_STAGES.filter((s) => s.id !== stage && s.id !== "Hired").map((s) => <option key={s.id} value={s.id}>{stageLabel(s.id)}</option>)}
                     </select>
                     <Button disabled={!moveTo} onClick={() => setModal(moveTo === "Interview" ? { kind: "schedule" } : moveTo === "Offer" && !liveOffer ? { kind: "offer" } : { kind: "move", to: moveTo })}>Move</Button>
                   </div>

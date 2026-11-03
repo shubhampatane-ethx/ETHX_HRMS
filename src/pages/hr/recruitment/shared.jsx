@@ -8,7 +8,7 @@ import { Button, DateField, LinkField } from "../../../components/ui/primitives"
 import { Field, inputCls, Modal, Notice } from "../../../components/employee/EmployeeShell";
 import { dmy, errMsg, isoDate, nowStamp, useAsync } from "../../../lib/employeePortal";
 import {
-  addComment, ALL_STAGES, createEmployee, decideInterview, downloadIcs, emailDocument, employeeForApplicant, feedbackFor, findSamePerson,
+  addComment, ALL_STAGES, stageLabel, createEmployee, decideInterview, downloadIcs, emailDocument, employeeForApplicant, feedbackFor, findSamePerson,
   fmtTime, interviewClashes, interviewersOf, isoPlus, listRounds, listUsers, moveStage, onboardingForApplicant, prepareInterviewers,
   recordJoining, recordResponse, regretEmail, roundsOf, roundsStatus, saveOffer, scheduleInterview, stageOf, STAGE_TONE, startOnboarding, toStars,
 } from "../../../lib/recruitment";
@@ -22,7 +22,7 @@ export const candidateUrl = (name) => `/hr/recruitment/candidates/${enc(name)}`;
 
 export function StageBadge({ stage }) {
   const tone = STAGE_TONE[stage] || "var(--color-text-muted)";
-  return <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium" style={{ background: `color-mix(in srgb, ${tone} 16%, transparent)`, color: tone }}>{stage}</span>;
+  return <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium" style={{ background: `color-mix(in srgb, ${tone} 16%, transparent)`, color: tone }}>{stageLabel(stage)}</span>;
 }
 
 export function Stars({ value, onChange, size = 14 }) {
@@ -221,14 +221,14 @@ export function MoveStageModal({ applicant, to, opening, onClose, onSaved }) {
   }
 
   return (
-    <Modal title={`Move ${applicant.applicant_name} to ${to}`} onClose={onClose}>
+    <Modal title={`Move ${applicant.applicant_name} to ${stageLabel(to)}`} onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
         <p className="text-[12px] text-[var(--color-text-muted)]">{ALL_STAGES.find((s) => s.id === to)?.hint}</p>
         {needsReason && <Field label={to === "Hold" ? "Why on hold?" : "Reason"}><textarea required rows={2} className={inputCls} value={reason} onChange={(e) => setReason(e.target.value)} /></Field>}
         <Field label="Note for the Timeline (Optional)"><input className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} /></Field>
         {to === "Rejected" && <label className="flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><input type="checkbox" checked={regret} onChange={(e) => setRegret(e.target.checked)} /> Email a polite regret note to {applicant.email_id}</label>}
         {["Rejected", "Withdrawn", "Hold"].includes(to) && <p className="text-[11px] text-[var(--color-text-faint)]">The candidate's data will be kept for 12 months, then it can be anonymised from Recruitment › Setup.</p>}
-        {warn ? <><Notice tone="info">{warn}</Notice><div className="flex justify-end"><Button type="button" onClick={onSaved}>Close</Button></div></> : <>{err && <Notice>{err}</Notice>}<Buttons onClose={onClose} busy={busy} label={`Move to ${to}`} /></>}
+        {warn ? <><Notice tone="info">{warn}</Notice><div className="flex justify-end"><Button type="button" onClick={onSaved}>Close</Button></div></> : <>{err && <Notice>{err}</Notice>}<Buttons onClose={onClose} busy={busy} label={`Move to ${stageLabel(to)}`} /></>}
       </form>
     </Modal>
   );

@@ -141,6 +141,7 @@ export const HR_SETUP_SECTIONS = [
         label: "Employee Checkin",
         doctype: "Employee Checkin",
         kind: "list",
+        noDelete: true,
         formFields: [
           { name: "employee", label: "Employee", type: "link", linkDoctype: "Employee", required: true },
           { name: "log_type", label: "Log Type", type: "select", options: ["IN", "OUT"], required: true },

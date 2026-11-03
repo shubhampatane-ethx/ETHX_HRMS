@@ -52,8 +52,15 @@ export function setSelectedBrandCompany(name) {
   try { localStorage.setItem(SELECTED_COMPANY_KEY, name); } catch { /* current-session selection is still applied */ }
 }
 
+/** Signed out: the company's public logos, name and support contact (from a public method; empty before setup). */
+async function publicBranding() {
+  const r = await frappe.callMethod("ethx_login_branding").catch(() => null);
+  if (!r?.name) return null;
+  return { name: "__public", company_name: r.name, company_logo: r.logo || "", custom_hrms_dark_logo: r.dark_logo || "", custom_hrms_support_email: r.support_email || "", custom_hrms_support_phone: r.support_phone || "" };
+}
+
 async function resolveCompany(user, selectedCompany) {
-  if (!user) return null;
+  if (!user) return publicBranding();
   const roles = user.roles || [];
   const isAdmin = roles.includes("System Manager");
   let companyName = isAdmin ? selectedCompany || readStorage(SELECTED_COMPANY_KEY) : "";

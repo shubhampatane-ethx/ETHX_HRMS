@@ -1,12 +1,13 @@
 // All candidates across openings, with search and filters, plus CSV export.
 import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Download, Plus, Users } from "lucide-react";
+import { Download, Pencil, Plus, Users } from "lucide-react";
 import { Button } from "../../../components/ui/primitives";
-import { Async, chipCls, Grid, inputCls, PageHeader, Panel } from "../../../components/employee/EmployeeShell";
-import { dmy, useAsync } from "../../../lib/employeePortal";
-import { ALL_STAGES, downloadCsv, listApplicants, listOpenings, stageOf } from "../../../lib/recruitment";
-import { CandidateModal, candidateUrl, Rating, SetupHint, StageBadge } from "./shared";
+import { Async, chipCls, Grid, inputCls, Modal, Notice, PageHeader, Panel } from "../../../components/employee/EmployeeShell";
+import { dmy, errMsg, useAsync } from "../../../lib/employeePortal";
+import { frappe } from "../../../lib/api/frappeClient";
+import { ALL_STAGES, downloadCsv, listApplicants, listOpenings, stageLabel, stageOf } from "../../../lib/recruitment";
+import { CandidateModal, candidateUrl, MoveStageModal, Rating, SetupHint, StageBadge } from "./shared";
 
 export default function Candidates() {
   const [params, setParams] = useSearchParams();
@@ -17,6 +18,8 @@ export default function Candidates() {
   const [opening, setOpening] = useState(params.get("opening") || "");
   const [source, setSource] = useState("");
   const [adding, setAdding] = useState(params.get("add") === "1");
+  const [editing, setEditing] = useState(null);
+  const [moving, setMoving] = useState(null); // { applicant, to }
   const titles = useMemo(() => Object.fromEntries((openings.data || []).map((o) => [o.name, o.job_title])), [openings.data]);
   const sources = useMemo(() => [...new Set((apps.data || []).map((a) => a.source).filter(Boolean))].sort(), [apps.data]);
 
@@ -46,7 +49,7 @@ export default function Candidates() {
       <SetupHint />
       <Panel>
         <div className="mb-4 flex flex-wrap items-center gap-2">
-          {[["active", "In Process"], ["all", "All"], ...ALL_STAGES.map((s) => [s.id, s.id])].map(([v, l]) => <button key={v} type="button" onClick={() => setStage(v)} className={chipCls(stage === v)}>{l}</button>)}
+          {[["active", "In Process"], ["all", "All"], ...ALL_STAGES.map((s) => [s.id, stageLabel(s.id)])].map(([v, l]) => <button key={v} type="button" onClick={() => setStage(v)} className={chipCls(stage === v)}>{l}</button>)}
         </div>
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, email, phone, skills…" className={`${inputCls} !w-64 !py-1`} />
@@ -63,10 +66,31 @@ export default function Candidates() {
             { key: "source", label: "Source", render: (a) => a.source || "—" },
             { key: "applicant_rating", label: "Rating", render: (a) => <Rating fraction={a.applicant_rating} /> },
             { key: "creation", label: "Added", render: (a) => dmy(a.creation) },
+            // Status can be changed and details edited straight from the list (Hired comes from the accepted offer).
+            { key: "_a", label: "", render: (a) => (
+              <div className="flex items-center justify-end gap-1.5">
+                {stageOf(a) !== "Hired" && (
+                  <select aria-label={`Change status of ${a.applicant_name}`} value="" onChange={(e) => e.target.value && setMoving({ applicant: a, to: e.target.value })} className={`${inputCls} !w-auto !py-1 text-[12px]`}>
+                    <option value="">Change Status…</option>
+                    {ALL_STAGES.filter((s) => s.id !== stageOf(a) && s.id !== "Hired").map((s) => <option key={s.id} value={s.id}>{stageLabel(s.id)}</option>)}
+                  </select>
+                )}
+                <button type="button" title="Edit candidate details" onClick={() => setEditing(a)} className="rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]"><Pencil size={14} /></button>
+              </div>
+            ) },
           ]} />}
         </Async>
       </Panel>
+      {editing && <EditCandidate name={editing.name} openings={openings.data || []} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); apps.reload(); }} />}
+      {moving && <MoveStageModal applicant={moving.applicant} to={moving.to} opening={(openings.data || []).find((o) => o.name === moving.applicant.job_title)} onClose={() => setMoving(null)} onSaved={() => { setMoving(null); apps.reload(); }} />}
       {adding && <CandidateModal openings={openings.data || []} defaultOpening={opening && opening !== "-" ? opening : ""} onClose={() => { setAdding(false); if (params.get("add")) setParams({}); }} onSaved={() => { setAdding(false); apps.reload(); }} />}
     </div>
   );
+}
+
+/** The list carries only some fields, so the full record is loaded before editing (nothing is blanked on save). */
+function EditCandidate({ name, openings, onClose, onSaved }) {
+  const doc = useAsync(() => frappe.getDoc("Job Applicant", name), [name]);
+  if (doc.data) return <CandidateModal applicant={doc.data} openings={openings} onClose={onClose} onSaved={onSaved} />;
+  return <Modal title="Edit Candidate" onClose={onClose}>{doc.error ? <Notice>{errMsg(doc.error, "Couldn't open this candidate.")}</Notice> : <p className="text-[13px] text-[var(--color-text-muted)]">Loading…</p>}</Modal>;
 }

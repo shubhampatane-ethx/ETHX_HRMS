@@ -16,17 +16,20 @@ export const STAGES = [
   { id: "Screening", status: "Open", hint: "CV review / phone screen" },
   { id: "Shortlisted", status: "Replied", hint: "Ready for interviews" },
   { id: "Interview", status: "Replied", hint: "Interview rounds in progress" },
+  { id: "Selected", status: "Replied", hint: "Cleared the interviews - offer to follow" },
   { id: "Offer", status: "Replied", hint: "Offer drafted, in approval or sent" },
   { id: "Hired", status: "Accepted", hint: "Joined - employee created" },
 ];
 // Exit lanes. Hold is kept separate from Rejected (gap G10 / section 06).
 export const EXITS = [
-  { id: "Hold", status: "Hold", hint: "Keep for later - not rejected" },
+  { id: "Hold", label: "On Hold", status: "Hold", hint: "Keep for later - not rejected" },
   { id: "Rejected", status: "Rejected", hint: "Not selected" },
   { id: "Withdrawn", status: "Rejected", hint: "Candidate pulled out, declined or didn't join" },
 ];
 export const ALL_STAGES = [...STAGES, ...EXITS];
 export const STAGE_IDS = ALL_STAGES.map((s) => s.id);
+/** What a stage is called on screen (the stored value stays the same). */
+export const stageLabel = (id) => ALL_STAGES.find((s) => s.id === id)?.label || id;
 const STATUS_TO_STAGE = { Open: "Applied", Replied: "Shortlisted", Accepted: "Offer", Rejected: "Rejected", Hold: "Hold" };
 
 /** The applicant's stage, falling back to one derived from the standard status for records created elsewhere. */
@@ -39,6 +42,7 @@ export const STAGE_TONE = {
   Screening: "#4f8cff",
   Shortlisted: "#7c5cff",
   Interview: "var(--color-amber)",
+  Selected: "#2bb673",
   Offer: "#e0a400",
   Hired: "var(--color-green)",
   Hold: "#8b93a7",

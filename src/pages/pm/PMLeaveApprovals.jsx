@@ -6,7 +6,7 @@ import { ApprovalQueue, useApprovalQueue } from "../../components/approvals/Appr
 
 export default function PMLeaveApprovals() {
   const state = useApprovalQueue();
-  const n = state.data ? state.data.leaves.length + state.data.expenses.length : null;
+  const n = state.data ? state.data.leaves.length + state.data.expenses.length + (state.data.attendance?.length || 0) : null;
   return (
     <>
       <PageHeader icon={CalendarCheck} title="Leave & Expense Approvals" subtitle={n == null ? "Requests waiting for your decision" : n ? `${n} request(s) waiting for your decision` : "Nothing is waiting for you right now"} />

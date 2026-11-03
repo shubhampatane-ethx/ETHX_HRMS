@@ -7,7 +7,7 @@ import { Button } from "../ui/primitives";
 import { Async, Field, Grid, inputCls, Modal, Notice, Panel } from "../employee/EmployeeShell";
 import { useAuth } from "../../context/AuthContext";
 import { dmy, errMsg, money, stripHtml, useAsync } from "../../lib/employeePortal";
-import { decideExpense, decideLeave, getWaitingForMe } from "../../lib/approvals";
+import { decideAttendance, decideExpense, decideLeave, getWaitingForMe } from "../../lib/approvals";
 
 const failMsg = (e) => (e?.response ? errMsg(e, "This request couldn't be completed.") : e?.message || "Something went wrong.");
 const dates = (r) => `${dmy(r.from_date)}${r.to_date && r.to_date !== r.from_date ? ` – ${dmy(r.to_date)}` : ""}${Number(r.half_day) ? " (half day)" : ""}`;
@@ -40,6 +40,21 @@ export function ApprovalQueue({ state }) {
                 </div>) },
             ]} />
           </Panel>
+          {d.attendance?.length > 0 && (
+            <Panel title="Attendance Requests" hint="Corrections for missed punches, work from home or on duty, from people you approve for">
+              <Grid rows={d.attendance} empty="No attendance requests are waiting for you." columns={[
+                { key: "employee_name", label: "Employee", render: (r) => r.employee_name || r.employee },
+                { key: "from_date", label: "Dates", render: dates },
+                { key: "reason", label: "Type" },
+                { key: "explanation", label: "Details", render: (r) => <span className="text-[var(--color-text-muted)]">{stripHtml(r.explanation || "") || "—"}</span> },
+                { key: "_a", label: "", render: (r) => (
+                  <div className="flex justify-end gap-3">
+                    <button type="button" onClick={() => setDecide({ kind: "attendance", row: r, approve: true })} className="flex items-center gap-1 text-[12px] text-[var(--color-green)] hover:underline"><Check size={13} /> Approve</button>
+                    <button type="button" onClick={() => setDecide({ kind: "attendance", row: r, approve: false })} className="flex items-center gap-1 text-[12px] text-[var(--color-red-hover)] hover:underline"><Ban size={13} /> Reject</button>
+                  </div>) },
+              ]} />
+            </Panel>
+          )}
           <Panel title="Expense Claims" hint="Claims whose expense type (or business unit) has you as the approver">
             <Grid rows={d.expenses} empty="No expense claims are waiting for you." columns={[
               { key: "employee_name", label: "Employee" },
@@ -70,8 +85,8 @@ export function DecideModal({ kind, row, approve, onClose, onDone }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const min = kind === "expense" ? 5 : 3;
-  const what = kind === "expense" ? `${row.employee_name}'s expense claim` : `${row.employee_name}'s leave`;
-  const summary = kind === "expense" ? `${money(row.total_claimed_amount, row.currency || undefined)} · ${dmy(row.posting_date)}` : `${row.leave_type} · ${dates(row)} · ${row.total_leave_days ?? ""} day(s)`;
+  const what = kind === "expense" ? `${row.employee_name}'s expense claim` : kind === "attendance" ? `${row.employee_name}'s attendance request` : `${row.employee_name}'s leave`;
+  const summary = kind === "expense" ? `${money(row.total_claimed_amount, row.currency || undefined)} · ${dmy(row.posting_date)}` : kind === "attendance" ? `${row.reason || "Correction"} · ${dates(row)}` : `${row.leave_type} · ${dates(row)} · ${row.total_leave_days ?? ""} day(s)`;
 
   async function submit(e) {
     e.preventDefault();
@@ -79,6 +94,7 @@ export function DecideModal({ kind, row, approve, onClose, onDone }) {
     setErr("");
     try {
       if (kind === "expense") await decideExpense(row.name, approve, note);
+      else if (kind === "attendance") await decideAttendance(row.name, approve ? "Approved" : "Rejected", note);
       else await decideLeave(row.name, approve ? "Approved" : "Rejected", note);
       onDone();
     } catch (x) {
@@ -92,7 +108,7 @@ export function DecideModal({ kind, row, approve, onClose, onDone }) {
       <form onSubmit={submit} className="space-y-3">
         <p className="text-[13px] text-[var(--color-text-muted)]">{summary}</p>
         {approve ? (
-          kind === "leave" && <Field label="Note (Optional)"><textarea rows={2} className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} /></Field>
+          kind !== "expense" && <Field label="Note (Optional)"><textarea rows={2} className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} /></Field>
         ) : (
           <Field label="Reason for Rejection (Required - The Employee Sees It)">
             <textarea required minLength={min} rows={3} className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} placeholder={kind === "expense" ? "e.g. Receipt is unreadable / amount exceeds policy" : "e.g. Project deadline that week - please pick other dates"} />

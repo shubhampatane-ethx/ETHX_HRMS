@@ -174,7 +174,8 @@ export function PMAssignments() {
   const [filter, setFilter] = useState("active");
   const [projectFilter, setProjectFilter] = useState("");
   const [search, setSearch] = useState("");
-  const [modal, setModal] = useState(() => (params.get("assign") ? { project: params.get("assign") === "1" ? "" : params.get("assign") } : null));
+  // ?assign=1 (or a project) opens the Assign form; ?person=<email> picks the team member (from Resources' bench).
+  const [modal, setModal] = useState(() => (params.get("assign") ? { project: params.get("assign") === "1" ? "" : params.get("assign"), email: params.get("person") || "" } : null));
   const today = isoDate();
 
   const shown = rows.filter((a) => (filter === "all" || (filter === "active" ? isActive(a) : filter === "completed" ? a.status === "Completed" : a.status === "Cancelled")) && (!projectFilter || a.project === projectFilter) && (!search.trim() || matchesSearch(search, { name: a.employee?.employee_name || a.assignees[0] || "", roles: [a.role, a.employee?.designation] })));
@@ -234,7 +235,7 @@ function AssignModal({ init, projects, employees, roles, active, history, onClos
   const lastDay = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0);
   const [f, setF] = useState(() => edit
     ? { project: edit.project, email: edit.assignees[0] || "", role: edit.role, start: edit.start, eta: edit.eta, hours: String(edit.hoursPerDay), notes: edit.notes }
-    : { project: init.project || "", email: "", role: "", start: isoDate(), eta: isoDate(lastDay), hours: "8", notes: "" });
+    : { project: init.project || "", email: init.email || "", role: "", start: isoDate(), eta: isoDate(lastDay), hours: "8", notes: "" });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const project = projects.find((p) => p.name === f.project);

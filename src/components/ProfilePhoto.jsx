@@ -8,6 +8,8 @@ import { titleName } from "../lib/names";
 const VIEW = 280; // crop window size on screen (px)
 const OUT = 512; // saved photo size (px)
 const MAX_SOURCE = 10 * 1024 * 1024; // the photo is resized before upload, so the source may be larger
+// Before ERPNext Setup has run, the photo method doesn't exist yet.
+const methodMissing = (e) => e?.response?.status === 404 || /Failed to get method|not whitelisted|has no attribute/i.test(String(e?.response?.data?.exception || e?.response?.data?.exc || ""));
 
 /** Display name for the signed-in account: ERPNext full name, falling back to the email. */
 export function displayName(user) {
@@ -139,10 +141,18 @@ function CropDialog({ file, onClose }) {
       const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
       if (!blob) throw new Error("Could not prepare the photo.");
       const cropped = new File([blob], `profile-${Date.now()}.jpg`, { type: "image/jpeg" });
-      const uploaded = await frappe.uploadFile(cropped, { doctype: "User", docname: user.email, isPrivate: false });
+      // Employees can't write their own User record, so the server method sets the photo (on the Employee record too).
+      const uploaded = await frappe.uploadFile(cropped, { isPrivate: false });
       if (!uploaded?.file_url) throw new Error("The photo upload did not return a file URL.");
-      const saved = await frappe.updateDoc("User", user.email, { user_image: uploaded.file_url });
-      setProfileImage(saved?.user_image || uploaded.file_url);
+      let image = uploaded.file_url;
+      try {
+        image = (await frappe.callMethod("ethx_set_my_photo", { file: uploaded.name }))?.user_image || image;
+      } catch (e) {
+        if (!methodMissing(e)) throw e;
+        const saved = await frappe.updateDoc("User", user.email, { user_image: uploaded.file_url });
+        image = saved?.user_image || image;
+      }
+      setProfileImage(image);
       onClose();
     } catch (err) {
       setError(errMsg(err, "Could not update your profile photo. Check your account permissions."));
@@ -174,6 +184,7 @@ function CropDialog({ file, onClose }) {
               alt=""
               draggable={false}
               onLoad={(e) => setNatural({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })}
+              onError={() => setError("This photo can't be opened here (for example an iPhone HEIC photo). Save it as JPG or PNG and try again.")}
               className="pointer-events-none absolute max-w-none"
               style={{ width: dw, height: dh, left, top, visibility: natural ? "visible" : "hidden" }}
             />

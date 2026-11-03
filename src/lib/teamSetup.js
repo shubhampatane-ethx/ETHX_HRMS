@@ -52,6 +52,10 @@ frappe.response["message"] = {"status": doc.status}
 // employment), but have no write access to Employee itself. Must match EDIT_SECTIONS in EmployeePages.jsx.
 const MY_CONTACT_API = `
 allowed = ["date_of_birth", "gender", "blood_group", "marital_status", "cell_number", "personal_email", "current_address", "permanent_address", "person_to_be_contacted", "relation", "emergency_phone_number", "passport_number", "valid_upto"]
+meta = frappe.get_meta("Employee")
+for k in ["custom_pan_number", "custom_aadhaar_number"]:
+    if meta.has_field(k):
+        allowed.append(k)
 emp = frappe.db.get_value("Employee", {"user_id": frappe.session.user}, ["name", "date_of_joining"], as_dict=True)
 if not emp:
     frappe.throw("No employee record is linked to your login.")
@@ -80,6 +84,16 @@ if clean.get("blood_group") and clean["blood_group"] not in ["A+", "A-", "B+", "
     frappe.throw("Choose a blood group from the list.")
 if clean.get("marital_status") and clean["marital_status"] not in ["Single", "Married", "Divorced", "Widowed"]:
     frappe.throw("Choose a marital status from the list.")
+if "custom_pan_number" in clean:
+    clean["custom_pan_number"] = (clean["custom_pan_number"] or "").upper().replace(" ", "")
+    pan = clean["custom_pan_number"]
+    if pan and not (len(pan) == 10 and pan[:5].isalpha() and pan[5:9].isdigit() and pan[9].isalpha()):
+        frappe.throw("PAN must be 10 characters, like ABCDE1234F.")
+if "custom_aadhaar_number" in clean:
+    clean["custom_aadhaar_number"] = (clean["custom_aadhaar_number"] or "").replace(" ", "").replace("-", "")
+    aadhaar = clean["custom_aadhaar_number"]
+    if aadhaar and (len(aadhaar) != 12 or not aadhaar.isdigit()):
+        frappe.throw("Aadhaar must be 12 digits.")
 if clean.get("personal_email") and ("@" not in clean["personal_email"] or "." not in clean["personal_email"] or " " in clean["personal_email"]):
     frappe.throw("Enter a valid personal email address.")
 if clean:
@@ -106,6 +120,37 @@ for i in range(0, 31):
     for name in by_day.get(d[5:10], []):
         out.append({"name": name, "date": d, "days_away": i})
 frappe.response["message"] = out
+`;
+
+// Every morning: colleagues in the company get a notification on someone's birthday and the person gets a birthday
+// email; HR is told the day before, so a card or wishes can be ready. Emails need an outgoing email account in ERPNext.
+const BIRTHDAY_WISHES = `
+today = frappe.utils.getdate(frappe.utils.nowdate())
+day = str(today)[5:10]
+tomorrow = str(frappe.utils.add_days(today, 1))[5:10]
+filters = {"status": "Active", "date_of_birth": ["is", "set"]}
+if frappe.get_meta("Employee").has_field("custom_is_contractor"):
+    filters["custom_is_contractor"] = 0
+people = frappe.get_all("Employee", filters=filters, fields=["name", "employee_name", "company", "user_id", "company_email", "personal_email", "date_of_birth"])
+hr_users = []
+for r in frappe.get_all("Has Role", filters={"role": ["in", ["HR Manager", "HR User"]], "parenttype": "User"}, fields=["parent"]):
+    if r.parent not in hr_users and r.parent not in ("Administrator", "Guest"):
+        hr_users.append(r.parent)
+for p in people:
+    born = str(p.date_of_birth)[5:10]
+    if born == day:
+        subject = "Today is " + p.employee_name + "'s birthday. Wish them a happy birthday!"
+        for c in people:
+            if c.user_id and c.name != p.name and c.company == p.company and not frappe.db.exists("Notification Log", {"for_user": c.user_id, "subject": subject, "creation": [">=", str(today) + " 00:00:00"]}):
+                frappe.get_doc({"doctype": "Notification Log", "for_user": c.user_id, "type": "Alert", "subject": subject}).insert(ignore_permissions=True)
+        to = p.user_id or p.company_email or p.personal_email
+        if to and "@" in to:
+            frappe.sendmail(recipients=[to], subject="Happy Birthday, " + p.employee_name + "!", message="<p>Dear " + p.employee_name + ",</p><p>Wishing you a very happy birthday and a wonderful year ahead, from all of us at " + p.company + ".</p>")
+    if born == tomorrow:
+        subject = "Tomorrow is " + p.employee_name + "'s birthday."
+        for u in hr_users:
+            if not frappe.db.exists("Notification Log", {"for_user": u, "subject": subject, "creation": [">=", str(today) + " 00:00:00"]}):
+                frappe.get_doc({"doctype": "Notification Log", "for_user": u, "type": "Alert", "subject": subject}).insert(ignore_permissions=True)
 `;
 
 // Employees can't edit their Employee record, so their own documents are uploaded privately first, then attached here.
@@ -240,6 +285,7 @@ export const TEAM_SCRIPTS = [
   { name: "ETHX - My request", script_type: "API", api_method: "ethx_my_request", script: MY_REQUEST_API, what: "Employees raise, edit and withdraw their own requests until HR picks them up" },
   { name: "ETHX - My shift", script_type: "API", api_method: "ethx_my_shift", script: MY_SHIFT_API, what: "Today's shift times for the punch reminder" },
   { name: "ETHX - Upcoming birthdays", script_type: "API", api_method: "ethx_upcoming_birthdays", script: BIRTHDAYS_API, what: "Birthday reminders on the calendar and dashboard" },
+  { name: "ETHX - Birthday wishes", script_type: "Scheduler Event", event_frequency: "Daily", script: BIRTHDAY_WISHES, what: "On birthdays, colleagues are notified and the person gets a birthday email; HR is told the day before" },
   { name: "ETHX - Attach my document", script_type: "API", api_method: "ethx_attach_my_document", script: ATTACH_DOCUMENT_API, what: "Employees upload their own documents (PAN, Aadhaar, bank)" },
   { name: "ETHX - Remove my document", script_type: "API", api_method: "ethx_remove_my_document", script: REMOVE_DOCUMENT_API, what: "Employees remove documents they uploaded" },
   { name: "ETHX - Update my contact details", script_type: "API", api_method: "ethx_update_my_contact", script: MY_CONTACT_API, what: "Employees update their own personal details, emergency contact and passport" },

@@ -192,6 +192,11 @@ const EMP_BASIC = ["name", "employee_name", "company", "department", "designatio
 export async function getMyEmployee(email) {
   const rows = await listTry("Employee", { filters: [["user_id", "=", email]], fields: EMP_FULL, limit: 1 }, EMP_BASIC);
   const emp = rows[0] || null;
+  // PAN / Aadhaar exist only once ERPNext Setup has run, so they are read separately.
+  if (emp) {
+    const ids = await frappe.getList("Employee", { filters: [["name", "=", emp.name]], fields: ["custom_pan_number", "custom_aadhaar_number"], limit: 1 }).catch(() => null);
+    if (ids?.[0]) Object.assign(emp, ids[0], { idFields: true });
+  }
   if (emp?.reports_to) {
     try {
       const m = await frappe.getList("Employee", { filters: [["name", "=", emp.reports_to]], fields: ["employee_name"], limit: 1 });
@@ -227,7 +232,8 @@ export function getAttendanceHistory(emp, from, to) {
 }
 
 export function getAttendanceRequests(emp) {
-  return frappe.getList("Attendance Request", { filters: [["employee", "=", emp]], fields: ["name", "from_date", "to_date", "reason", "explanation", "docstatus", "creation"], orderBy: "creation desc", limit: 30 });
+  // Approver and decision fields exist once ERPNext Setup (Attendance) has run.
+  return listTry("Attendance Request", { filters: [["employee", "=", emp]], fields: ["name", "from_date", "to_date", "reason", "explanation", "docstatus", "creation", "custom_approver", "custom_decision", "custom_decision_note"], orderBy: "creation desc", limit: 30 }, ["name", "from_date", "to_date", "reason", "explanation", "docstatus", "creation"]);
 }
 
 /* -------------------------------- leave -------------------------------- */
@@ -260,7 +266,8 @@ export function getLeaveApplications(emp, limit = 0) {
 
 /* ------------------------------ approvals ------------------------------ */
 
-const attReqStatus = (d) => (d === 0 ? "Pending" : d === 1 ? "Approved" : "Cancelled");
+/** Pending / Approved / Rejected / Cancelled for an attendance request. */
+export const attReqStatus = (r) => (r.custom_decision === "Rejected" ? "Rejected" : r.docstatus === 0 ? "Pending" : r.docstatus === 1 ? "Approved" : "Cancelled");
 
 /** Leave, attendance, timesheet and expense requests in one normalised list. */
 export async function getApprovals(emp) {
@@ -268,7 +275,7 @@ export async function getApprovals(emp) {
     ["Leave", "/employee/leave", frappe.getList("Leave Application", { filters: [["employee", "=", emp], ["docstatus", "<", 2]], fields: ["name", "leave_type", "from_date", "to_date", "total_leave_days", "status", "creation", "leave_approver", "leave_approver_name"], orderBy: "creation desc", limit: 50 }),
       (r) => ({ approver: r.leave_approver_name || r.leave_approver || "", title: r.leave_type, detail: `${r.total_leave_days || ""} day(s)`, from: r.from_date, to: r.to_date, status: r.status, pending: r.status === "Open" })],
     ["Attendance", "/employee/attendance", getAttendanceRequests(emp),
-      (r) => ({ title: `Attendance request (${r.reason || "correction"})`, detail: stripHtml(r.explanation || ""), from: r.from_date, to: r.to_date, status: attReqStatus(r.docstatus), pending: r.docstatus === 0 })],
+      (r) => ({ approver: r.custom_approver || "", reason: r.custom_decision === "Rejected" ? stripHtml(r.custom_decision_note || "") : "", title: `Attendance request (${r.reason || "correction"})`, detail: stripHtml(r.explanation || ""), from: r.from_date, to: r.to_date, status: attReqStatus(r), pending: attReqStatus(r) === "Pending" })],
     ["Timesheet", "/employee/timesheet", getTimesheets(emp, 50),
       // Drafts are with the employee, not awaiting anyone; only submitted & unreviewed ones are pending.
       (r) => ({ title: "Timesheet", detail: `${Number(r.total_hours || 0).toFixed(2)} h${r.review.note ? ` · HR: ${r.review.note}` : ""}`, from: r.start_date, to: r.end_date, status: r.review.label, pending: ["pending", "partial"].includes(r.review.key) })],
@@ -425,9 +432,38 @@ const docsError = (e) => {
   return e;
 };
 
+const SHRINK_OVER = 1.5 * 1024 * 1024;
+const SHRINK_SIDE = 2000;
+
+/** Phone photos of documents are often several MB: big images are scaled down to a sharp JPEG before upload. */
+async function shrinkImage(file) {
+  if (!file.type.startsWith("image/") || file.size <= SHRINK_OVER) return file;
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((resolve, reject) => { const i = new Image(); i.onload = () => resolve(i); i.onerror = reject; i.src = url; });
+    const k = Math.min(1, SHRINK_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(img.naturalWidth * k);
+    canvas.height = Math.round(img.naturalHeight * k);
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.85));
+    return blob && blob.size < file.size ? new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" }) : file;
+  } catch {
+    const err = new Error("This photo can't be opened");
+    err.userMessage = "This photo can't be opened here (for example an iPhone HEIC photo). Save it as JPG or PDF and try again.";
+    throw err;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 /** Upload privately, then attach to the signed-in employee's own record. The type goes in the file name. */
 export async function uploadMyDocument(file, type) {
-  const named = new File([file], `${type} - ${file.name}`, { type: file.type });
+  const small = await shrinkImage(file);
+  const named = new File([small], `${type} - ${small.name}`, { type: small.type });
   const saved = await frappe.uploadFile(named, { isPrivate: true });
   try {
     await frappe.callMethod("ethx_attach_my_document", { file: saved.name });
@@ -461,10 +497,14 @@ export async function getMyTraining(emp) {
     frappe.getList("Training Event Employee", { filters: [["employee", "=", emp]], fields: ["parent", "status", "attendance"], parent: "Training Event", limit: 0 })
   );
   if (!rows.length) return [];
-  const events = await frappe.getList("Training Event", { filters: [["name", "in", rows.map((r) => r.parent)]], fields: ["name", "event_name", "start_time", "end_time", "event_status", "location", "type"], limit: 0 }).catch(() => frappe.getList("Training Event", { filters: [["name", "in", rows.map((r) => r.parent)]], fields: ["name", "event_name", "start_time", "end_time"], limit: 0 }));
-  return rows.map((r) => {
+  const events = await frappe.getList("Training Event", { filters: [["name", "in", rows.map((r) => r.parent)]], fields: ["name", "event_name", "start_time", "end_time", "event_status", "location", "type", "docstatus"], limit: 0 }).catch(() => frappe.getList("Training Event", { filters: [["name", "in", rows.map((r) => r.parent)]], fields: ["name", "event_name", "start_time", "end_time"], limit: 0 }));
+  // A rescheduled event replaces the cancelled original; cancelled events show as Cancelled.
+  const amended = new Set(events.filter((e) => e.docstatus === 2).map((e) => e.name));
+  const replacedBy = await (amended.size ? frappe.getList("Training Event", { filters: [["amended_from", "in", [...amended]]], fields: ["amended_from"], limit: 0 }).catch(() => []) : []);
+  const gone = new Set(replacedBy.map((e) => e.amended_from));
+  return rows.filter((r) => !gone.has(r.parent)).map((r) => {
     const ev = events.find((e) => e.name === r.parent);
-    return { ...r, event: ev ? { ...ev, status: ev.event_status } : { name: r.parent, event_name: r.parent } };
+    return { ...r, event: ev ? { ...ev, status: ev.docstatus === 2 ? "Cancelled" : ev.event_status } : { name: r.parent, event_name: r.parent } };
   });
 }
 

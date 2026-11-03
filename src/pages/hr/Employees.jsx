@@ -25,6 +25,14 @@ const FIELDS = [
   { name: "department", label: "Department", type: "link", linkDoctype: "Department" },
   { name: "designation", label: "Designation", type: "link", linkDoctype: "Designation" },
   { name: "employment_type", label: "Employment Type", type: "link", linkDoctype: "Employment Type" },
+  { name: "grade", label: "Employee Grade", type: "link", linkDoctype: "Employee Grade" },
+  // The employee is added to this group's member list (server rule; see peopleSetup.js).
+  { name: "custom_employee_group", label: "Employee Group", type: "link", linkDoctype: "Employee Group" },
+  { name: "cell_number", label: "Mobile Number", type: "tel" },
+  { name: "personal_email", label: "Personal Email", type: "email" },
+  { name: "company_email", label: "Company Email", type: "email" },
+  { name: "custom_pan_number", label: "PAN Number" },
+  { name: "custom_aadhaar_number", label: "Aadhaar Number" },
   { name: "user_id", label: "User Account", type: "link", linkDoctype: "User" },
   { name: "health_insurance_provider", label: "Health Insurance Provider", type: "link", linkDoctype: "Employee Health Insurance" },
   { name: "health_insurance_no", label: "Health Insurance Number" },
@@ -324,7 +332,9 @@ const GROUPS = [
   ["Documents & insurance", ["passport_number", "valid_upto", "date_of_issue", "place_of_issue", "health_insurance_provider", "health_insurance_no"]],
   ["Sign-in", ["user_id", "create_user_permission"]],
 ];
-const pretty = (k) => k.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+// Always shown at the top of the details, with "—" when not filled in, so missing contact / ID details are obvious.
+const KEY_DETAILS = [["Mobile Number", "cell_number"], ["Personal Email", "personal_email"], ["Company Email", "company_email"], ["Login Email", "user_id"], ["PAN Number", "custom_pan_number"], ["Aadhaar Number", "custom_aadhaar_number"], ["Employee Grade", "grade"]];
+const pretty = (k) => k.replace(/^custom_/, "").replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
 function show(v) {
   if (v === 1 || v === "1") return "Yes";
   if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v)) return v.length > 10 ? dmyHm(v) : dmy(v);
@@ -337,12 +347,15 @@ function EmployeeDetail({ employee, onClose, onEdit, onLogin }) {
     const doc = await frappe.getDoc("Employee", employee.name);
     let login = null;
     if (doc.user_id) { try { login = await frappe.getDoc("User", doc.user_id); } catch { /* HR may not be allowed to read users */ } }
-    return { doc, login };
+    const groups = await frappe.getList("Employee Group Table", { parent: "Employee Group", filters: [["employee", "=", doc.name]], fields: ["parent"], limit: 0 }).then((rows) => rows.map((r) => r.parent)).catch(() => null);
+    return { doc, login, groups };
   }, [employee.name]);
   const doc = q.data?.doc;
   const login = q.data?.login;
 
-  const used = new Set();
+  const used = new Set(["custom_employee_group", ...KEY_DETAILS.map(([, k]) => k)]);
+  const memberOf = [...new Set([...(q.data?.groups || []), doc?.custom_employee_group].filter(Boolean))];
+  const keyRows = doc ? [...KEY_DETAILS.map(([label, k]) => [label, filled(doc[k]) ? show(doc[k]) : "—"]), ["Employee Group", memberOf.join(", ") || "—"]] : [];
   const groups = doc ? GROUPS.map(([title, keys]) => {
     const rows = keys.filter((k) => filled(doc[k])).map((k) => { used.add(k); return [pretty(k), show(doc[k])]; });
     return [title, rows];
@@ -366,7 +379,7 @@ function EmployeeDetail({ employee, onClose, onEdit, onLogin }) {
 
         {doc && (
           <div className="space-y-5">
-            {[...groups, ...(other.length ? [["Other details", other]] : [])].filter(([, rows]) => rows.length).map(([title, rows]) => (
+            {[["Contact & ID", keyRows], ...groups, ...(other.length ? [["Other details", other]] : [])].filter(([, rows]) => rows.length).map(([title, rows]) => (
               <section key={title}>
                 <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{title}</h3>
                 <dl className="grid grid-cols-1 gap-x-8 gap-y-2.5 sm:grid-cols-2">

@@ -2,27 +2,30 @@
 // (version tracking) and server-side rules as Server Scripts. Run by the Administrator from Admin › ERPNext Setup
 // (or HR › Recruitment › Setup). Idempotent: running it again only adds or updates what is missing or outdated.
 import { frappe } from "./api/frappeClient";
-import { RECRUITMENT_FIELDS, RECRUITMENT_SCRIPTS, RECRUITMENT_TRACK, SOURCES } from "./recruitmentSetup";
+import { RECRUITMENT_FIELDS, RECRUITMENT_PROPERTIES, RECRUITMENT_SCRIPTS, RECRUITMENT_TRACK, SOURCES } from "./recruitmentSetup";
 import { TIMESHEET_FIELDS, TIMESHEET_SCRIPTS, TIMESHEET_TRACK } from "./timesheetSetup";
 import { SECURITY_FIELDS, SECURITY_SCRIPTS, SECURITY_TRACK, SECURITY_PROPERTIES } from "./securitySetup";
 import { TEAM_PROPERTIES, TEAM_SCRIPTS } from "./teamSetup";
 import { APPROVAL_FIELDS, APPROVAL_SCRIPTS, APPROVAL_TRACK } from "./approvalSetup";
 import { ASSET_FIELDS, ASSET_SCRIPTS, ASSET_TRACK } from "./assetSetup";
 import { OFFICE_FIELDS, OFFICE_SCRIPTS, OFFICE_TRACK } from "./officeSetup";
-import { ATTENDANCE_SCRIPTS } from "./attendanceSetup";
+import { ATTENDANCE_FIELDS, ATTENDANCE_SCRIPTS } from "./attendanceSetup";
+import { EMPLOYEE_RECORD_FIELDS, EMPLOYEE_RECORD_SCRIPTS, SIGNIN_FIELDS, SIGNIN_SCRIPTS } from "./peopleSetup";
 import { CONTRACTOR_FIELDS, CONTRACTOR_PERMISSIONS, CONTRACTOR_RECORDS, CONTRACTOR_RETIRED_SCRIPTS, CONTRACTOR_SCRIPTS } from "./contractorSetup";
 import { PAGE_ACCESS_FIELDS, PAGE_ACCESS_SCRIPTS } from "./pageAccessSetup";
 import { PROJECT_ROLE_DOCTYPES, PROJECT_ROLE_FIELDS, PROJECT_ROLE_SCRIPTS, PROJECT_ROLE_TRACK } from "./projectRoleSetup";
 
 export const MODULES = [
-  { id: "recruitment", label: "Recruitment", fields: RECRUITMENT_FIELDS, scripts: RECRUITMENT_SCRIPTS, track: RECRUITMENT_TRACK },
+  { id: "recruitment", label: "Recruitment", fields: RECRUITMENT_FIELDS, scripts: RECRUITMENT_SCRIPTS, track: RECRUITMENT_TRACK, properties: RECRUITMENT_PROPERTIES },
   { id: "timesheets", label: "Timesheet review", fields: TIMESHEET_FIELDS, scripts: TIMESHEET_SCRIPTS, track: TIMESHEET_TRACK, migrate: "ethx_migrate_timesheet_reviews" },
   { id: "security", label: "Security & audit", fields: SECURITY_FIELDS, scripts: SECURITY_SCRIPTS, track: SECURITY_TRACK, properties: SECURITY_PROPERTIES },
   { id: "team", label: "Employee & manager self-service", fields: [], scripts: TEAM_SCRIPTS, track: [], properties: TEAM_PROPERTIES },
   { id: "approvals", label: "Leave & expense approvals", fields: APPROVAL_FIELDS, scripts: APPROVAL_SCRIPTS, track: APPROVAL_TRACK },
   { id: "assets", label: "Asset register", fields: ASSET_FIELDS, scripts: ASSET_SCRIPTS, track: ASSET_TRACK },
   { id: "offices", label: "Office locations & holidays", fields: OFFICE_FIELDS, scripts: OFFICE_SCRIPTS, track: OFFICE_TRACK },
-  { id: "attendance", label: "Attendance from punches", fields: [], scripts: ATTENDANCE_SCRIPTS, track: [] },
+  { id: "attendance", label: "Attendance", fields: ATTENDANCE_FIELDS, scripts: ATTENDANCE_SCRIPTS, track: [] },
+  { id: "employeeRecords", label: "Employee records", fields: EMPLOYEE_RECORD_FIELDS, scripts: EMPLOYEE_RECORD_SCRIPTS, track: [] },
+  { id: "signin", label: "Sign-in page", fields: SIGNIN_FIELDS, scripts: SIGNIN_SCRIPTS, track: [] },
   { id: "projectRoles", label: "Project roles", doctypes: PROJECT_ROLE_DOCTYPES, fields: PROJECT_ROLE_FIELDS, scripts: PROJECT_ROLE_SCRIPTS, track: PROJECT_ROLE_TRACK },
   { id: "pageAccess", label: "Page access", fields: PAGE_ACCESS_FIELDS, scripts: PAGE_ACCESS_SCRIPTS, track: [] },
   { id: "contractors", label: "Contractors", records: CONTRACTOR_RECORDS, permissions: CONTRACTOR_PERMISSIONS, fields: CONTRACTOR_FIELDS, scripts: CONTRACTOR_SCRIPTS, retiredScripts: CONTRACTOR_RETIRED_SCRIPTS, track: [] },
@@ -163,7 +166,7 @@ export async function runSetup(onStep = () => {}) {
       try {
         const exists = await frappe.getList("Server Script", { filters: [["name", "=", s.name]], fields: ["name"], limit: 1 });
         const body = s.script_type === "API"
-          ? { script_type: "API", api_method: s.api_method, allow_guest: 0, script: s.script.trim(), disabled: 0 }
+          ? { script_type: "API", api_method: s.api_method, allow_guest: s.allow_guest ? 1 : 0, script: s.script.trim(), disabled: 0 }
           : s.script_type === "Scheduler Event"
             ? { script_type: "Scheduler Event", event_frequency: s.event_frequency || "Daily", script: s.script.trim(), disabled: 0 }
             : s.script_type === "Permission Query"
