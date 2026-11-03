@@ -150,7 +150,28 @@ async function getUserRoles(user) {
 }
 
 /** Generic doctype list, e.g. getList("Employee", { filters, fields, limit }) */
-async function getList(doctype, { filters = [], fields = ["name"], limit = 20, orderBy, parent } = {}) {
+// Newer ERPNext refuses the whole list when one column isn't readable for this login ("Field not permitted in query:
+// interview_round"). The column is dropped and the list asked for again, so the page still loads without it.
+const refusedField = (e) => {
+  const d = e?.response?.data || {};
+  const m = String(d._server_messages || d.exception || d.message || "").match(/Field not permitted in query:\s*([\w`.]+)/);
+  return m ? m[1].replace(/`/g, "").split(".").pop() : "";
+};
+
+async function getList(doctype, opts = {}) {
+  let fields = opts.fields || ["name"];
+  for (;;) {
+    try {
+      return await getListOnce(doctype, { ...opts, fields });
+    } catch (e) {
+      const field = refusedField(e);
+      if (!field || !fields.includes(field) || fields.length < 2) throw e;
+      fields = fields.filter((f) => f !== field);
+    }
+  }
+}
+
+async function getListOnce(doctype, { filters = [], fields = ["name"], limit = 20, orderBy, parent } = {}) {
   const res = await client.get("/method/frappe.client.get_list", {
     params: {
       doctype,

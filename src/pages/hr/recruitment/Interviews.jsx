@@ -7,8 +7,8 @@ import { frappe } from "../../../lib/api/frappeClient";
 import { Button, LinkField } from "../../../components/ui/primitives";
 import { Async, Field, Grid, inputCls, Modal, Notice, PageHeader, Panel, Tabs } from "../../../components/employee/EmployeeShell";
 import { dmy, errMsg, isoDate, useAsync } from "../../../lib/employeePortal";
-import { feedbackFor, fmtTime, interviewersOf, listApplicants, listInterviews, listRounds, listUsers, saveRound, toStars } from "../../../lib/recruitment";
-import { candidateUrl, DecideModal, IcsButton, Rating, ScheduleModal, SetupHint, Stars } from "./shared";
+import { feedbackFor, fmtTime, interviewersOf, isClosedStage, listApplicants, listInterviews, listOpenings, listRounds, listUsers, saveRound, stageOf, toStars } from "../../../lib/recruitment";
+import { candidateUrl, DecideModal, IcsButton, Rating, ScheduleModal, SetupHint, StageBadge, Stars } from "./shared";
 import { alertDialog, confirmDialog } from "../../../components/ui/dialogs";
 
 export default function Interviews() {
@@ -51,7 +51,7 @@ export default function Interviews() {
 
   return (
     <div className="space-y-5">
-      <PageHeader icon={CalendarClock} title="Interviews" subtitle="Schedule from a candidate's profile or the pipeline board; decide here once the panel has given feedback" />
+      <PageHeader icon={CalendarClock} title="Interviews" subtitle="Schedule interviews for any candidate, then decide once the panel has given feedback" actions={<Button onClick={() => setModal({ kind: "new" })}><Plus size={14} /> Schedule Interview</Button>} />
       <SetupHint />
       <Tabs value={tab} onChange={(t) => setParams({ tab: t })} tabs={[
         { id: "upcoming", label: "Upcoming", count: groups.upcoming.length },
@@ -65,8 +65,60 @@ export default function Interviews() {
         </Panel>
       )}
       {modal?.kind === "decide" && <DecideModal interview={modal.interview} applicant={modal.interview.applicant} onClose={() => setModal(null)} onSaved={() => { setModal(null); data.reload(); }} />}
+      {modal?.kind === "new" && <NewInterview onClose={() => setModal(null)} onSaved={() => { setModal(null); data.reload(); setParams({ tab: "upcoming" }); }} />}
       {modal?.kind === "reschedule" && <ScheduleModal applicant={modal.interview.applicant} interview={modal.interview} onClose={() => setModal(null)} onSaved={() => { setModal(null); data.reload(); }} />}
     </div>
+  );
+}
+
+/**
+ * Schedule an interview from this page: pick the candidate, then the same form as on their profile (round from the
+ * opening, date and time, mode and link, panel with clash check). A candidate not yet in Interview moves there.
+ */
+function NewInterview({ onClose, onSaved }) {
+  const apps = useAsync(() => listApplicants(), []);
+  const openings = useAsync(() => listOpenings(), []);
+  const [q, setQ] = useState("");
+  const [picked, setPicked] = useState("");
+  const chosen = useAsync(async () => {
+    if (!picked) return null;
+    const applicant = await frappe.getDoc("Job Applicant", picked);
+    const opening = applicant.job_title ? await frappe.getDoc("Job Opening", applicant.job_title).catch(() => null) : null;
+    return { applicant, opening };
+  }, [picked]);
+
+  if (picked && chosen.data) return <ScheduleModal applicant={chosen.data.applicant} opening={chosen.data.opening} onClose={onClose} onSaved={onSaved} />;
+
+  const titles = Object.fromEntries((openings.data || []).map((o) => [o.name, o.job_title]));
+  const t = q.trim().toLowerCase();
+  const rows = (apps.data || [])
+    .filter((a) => !isClosedStage(stageOf(a)))
+    .filter((a) => !t || [a.applicant_name, a.email_id, a.phone_number, titles[a.job_title]].some((v) => String(v || "").toLowerCase().includes(t)));
+
+  return (
+    <Modal title="Schedule Interview" onClose={onClose} wide>
+      <div className="space-y-3">
+        <Field label="Candidate" hint="Candidates still in process. Not listed? Add them under Candidates first.">
+          <input autoFocus className={inputCls} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, email, phone or opening…" />
+        </Field>
+        {chosen.error && <Notice>{errMsg(chosen.error, "Couldn't open this candidate.")}</Notice>}
+        <Async state={apps}>
+          {() => rows.length === 0 ? <p className="py-4 text-center text-[13px] text-[var(--color-text-muted)]">No candidates match.</p> : (
+            <ul className="max-h-80 divide-y divide-[var(--color-border)] overflow-y-auto rounded-md border border-[var(--color-border)]">
+              {rows.map((a) => (
+                <li key={a.name}>
+                  <button type="button" disabled={Boolean(picked) && chosen.loading} onClick={() => setPicked(a.name)} className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-[13px] hover:bg-[var(--color-surface-2)] disabled:opacity-60">
+                    <span className="min-w-0"><span className="block font-medium text-[var(--color-text)]">{a.applicant_name}</span><span className="block truncate text-[11px] text-[var(--color-text-faint)]">{titles[a.job_title] || "Talent pool"}{a.email_id ? ` · ${a.email_id}` : ""}</span></span>
+                    <span className="flex shrink-0 items-center gap-2"><StageBadge stage={stageOf(a)} />{picked === a.name && chosen.loading && <span className="text-[11px] text-[var(--color-text-muted)]">Opening…</span>}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Async>
+        <div className="flex justify-between gap-2"><Link to="/hr/recruitment/candidates?add=1" className="self-center text-[12px] text-[var(--color-red-hover)] hover:underline">Add a Candidate</Link><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button></div>
+      </div>
+    </Modal>
   );
 }
 
