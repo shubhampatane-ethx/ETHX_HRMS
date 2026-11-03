@@ -59,7 +59,7 @@ export default function Offers() {
     <div className="space-y-5">
       <PageHeader icon={Handshake} title="Offers" subtitle="Draft → HR Manager approval → send → candidate response → joining" />
       <SetupHint />
-      {!approver && <Notice tone="info">You can draft offers and send them for approval. Approving needs an HR Manager other than the person who drafted the offer.</Notice>}
+      {!approver && <Notice tone="info">You can draft offers and send them for approval. An HR Manager approves them.</Notice>}
       {msg && <Notice tone={msg.ok ? "info" : "error"}>{msg.text}</Notice>}
       <Panel>
         <div className="mb-4 flex flex-wrap gap-2">{FILTERS.map(([v, l]) => <button key={v} type="button" onClick={() => setFilter(v)} className={chipCls(filter === v)}>{l}{v === "approval" && (offers.data || []).filter((o) => offerStage(o) === "Pending Approval").length ? ` (${(offers.data || []).filter((o) => offerStage(o) === "Pending Approval").length})` : ""}</button>)}</div>
@@ -75,9 +75,21 @@ export default function Offers() {
         </Async>
       </Panel>
       {modal?.kind === "edit" && <EditOffer offer={modal.offer} onClose={() => setModal(null)} onSaved={() => { setModal(null); offers.reload(); }} />}
-      {modal?.kind === "decide" && <ApproveModal offer={modal.offer} approve={modal.approve} onClose={() => setModal(null)} onSaved={() => { setModal(null); offers.reload(); }} />}
+      {modal?.kind === "decide" && <ApproveModal offer={modal.offer} approve={modal.approve} onClose={() => setModal(null)} onSaved={async () => {
+        const o = modal.offer;
+        setModal(null);
+        offers.reload();
+        if (modal.approve && (await confirmDialog({ title: "Offer Approved", message: `Send ${o.applicant_name}'s offer now?`, confirmLabel: "Send Now", cancelLabel: "Later" }))) setModal({ kind: "send", offer: { ...o, custom_approval_status: "Approved" } });
+      }} />}
       {modal?.kind === "send" && <SendModal offer={modal.offer} onClose={() => setModal(null)} onSaved={(text) => { setModal(null); setMsg({ ok: true, text }); offers.reload(); }} />}
-      {modal?.kind === "response" && <ResponseModal offer={modal.offer} onClose={() => setModal(null)} onSaved={async (status) => { const o = modal.offer; setModal(null); offers.reload(); if (status === "Accepted") await afterAccepted(o); }} />}
+      {modal?.kind === "response" && <ResponseModal offer={modal.offer} onClose={() => setModal(null)} onSaved={async (status) => {
+        const o = modal.offer;
+        setModal(null);
+        offers.reload();
+        if (status !== "Accepted") return;
+        await afterAccepted(o);
+        if (await confirmDialog({ title: "Offer Accepted", message: `Create ${o.applicant_name}'s employee record now (or start onboarding)?`, confirmLabel: "Hire Now", cancelLabel: "Later" })) setModal({ kind: "hire", offer: { ...o, status: "Accepted" } });
+      }} />}
       {modal?.kind === "hire" && <HireModal offer={modal.offer} onClose={() => setModal(null)} onSaved={(r) => { setModal(null); setMsg({ ok: true, text: r.employee ? `Employee ${r.employee.name} created. Give them a portal login from HR › Employees.` : `Onboarding ${r.onboarding.name} started.` }); offers.reload(); }} />}
       {modal?.kind === "noshow" && <NoShowWrapper offer={modal.offer} onClose={() => setModal(null)} onSaved={() => { setModal(null); offers.reload(); }} />}
     </div>
@@ -86,17 +98,17 @@ export default function Offers() {
 
 function Actions({ o, user, approver, setModal, act }) {
   const s = offerStage(o);
-  const mine = o.owner === user?.email;
   const btn = "rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]";
   return (
     <div className="flex flex-wrap justify-end gap-1 whitespace-nowrap">
       {o.docstatus === 0 && <button type="button" title="Edit" className={btn} onClick={() => setModal({ kind: "edit", offer: o })}><Pencil size={14} /></button>}
       {["Draft", "Rejected"].includes(s) && <Button variant="secondary" className="!px-2 !py-1 text-[11px]" onClick={async () => (await confirmDialog(`Send ${o.applicant_name}'s offer for approval?`)) && act(() => setOfferApproval(o, "Pending Approval"), "Sent for approval.")}>Send for Approval</Button>}
-      {s === "Pending Approval" && approver && (!mine || user?.email === "Administrator") && <>
+      {/* The drafter can approve only when no other HR Manager exists (the server checks). */}
+      {s === "Pending Approval" && approver && <>
         <button type="button" title="Approve" className={`${btn} !text-[var(--color-green)]`} onClick={() => setModal({ kind: "decide", offer: o, approve: true })}><Check size={14} /></button>
         <button type="button" title="Reject" className={btn} onClick={() => setModal({ kind: "decide", offer: o, approve: false })}><X size={14} /></button>
       </>}
-      {s === "Pending Approval" && (mine || !approver) && <span className="px-1 text-[11px] text-[var(--color-text-faint)]">{mine && approver ? "Another HR Manager must approve" : "Awaiting HR Manager approval"}</span>}
+      {s === "Pending Approval" && !approver && <span className="px-1 text-[11px] text-[var(--color-text-faint)]">Awaiting HR Manager approval</span>}
       {s === "Approved" && <Button className="!px-2 !py-1 text-[11px]" onClick={() => setModal({ kind: "send", offer: o })}><Send size={12} /> Send</Button>}
       {o.docstatus === 1 && <a href={pdfUrl(o)} title="Offer letter PDF" className={btn}><FileDown size={14} /></a>}
       {["Sent", "Expired"].includes(s) && <>

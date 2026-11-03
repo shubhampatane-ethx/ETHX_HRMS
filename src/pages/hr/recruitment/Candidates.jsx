@@ -7,7 +7,7 @@ import { Async, chipCls, Grid, inputCls, Modal, Notice, PageHeader, Panel } from
 import { dmy, errMsg, useAsync } from "../../../lib/employeePortal";
 import { frappe } from "../../../lib/api/frappeClient";
 import { ALL_STAGES, downloadCsv, listApplicants, listOpenings, stageLabel, stageOf } from "../../../lib/recruitment";
-import { CandidateModal, candidateUrl, MoveStageModal, Rating, SetupHint, StageBadge } from "./shared";
+import { CandidateModal, candidateUrl, MoveStageModal, OfferModal, Rating, ScheduleModal, SetupHint, StageBadge, WithApplicant } from "./shared";
 
 export default function Candidates() {
   const [params, setParams] = useSearchParams();
@@ -82,7 +82,14 @@ export default function Candidates() {
         </Async>
       </Panel>
       {editing && <EditCandidate name={editing.name} openings={openings.data || []} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); apps.reload(); }} />}
-      {moving && <MoveStageModal applicant={moving.applicant} to={moving.to} opening={(openings.data || []).find((o) => o.name === moving.applicant.job_title)} onClose={() => setMoving(null)} onSaved={() => { setMoving(null); apps.reload(); }} />}
+      {moving && ["Interview", "Offer"].includes(moving.to) && (
+        <WithApplicant name={moving.applicant.name} onClose={() => setMoving(null)}>
+          {(d) => moving.to === "Interview"
+            ? <ScheduleModal applicant={d.applicant} opening={d.opening} onClose={() => setMoving(null)} onSaved={() => { setMoving(null); apps.reload(); }} />
+            : <OfferModal applicant={d.applicant} opening={d.opening} onClose={() => setMoving(null)} onSaved={() => { setMoving(null); apps.reload(); }} />}
+        </WithApplicant>
+      )}
+      {moving && !["Interview", "Offer"].includes(moving.to) && <MoveStageModal applicant={moving.applicant} to={moving.to} opening={(openings.data || []).find((o) => o.name === moving.applicant.job_title)} onClose={() => setMoving(null)} onSaved={() => { setMoving(null); apps.reload(); }} />}
       {adding && <CandidateModal openings={openings.data || []} defaultOpening={opening && opening !== "-" ? opening : ""} onClose={() => { setAdding(false); if (params.get("add")) setParams({}); }} onSaved={() => { setAdding(false); apps.reload(); }} />}
     </div>
   );

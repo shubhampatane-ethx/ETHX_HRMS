@@ -100,7 +100,12 @@ if new != prev and new in ("Approved", "Rejected"):
     if frappe.session.user != "Administrator" and not ("HR Manager" in roles or "System Manager" in roles):
         frappe.throw("Only an HR Manager can approve or reject an offer.")
     if doc.owner == frappe.session.user and frappe.session.user != "Administrator":
-        frappe.throw("Maker-checker: the person who prepared this offer can't approve it.")
+        others = 0
+        for r in frappe.get_all("Has Role", filters={"role": ["in", ["HR Manager", "System Manager"]], "parenttype": "User"}, fields=["parent"]):
+            if r.parent not in (frappe.session.user, "Administrator", "Guest") and frappe.db.get_value("User", r.parent, "enabled"):
+                others = others + 1
+        if others:
+            frappe.throw("Maker-checker: the person who prepared this offer can't approve it. Ask another HR Manager.")
     doc.custom_approved_by = frappe.session.user
     doc.custom_approved_on = frappe.utils.now()
 elif new != prev and new in ("Draft", "Pending Approval"):

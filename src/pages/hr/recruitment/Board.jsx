@@ -46,7 +46,7 @@ export default function Board() {
     if (stage === "Hired") return setErr("Candidates become Hired from Offers once they accept and an employee is created.");
     if (stage === "Interview") return setModal({ kind: "schedule", applicant: a });
     if (stage === "Offer" && !offerOf(a)) return setModal({ kind: "offer", applicant: a });
-    if (["Rejected", "Withdrawn", "Hold"].includes(stage)) return setModal({ kind: "move", applicant: a, to: stage });
+    if (["Rejected", "Withdrawn", "Hold", "Selected"].includes(stage)) return setModal({ kind: "move", applicant: a, to: stage });
     if (!(await confirmDialog(`Move ${a.applicant_name} from ${stageOf(a)} to ${stage}?`))) return;
     try {
       await moveStage(a, stage);

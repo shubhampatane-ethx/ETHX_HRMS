@@ -192,6 +192,19 @@ export function CandidateModal({ applicant, openings, defaultOpening, onClose, o
   );
 }
 
+/* ------------------------------ candidate loader ------------------------------ */
+
+/** Loads the full candidate and their opening (list rows carry only some fields), then renders children({ applicant, opening }). */
+export function WithApplicant({ name, onClose, children }) {
+  const data = useAsync(async () => {
+    const applicant = await frappe.getDoc("Job Applicant", name);
+    const opening = applicant.job_title ? await frappe.getDoc("Job Opening", applicant.job_title).catch(() => null) : null;
+    return { applicant, opening };
+  }, [name]);
+  if (data.data) return children(data.data);
+  return <Modal title="Loading…" onClose={onClose}>{data.error ? <Notice>{errMsg(data.error, "Couldn't open this candidate.")}</Notice> : <p className="text-[13px] text-[var(--color-text-muted)]">Loading…</p>}</Modal>;
+}
+
 /* -------------------------------- stage move -------------------------------- */
 
 /** Move to a stage, asking for a reason on exits and offering the regret email on rejection. */
@@ -201,12 +214,15 @@ export function MoveStageModal({ applicant, to, opening, onClose, onSaved }) {
   const [note, setNote] = useState("");
   const [regret, setRegret] = useState(to === "Rejected");
   const [warn, setWarn] = useState("");
+  const [draftOffer, setDraftOffer] = useState(to === "Selected");
+  const [offering, setOffering] = useState(false);
   const { busy, err, run } = useSubmit();
 
   function submit(e) {
     e.preventDefault();
     run(async () => {
       await moveStage(applicant, to, { reason: needsReason ? reason.trim() : "", note: note.trim() });
+      if (to === "Selected" && draftOffer) { setOffering(true); return; }
       if (to === "Rejected" && regret) {
         try {
           const m = regretEmail(applicant, opening);
@@ -220,6 +236,10 @@ export function MoveStageModal({ applicant, to, opening, onClose, onSaved }) {
     }, "Couldn't move the candidate.");
   }
 
+  if (offering) {
+    return <WithApplicant name={applicant.name} onClose={onSaved}>{(d) => <OfferModal applicant={d.applicant} opening={d.opening || opening} onClose={onSaved} onSaved={onSaved} />}</WithApplicant>;
+  }
+
   return (
     <Modal title={`Move ${applicant.applicant_name} to ${stageLabel(to)}`} onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
@@ -227,6 +247,7 @@ export function MoveStageModal({ applicant, to, opening, onClose, onSaved }) {
         {needsReason && <Field label={to === "Hold" ? "Why on hold?" : "Reason"}><textarea required rows={2} className={inputCls} value={reason} onChange={(e) => setReason(e.target.value)} /></Field>}
         <Field label="Note for the Timeline (Optional)"><input className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} /></Field>
         {to === "Rejected" && <label className="flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><input type="checkbox" checked={regret} onChange={(e) => setRegret(e.target.checked)} /> Email a polite regret note to {applicant.email_id}</label>}
+        {to === "Selected" && <label className="flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><input type="checkbox" checked={draftOffer} onChange={(e) => setDraftOffer(e.target.checked)} /> Draft the job offer now</label>}
         {["Rejected", "Withdrawn", "Hold"].includes(to) && <p className="text-[11px] text-[var(--color-text-faint)]">The candidate's data will be kept for 12 months, then it can be anonymised from Recruitment › Setup.</p>}
         {warn ? <><Notice tone="info">{warn}</Notice><div className="flex justify-end"><Button type="button" onClick={onSaved}>Close</Button></div></> : <>{err && <Notice>{err}</Notice>}<Buttons onClose={onClose} busy={busy} label={`Move to ${stageLabel(to)}`} /></>}
       </form>
@@ -386,8 +407,21 @@ export function DecideModal({ interview, applicant, onClose, onSaved }) {
   const [result, setResult] = useState("");
   const [summary, setSummary] = useState("");
   const [alsoReject, setAlsoReject] = useState(true);
+  // After a cleared round: with no other rounds left for the opening, the candidate is selected and the offer drafted.
+  const left = useAsync(async () => {
+    if (!applicant) return [];
+    const opening = applicant.job_title ? await frappe.getDoc("Job Opening", applicant.job_title).catch(() => null) : null;
+    const st = await roundsStatus(applicant, opening);
+    return st.missing.filter((r) => r !== interview.interview_round);
+  }, [applicant?.name, interview.name]);
+  const [select, setSelect] = useState(null); // null = follow the default (no rounds left)
+  const lastRound = left.data ? left.data.length === 0 : false;
+  const doSelect = select ?? lastRound;
+  const [offerAfter, setOfferAfter] = useState(true);
+  const [offering, setOffering] = useState(false);
   const { busy, err, run } = useSubmit();
   const pending = (panel.data || []).filter((u) => !(fb.data || []).some((f) => f.interviewer === u));
+  const canSelect = applicant && result === "Cleared" && !["Selected", "Offer", "Hired"].includes(stageOf(applicant));
 
   function submit(e) {
     e.preventDefault();
@@ -396,9 +430,18 @@ export function DecideModal({ interview, applicant, onClose, onSaved }) {
       if (result === "Rejected" && alsoReject && applicant && !["Rejected", "Withdrawn"].includes(stageOf(applicant))) {
         await moveStage(applicant, "Rejected", { reason: `${interview.interview_round} not cleared${summary ? `: ${summary.trim()}` : ""}` });
       }
+      if (canSelect && doSelect) {
+        await moveStage(applicant, "Selected", { note: `${interview.interview_round} cleared` });
+        if (offerAfter) { setOffering(true); return; }
+      }
       onSaved();
     }, "Couldn't record the decision.");
   }
+
+  if (offering) {
+    return <WithApplicant name={applicant.name} onClose={onSaved}>{(d) => <OfferModal applicant={d.applicant} opening={d.opening} onClose={onSaved} onSaved={onSaved} />}</WithApplicant>;
+  }
+
 
   return (
     <Modal title={`${interview.interview_round} · Decision`} onClose={onClose} wide="xl">
@@ -410,6 +453,13 @@ export function DecideModal({ interview, applicant, onClose, onSaved }) {
         </div>
         <Field label="Summary"><textarea rows={2} className={inputCls} value={summary} onChange={(e) => setSummary(e.target.value)} /></Field>
         {result === "Rejected" && applicant && <label className="flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><input type="checkbox" checked={alsoReject} onChange={(e) => setAlsoReject(e.target.checked)} /> Also move the candidate to Rejected</label>}
+        {canSelect && (
+          <div className="space-y-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-2.5">
+            {left.data?.length > 0 && <p className="text-[11.5px] text-[var(--color-text-muted)]">Rounds still to clear for this opening: {left.data.join(", ")}</p>}
+            <label className="flex items-center gap-2 text-[12px] text-[var(--color-text)]"><input type="checkbox" checked={doSelect} onChange={(e) => setSelect(e.target.checked)} /> Move the candidate to Selected</label>
+            {doSelect && <label className="flex items-center gap-2 pl-5 text-[12px] text-[var(--color-text-muted)]"><input type="checkbox" checked={offerAfter} onChange={(e) => setOfferAfter(e.target.checked)} /> Then draft the job offer</label>}
+          </div>
+        )}
         <p className="text-[11px] text-[var(--color-text-faint)]">Recording the decision submits the interview; it can't be edited afterwards.</p>
         {err && <Notice>{err}</Notice>}
         <Buttons onClose={onClose} busy={busy} disabled={!result} label="Record decision" />
