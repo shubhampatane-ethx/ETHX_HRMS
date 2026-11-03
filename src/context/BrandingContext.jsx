@@ -22,6 +22,11 @@ export function getCachedBrandDarkLogo() {
   return readStorage(DARK_LOGO_CACHE_KEY);
 }
 
+/** The name shown in the app: the admin's display name, else the Company's legal name. */
+export function brandName(company) {
+  return company?.custom_hrms_display_name?.trim() || company?.company_name || "";
+}
+
 export function getCachedBrandName() {
   return readStorage(COMPANY_NAME_CACHE_KEY);
 }
@@ -36,7 +41,7 @@ export function cacheBranding(company) {
     else localStorage.removeItem(LOGO_CACHE_KEY);
     if (company?.custom_hrms_dark_logo) localStorage.setItem(DARK_LOGO_CACHE_KEY, company.custom_hrms_dark_logo);
     else localStorage.removeItem(DARK_LOGO_CACHE_KEY);
-    if (company?.company_name) localStorage.setItem(COMPANY_NAME_CACHE_KEY, company.company_name);
+    if (brandName(company)) localStorage.setItem(COMPANY_NAME_CACHE_KEY, brandName(company));
     else localStorage.removeItem(COMPANY_NAME_CACHE_KEY);
   } catch {
     // The Company record remains the source of truth when local caching is unavailable.
@@ -87,7 +92,7 @@ export function BrandingProvider({ children }) {
       .then((company) => {
         if (cancelled) return;
         setState({ company, loading: false });
-        document.title = `${company?.company_name || getCachedBrandName() || "ETHX Softcon"} | HRMS`;
+        document.title = `${brandName(company) || getCachedBrandName() || "ETHX Softcon"} | HRMS`;
         if (company?.name) cacheBranding(company);
         // A personal theme always wins - even when no company could be resolved for this account (e.g. HR users
         // without a Company user permission, who used to be stuck on the default theme).

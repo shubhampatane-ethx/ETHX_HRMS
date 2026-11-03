@@ -1,4 +1,4 @@
-import { getCachedBrandDarkLogo, getCachedBrandLogo, getCachedBrandName, useBranding } from "../context/BrandingContext";
+import { brandName, getCachedBrandDarkLogo, getCachedBrandLogo, getCachedBrandName, useBranding } from "../context/BrandingContext";
 import { AdaptiveLogo } from "./AdaptiveLogo";
 
 const DEFAULT_NAME = "ETHX Softcon";
@@ -9,7 +9,7 @@ export function useCompanyBrand() {
   return {
     logo: company?.company_logo || getCachedBrandLogo(),
     darkLogo: company?.custom_hrms_dark_logo || getCachedBrandDarkLogo(),
-    name: company?.company_name || getCachedBrandName() || DEFAULT_NAME,
+    name: brandName(company) || getCachedBrandName() || DEFAULT_NAME,
   };
 }
 

@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
-import { Building2, Check, ImagePlus, Loader2, Palette, RefreshCw, Trash2 } from "lucide-react";
-import { useBranding, cacheBranding, getSelectedBrandCompany } from "../../context/BrandingContext";
+import { Building2, Check, ImagePlus, Loader2, Palette, RefreshCw, Save, Trash2 } from "lucide-react";
+import { useBranding, brandName, cacheBranding, getSelectedBrandCompany } from "../../context/BrandingContext";
 import { Button, Card } from "../../components/ui/primitives";
 import { errMsg, useAsync } from "../../lib/employeePortal";
 import { frappe } from "../../lib/api/frappeClient";
@@ -9,7 +9,9 @@ import { Brand } from "../../components/Brand";
 import { confirmDialog } from "../../components/ui/dialogs";
 
 async function loadCompanies() {
-  return frappe.getList("Company", { fields: ["name", "company_name"], limit: 0, orderBy: "company_name asc" });
+  // The display name field may not exist yet (it is added on first save), so fall back to the plain list.
+  return frappe.getList("Company", { fields: ["name", "company_name", "custom_hrms_display_name"], limit: 0, orderBy: "company_name asc" })
+    .catch(() => frappe.getList("Company", { fields: ["name", "company_name"], limit: 0, orderBy: "company_name asc" }));
 }
 
 /** Adds a field to Company the first time it is needed (and keeps a Select's options current). */
@@ -78,6 +80,7 @@ export default function BrandStudio() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const fileRefs = useRef({});
+  const [nameDraft, setNameDraft] = useState(null); // { companyName, value } while editing
 
   const companies = companiesQuery.data || [];
   const validSelectedCompany = !companies.length || companies.some((item) => item.name === selectedCompany) ? selectedCompany : "";
@@ -86,18 +89,23 @@ export default function BrandStudio() {
   const currentCompany = companyQuery.data?.name === companyName ? companyQuery.data : activeCompany?.name === companyName ? activeCompany : null;
   const savedTheme = currentCompany?.custom_hrms_theme || getSavedTheme(companyName);
   const selectedTheme = themeDraft?.companyName === companyName ? themeDraft.id : savedTheme;
+  const shownName = brandName(currentCompany) || companyName;
+  const legalName = currentCompany?.company_name || currentCompany?.name || "";
+  const nameValue = nameDraft?.companyName === companyName ? nameDraft.value : shownName;
+  const nameChanged = nameValue.trim() !== shownName;
 
   function changeCompany(name) {
     setSelectedCompany(name);
     selectCompany(name);
     setThemeDraft(null);
+    setNameDraft(null);
     setError("");
     setMessage("");
   }
 
   async function chooseTheme(theme) {
     if (!companyName) return;
-    if (!(await confirmDialog(`Make ${theme.name} the shared theme for ${currentCompany?.company_name || companyName}? Everyone in this company sees it.`))) return;
+    if (!(await confirmDialog(`Make ${theme.name} the shared theme for ${shownName}? Everyone in this company sees it.`))) return;
     setThemeDraft({ companyName, id: theme.id });
     saveTheme(theme.id, companyName);
     setBusy("theme");
@@ -109,9 +117,37 @@ export default function BrandStudio() {
       setThemeDraft(null);
       companyQuery.reload();
       refreshBranding();
-      setMessage(`${theme.name} is now the shared theme for ${currentCompany?.company_name || companyName}.`);
+      setMessage(`${theme.name} is now the shared theme for ${shownName}.`);
     } catch (e) {
       setError(`Theme preview is active on this browser, but the shared theme could not be saved. ${errMsg(e, "Check company permissions.")}`);
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function saveDisplayName() {
+    const value = nameValue.trim();
+    if (!companyName || !nameChanged) return;
+    // Saving the legal name (or nothing) clears the display name, so the app follows the Company record again.
+    const display = value === legalName ? "" : value;
+    const message = display
+      ? `Show "${display}" as the company name across the app? The legal name "${legalName}" stays the same on the Company record and documents.`
+      : `Show the legal name "${legalName}" as the company name across the app again?`;
+    if (!(await confirmDialog({ title: "Change Company Name", message, confirmLabel: "Save Name" }))) return;
+    setBusy("name");
+    setError("");
+    setMessage("");
+    try {
+      await ensureCompanyField("custom_hrms_display_name", { label: "HRMS Display Name", fieldtype: "Data" });
+      const saved = await frappe.updateDoc("Company", companyName, { custom_hrms_display_name: display });
+      cacheBranding(saved || { ...currentCompany, custom_hrms_display_name: display });
+      setNameDraft(null);
+      companyQuery.reload();
+      companiesQuery.reload();
+      refreshBranding();
+      setMessage(`Company name is now shown as "${display || legalName}".`);
+    } catch (e) {
+      setError(errMsg(e, "Could not save the company name. Check Company write and Customize Form permissions."));
     } finally {
       setBusy("");
     }
@@ -130,7 +166,7 @@ export default function BrandStudio() {
     if (!file || !companyName) return;
     if (!file.type.startsWith("image/")) { clearInput(); return setError("Choose an image file for the logo."); }
     if (file.size > 3 * 1024 * 1024) { clearInput(); return setError("Logo files must be 3 MB or smaller."); }
-    if (!(await confirmDialog({ title: `Upload ${slot.title}`, message: `Use "${file.name}" as the ${slot.mode}-theme logo of ${currentCompany?.company_name || companyName}? It is shown on ${slot.themes}.` }))) { clearInput(); return; }
+    if (!(await confirmDialog({ title: `Upload ${slot.title}`, message: `Use "${file.name}" as the ${slot.mode}-theme logo of ${shownName}? It is shown on ${slot.themes}.` }))) { clearInput(); return; }
     setBusy(slot.field);
     setError("");
     setMessage("");
@@ -138,7 +174,7 @@ export default function BrandStudio() {
       const uploaded = await frappe.uploadFile(file, { doctype: "Company", docname: companyName, isPrivate: false });
       if (!uploaded?.file_url) throw new Error("The upload did not return a public file URL.");
       await saveLogo(slot, uploaded.file_url);
-      setMessage(`${slot.title} updated for ${currentCompany?.company_name || companyName}.`);
+      setMessage(`${slot.title} updated for ${shownName}.`);
     } catch (e) {
       setError(errMsg(e, "Could not upload the logo. Check Company write and File upload permissions."));
     } finally {
@@ -150,13 +186,13 @@ export default function BrandStudio() {
   async function removeLogo(slot) {
     if (!companyName || !currentCompany?.[slot.field]) return;
     const fallback = currentCompany?.[LOGO_SLOTS.find((s) => s.mode === slot.other).field] ? `the ${slot.other}-theme logo is adjusted to fit` : "the default logo is shown";
-    if (!(await confirmDialog({ title: `Remove ${slot.title}`, message: `Remove the ${slot.mode}-theme logo of ${currentCompany?.company_name || companyName}? On ${slot.themes}, ${fallback} instead.`, danger: true, confirmLabel: "Remove" }))) return;
+    if (!(await confirmDialog({ title: `Remove ${slot.title}`, message: `Remove the ${slot.mode}-theme logo of ${shownName}? On ${slot.themes}, ${fallback} instead.`, danger: true, confirmLabel: "Remove" }))) return;
     setBusy(slot.field);
     setError("");
     setMessage("");
     try {
       await saveLogo(slot, "");
-      setMessage(`${slot.title} removed for ${currentCompany.company_name || companyName}.`);
+      setMessage(`${slot.title} removed for ${shownName}.`);
     } catch (e) {
       setError(errMsg(e, "Could not remove the logo."));
     } finally {
@@ -180,7 +216,7 @@ export default function BrandStudio() {
               <Building2 size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-faint)]" />
               <select value={companyName} onChange={(event) => changeCompany(event.target.value)} disabled={companiesQuery.loading || !companies.length} className="w-full appearance-none rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] py-2 pl-9 pr-3 text-[13px] text-[var(--color-text)] outline-none focus:border-[var(--color-red)]">
                 {!companyName && <option value="">No company available</option>}
-                {companies.map((item) => <option key={item.name} value={item.name}>{item.company_name || item.name}</option>)}
+                {companies.map((item) => <option key={item.name} value={item.name}>{brandName(item) || item.name}</option>)}
               </select>
             </span>
           </label>
@@ -228,9 +264,28 @@ export default function BrandStudio() {
             );
           })}
           {/* The company name is separate text from the Company record - never part of the logo image. */}
-          <Card className="px-4 py-3">
-            <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">Company Name</p>
-            <p className="break-words text-[15px] font-bold text-[var(--color-text)]">{currentCompany?.company_name || currentCompany?.name || "Your company"}</p>
+          <Card className="space-y-3 p-4">
+            <div>
+              <p className="text-[13px] font-semibold text-[var(--color-text)]">Company Name</p>
+              <p className="mt-0.5 text-[11px] text-[var(--color-text-muted)]">Shown under the logo, on the sign-in page and in the browser tab.{legalName && ` Legal name: ${legalName} (not changed).`}</p>
+            </div>
+            <input
+              value={nameValue}
+              maxLength={80}
+              disabled={!currentCompany || Boolean(busy)}
+              onChange={(event) => setNameDraft({ companyName, value: event.target.value })}
+              onKeyDown={(event) => { if (event.key === "Enter") saveDisplayName(); }}
+              placeholder={legalName || "Company name"}
+              aria-label="Company name shown in the app"
+              className="w-full rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-3 py-2 text-[14px] font-semibold text-[var(--color-text)] outline-none focus:border-[var(--color-red)] disabled:opacity-60"
+            />
+            <div className="flex items-center justify-between gap-2">
+              {shownName !== legalName && legalName ? <button type="button" disabled={Boolean(busy)} onClick={() => setNameDraft({ companyName, value: legalName })} className="text-[11px] text-[var(--color-text-muted)] hover:text-[var(--color-text)] disabled:opacity-50">Use Legal Name</button> : <span />}
+              <div className="flex gap-2">
+                {nameChanged && <Button type="button" variant="ghost" disabled={Boolean(busy)} onClick={() => setNameDraft(null)}>Cancel</Button>}
+                <Button type="button" disabled={!nameChanged || Boolean(busy)} onClick={saveDisplayName}>{busy === "name" ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}Save Name</Button>
+              </div>
+            </div>
           </Card>
         </section>
       </div>
