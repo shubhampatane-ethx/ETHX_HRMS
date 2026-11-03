@@ -43,7 +43,7 @@ export default function PMApprovals() {
   return (
     <>
       <PageHeader icon={CheckCheck} title="Timesheet Approvals" subtitle="Hours logged on your projects. Approve your part; HR sees the whole timesheet." />
-      {q.data && !q.data.ready && <Notice>Per-project timesheet approval isn't enabled yet. Ask an Administrator to enable server-side rules and run Admin › System Setup › Run setup.</Notice>}
+      {q.data && !q.data.ready && <Notice>Per-project timesheet approval isn't enabled yet. It's set up automatically the next time the Administrator signs in (server-side rules must be enabled on the site).</Notice>}
       <Panel>
         <div className="mb-4 flex gap-2">{[["pending", `Awaiting You${pendingCount ? ` (${pendingCount})` : ""}`], ["approved", "Approved by You"], ["all", "All"]].map(([v, l]) => <button key={v} type="button" onClick={() => setFilter(v)} className={chipCls(filter === v)}>{l}</button>)}</div>
         <Async state={q}>

@@ -34,7 +34,7 @@ async function loadRequests() {
 
 // "In Progress" isn't a stock Issue status: System Setup adds it, and ERPNext refuses it until then.
 const statusError = (e, status) => (/should be one of/i.test(errMsg(e, ""))
-  ? `"${status}" isn't available on the server yet. Ask the Administrator to run System Setup › Run setup.`
+  ? `"${status}" isn't available on the server yet. It's set up automatically the next time the Administrator signs in.`
   : errMsg(e, "Couldn't update this request."));
 
 export default function EmployeeRequests() {

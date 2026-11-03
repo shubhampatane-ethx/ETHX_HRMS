@@ -40,7 +40,7 @@ export async function assertManagerRuleInstalled() {
     const d = e?.response?.data || {};
     if (e?.response?.status === 404 || NOT_INSTALLED.test(String(d.exception || d.exc || d._server_messages || ""))) {
       const err = new Error("Manager rule not installed");
-      err.userMessage = "Project Manager roles aren't set up on the server yet, so nothing was saved. Ask the Administrator to run System Setup › Run setup, then try again.";
+      err.userMessage = "Project Manager roles aren't set up on the server yet, so nothing was saved. It's set up automatically the next time the Administrator signs in; try again after that.";
       throw err;
     }
   }

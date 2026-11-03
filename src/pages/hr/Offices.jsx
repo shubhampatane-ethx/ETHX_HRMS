@@ -35,7 +35,7 @@ export default function Offices() {
         <Button type="button" onClick={() => setModal({ kind: "office" })} disabled={!data.data}><Plus size={14} /> Add Office</Button>
       } />
       {data.data && !data.data.ready && (
-        <Notice tone="info">Ask the Administrator to run <b>Admin › ERPNext Setup › Run setup</b> once (module "Office locations &amp; holidays"). It adds the office fields and the rules that keep each employee on their office's holiday list.</Notice>
+        <Notice tone="info">It's set up automatically the next time the Administrator signs in. The setup adds the office fields and the rules that keep each employee on their office's holiday list.</Notice>
       )}
       {error && <Notice>{error}</Notice>}
       {message && <Notice tone="info">{message}</Notice>}

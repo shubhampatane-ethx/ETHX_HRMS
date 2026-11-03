@@ -87,7 +87,7 @@ export default function Assets() {
         </>
       } />
       {data.data && !data.data.ready && (
-        <Notice tone="info">Ask the Administrator to run <b>Admin › ERPNext Setup › Run setup</b> once (module "Asset register"). It adds the register fields (asset code, serial number, assigned by…) and the rule that employees see only their own assets.</Notice>
+        <Notice tone="info">It's set up automatically the next time the Administrator signs in. The setup adds the register fields (asset code, serial number, assigned by…) and the rule that employees see only their own assets.</Notice>
       )}
       {error && <Notice>{error}</Notice>}
       {message && <Notice tone="info">{message}</Notice>}

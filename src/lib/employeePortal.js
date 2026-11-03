@@ -426,7 +426,7 @@ const docsError = (e) => {
   const d = e?.response?.data || {};
   if (e?.response?.status === 404 || DOCS_NOT_READY.test(String(d.exception || d.exc || d._server_messages || ""))) {
     const err = new Error("Document rules not installed");
-    err.userMessage = "Document upload isn't set up on the server yet. Ask the Administrator to run System Setup › Run setup.";
+    err.userMessage = "Document upload isn't set up on the server yet. It's set up automatically the next time the Administrator signs in.";
     return err;
   }
   return e;

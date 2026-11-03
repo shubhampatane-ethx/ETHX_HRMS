@@ -1320,7 +1320,7 @@ export function EmpProfile() {
       setEditing(false);
       reload();
     } catch (err) {
-      setError(errMsg(err, "Couldn't save. Ask the Administrator to run Admin › ERPNext Setup (Employee & manager self-service) so employees can update their details."));
+      setError(errMsg(err, "Couldn't save. Updating your own details is set up automatically the next time the Administrator signs in - try again after that."));
     } finally {
       setBusy(false);
     }

@@ -13,9 +13,13 @@ import { ATTENDANCE_FIELDS, ATTENDANCE_SCRIPTS } from "./attendanceSetup";
 import { EMPLOYEE_RECORD_FIELDS, EMPLOYEE_RECORD_SCRIPTS, SIGNIN_FIELDS, SIGNIN_SCRIPTS } from "./peopleSetup";
 import { CONTRACTOR_FIELDS, CONTRACTOR_PERMISSIONS, CONTRACTOR_RECORDS, CONTRACTOR_RETIRED_SCRIPTS, CONTRACTOR_SCRIPTS } from "./contractorSetup";
 import { PAGE_ACCESS_FIELDS, PAGE_ACCESS_SCRIPTS } from "./pageAccessSetup";
+import { FALLBACK_DOCTYPES } from "./doctypeSetup";
+import { PRESETS } from "./rolePresets";
 import { PROJECT_ROLE_DOCTYPES, PROJECT_ROLE_FIELDS, PROJECT_ROLE_SCRIPTS, PROJECT_ROLE_TRACK } from "./projectRoleSetup";
 
 export const MODULES = [
+  // First, so later modules can add fields to doctypes created here.
+  { id: "doctypes", label: "Doctypes", doctypes: FALLBACK_DOCTYPES, fields: [], scripts: [], track: [] },
   { id: "recruitment", label: "Recruitment", fields: RECRUITMENT_FIELDS, scripts: RECRUITMENT_SCRIPTS, track: RECRUITMENT_TRACK, properties: RECRUITMENT_PROPERTIES },
   { id: "timesheets", label: "Timesheet review", fields: TIMESHEET_FIELDS, scripts: TIMESHEET_SCRIPTS, track: TIMESHEET_TRACK, migrate: "ethx_migrate_timesheet_reviews" },
   { id: "security", label: "Security & audit", fields: SECURITY_FIELDS, scripts: SECURITY_SCRIPTS, track: SECURITY_TRACK, properties: SECURITY_PROPERTIES },
@@ -53,13 +57,15 @@ const propKey = (p) => `${p.doc_type}:${p.field_name || ""}:${p.property}`;
 
 export async function setupStatus() {
   const doctypeNames = MODULES.flatMap((m) => (m.doctypes || []).map((d) => d.name));
+  // Every doctype a role preset needs: the ones the app can't create are reported (they come with ERPNext / HRMS).
+  const required = [...new Set(Object.values(PRESETS).flat().map((p) => p.doctype))].filter((n) => !doctypeNames.includes(n));
   const [fields, setters, props, scripts, sources, doctypes] = await Promise.all([
     frappe.getList("Custom Field", { filters: [["dt", "in", [...new Set(ALL_FIELDS.map((f) => f.dt))]], ["fieldname", "in", ALL_FIELDS.map((f) => f.fieldname)]], fields: ["dt", "fieldname"], limit: 0 }).catch(() => null),
     frappe.getList("Property Setter", { filters: [["doc_type", "in", ALL_TRACK], ["property", "=", "track_changes"]], fields: ["doc_type", "value"], limit: 0 }).catch(() => null),
     ALL_PROPS.length ? frappe.getList("Property Setter", { filters: [["doc_type", "in", [...new Set(ALL_PROPS.map((p) => p.doc_type))]], ["property", "in", [...new Set(ALL_PROPS.map((p) => p.property))]]], fields: ["doc_type", "field_name", "property", "value"], limit: 0 }).catch(() => null) : Promise.resolve([]),
     frappe.getList("Server Script", { filters: [["name", "in", ALL_SCRIPTS.map((s) => s.name)]], fields: ["name", "disabled", "script"], limit: 0 }).catch(() => null),
     frappe.getList("Job Applicant Source", { fields: ["name"], limit: 0 }).catch(() => null),
-    frappe.getList("DocType", { filters: [["name", "in", doctypeNames]], fields: ["name"], limit: 0 }).catch(() => null),
+    frappe.getList("DocType", { filters: [["name", "in", [...doctypeNames, ...required]]], fields: ["name"], limit: 0 }).catch(() => null),
   ]);
   const recordExists = {};
   for (const r of MODULES.flatMap((m) => m.records || [])) {
@@ -83,6 +89,7 @@ export async function setupStatus() {
       missingProps: (m.properties || []).filter((p) => haveProps.get(propKey(p)) !== String(p.value)),
       scripts: m.scripts.map((s) => ({ ...s, installed: scriptOk(s) })),
     })),
+    missingAppDoctypes: doctypes === null ? [] : required.filter((n) => !doctypes.some((d) => d.name === n)),
     missingSources: sources === null ? SOURCES : SOURCES.filter((s) => !(sources || []).some((x) => x.name === s)),
   };
 }
@@ -98,7 +105,7 @@ export async function runSetup(onStep = () => {}) {
   for (const m of status.modules) {
     for (const d of m.missingDoctypes) {
       try {
-        await frappe.createDoc("DocType", d.doc);
+        await frappe.createDoc("DocType", d.prepare ? await d.prepare(d.doc, frappe) : d.doc);
         step(`${m.label}: added - ${d.what}`);
         for (const row of d.seed || []) await frappe.createDoc(d.name, row);
       } catch (e) {

@@ -63,7 +63,7 @@ export default function PageAccess() {
       <PageHeader icon={ListChecks} title="Access Control" subtitle="Choose what each person can open" />
       <Notice tone="info">A new login starts with the pages of the role it was created with. After that you can give anyone any role or page: ticking a page outside their roles also gives them that workspace's role. Changes apply the next time they sign in.</Notice>
       <Async state={data}>
-        {({ ready }) => (!ready ? <Notice>Access Control isn't set up yet. Run <b>System Setup › Run setup</b> first.</Notice> : (
+        {({ ready }) => (!ready ? <Notice>Access Control is being set up. It's applied automatically for the Administrator - reload this page in a minute, or use <b>System Setup › Apply Again</b>.</Notice> : (
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
             <Panel title="People">
               <label className="relative mb-3 block">
@@ -139,7 +139,7 @@ function AccessEditor({ person, onSaved }) {
     setError("");
     try {
       const result = await frappe.callMethod("ethx_set_page_access", { user: person.email, denied: JSON.stringify([...denied]), roles: JSON.stringify([...roles]) });
-      if (!result?.roles) setError("Access Control needs updating. Run System Setup › Run setup, then save again.");
+      if (!result?.roles) setError("Access Control needs updating. Use System Setup › Apply Again, then save again.");
       else {
         const dropped = [...roles].filter((r) => !result.roles.includes(r));
         if (dropped.length) setError(`ERPNext didn't keep ${dropped.join(", ")} for ${person.name}. The Employee role needs a linked employee profile, so create one first.`);

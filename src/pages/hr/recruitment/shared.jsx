@@ -51,7 +51,7 @@ export function SetupHint() {
   return (
     <Notice>
       Recruitment isn't fully set up yet (pipeline stages, CTC, offer approval and retention fields are missing).{" "}
-      {user?.email === "Administrator" ? <Link to="/hr/recruitment/setup" className="underline">Run the One-Time Setup</Link> : "Ask the Administrator to open HR › Recruitment › Setup and run it."}
+      {user?.email === "Administrator" ? <Link to="/admin/setup" className="underline">See what's missing</Link> : "It's set up automatically the next time the Administrator signs in."}
     </Notice>
   );
 }
