@@ -112,7 +112,7 @@ const ROLE_MAP = {
  * them freely. HR staff also use the employee portal for their own records, unless they are a contractor.
  */
 export function appRolesFor(erpRoles = []) {
-  if (erpRoles.includes("System Manager")) return ["System Manager"];
+  if (erpRoles.includes("System Manager")) return ["System Manager", ...(erpRoles.includes("Employee") ? ["Employee"] : [])];
   const hr = erpRoles.some((r) => r === "HR Manager" || r === "HR User");
   const contractor = erpRoles.includes("Contractor");
   return [

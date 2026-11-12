@@ -80,6 +80,8 @@ const DoctypeView = lazy(() => import("./pages/hr/DoctypeView"));
 const Policies = lazy(() => import("./pages/hr/Policies"));
 const Assets = lazy(() => import("./pages/hr/Assets"));
 const Offices = lazy(() => import("./pages/hr/Offices"));
+const EmployeeGroups = lazy(() => import("./pages/hr/EmployeeGroups"));
+const LeaveTypes = lazy(() => import("./pages/hr/LeaveTypes"));
 const EmployeeRequests = lazy(() => import("./pages/hr/EmployeeRequests"));
 
 export default function App() {
@@ -173,6 +175,8 @@ export default function App() {
               <Route path="assets" element={<Assets />} />
               <Route path="requests" element={<EmployeeRequests />} />
               <Route path="offices" element={<Offices />} />
+              <Route path="employee-groups" element={<EmployeeGroups />} />
+              <Route path="leave-types" element={<LeaveTypes />} />
               <Route path="setup/expense-claim" element={<ExpenseClaims />} />
               <Route path="payroll" element={<Payroll />} />
               <Route path="recruitment" element={<RecruitmentOverview />} />

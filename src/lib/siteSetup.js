@@ -14,6 +14,7 @@ import { EMPLOYEE_RECORD_FIELDS, EMPLOYEE_RECORD_SCRIPTS, SIGNIN_FIELDS, SIGNIN_
 import { CONTRACTOR_FIELDS, CONTRACTOR_PERMISSIONS, CONTRACTOR_RECORDS, CONTRACTOR_RETIRED_SCRIPTS, CONTRACTOR_SCRIPTS } from "./contractorSetup";
 import { PAGE_ACCESS_FIELDS, PAGE_ACCESS_SCRIPTS } from "./pageAccessSetup";
 import { FALLBACK_DOCTYPES } from "./doctypeSetup";
+import { LEAVE_TYPE_RECORDS, TRAINING_PROPERTIES, TRAINING_TRACK } from "./hrFixesSetup";
 import { PRESETS } from "./rolePresets";
 import { PROJECT_ROLE_DOCTYPES, PROJECT_ROLE_FIELDS, PROJECT_ROLE_SCRIPTS, PROJECT_ROLE_TRACK } from "./projectRoleSetup";
 
@@ -29,6 +30,8 @@ export const MODULES = [
   { id: "offices", label: "Office locations & holidays", fields: OFFICE_FIELDS, scripts: OFFICE_SCRIPTS, track: OFFICE_TRACK },
   { id: "attendance", label: "Attendance", fields: ATTENDANCE_FIELDS, scripts: ATTENDANCE_SCRIPTS, track: [] },
   { id: "employeeRecords", label: "Employee records", fields: EMPLOYEE_RECORD_FIELDS, scripts: EMPLOYEE_RECORD_SCRIPTS, track: [] },
+  { id: "training", label: "Training changes", fields: [], scripts: [], track: TRAINING_TRACK, properties: TRAINING_PROPERTIES },
+  { id: "leaveTypes", label: "Leave types", records: LEAVE_TYPE_RECORDS, fields: [], scripts: [], track: [] },
   { id: "signin", label: "Sign-in page", fields: SIGNIN_FIELDS, scripts: SIGNIN_SCRIPTS, track: [] },
   { id: "projectRoles", label: "Project roles", doctypes: PROJECT_ROLE_DOCTYPES, fields: PROJECT_ROLE_FIELDS, scripts: PROJECT_ROLE_SCRIPTS, track: PROJECT_ROLE_TRACK },
   { id: "pageAccess", label: "Page access", fields: PAGE_ACCESS_FIELDS, scripts: PAGE_ACCESS_SCRIPTS, track: [] },

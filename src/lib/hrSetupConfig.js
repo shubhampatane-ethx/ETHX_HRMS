@@ -73,8 +73,10 @@ export const HR_SETUP_SECTIONS = [
     icon: Users,
     items: [
       {
+        // Own page: create groups and add / remove members in bulk.
         label: "Employee Group",
         doctype: "Employee Group",
+        to: "/hr/employee-groups",
         kind: "list",
         formFields: [{ name: "employee_group_name", label: "Group Name", type: "text", required: true }],
       },
@@ -90,6 +92,14 @@ export const HR_SETUP_SECTIONS = [
     title: "Leaves",
     icon: CalendarDays,
     items: [
+      {
+        // Own page: leave types (CL, SL, EL/PL, Comp Off, LWP, Maternity…) and the standard set in one click.
+        label: "Leave Types",
+        doctype: "Leave Type",
+        to: "/hr/leave-types",
+        kind: "list",
+        formFields: [{ name: "leave_type_name", label: "Leave Type Name", type: "text", required: true }],
+      },
       {
         label: "Compensatory Leave Request",
         doctype: "Compensatory Leave Request",

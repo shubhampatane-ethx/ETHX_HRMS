@@ -5,6 +5,7 @@ import { getCheckinsBetween, hm, summariseCheckins } from "../../lib/employeePor
 import { HrRecordForm } from "../../components/hr/HrRecordForm";
 import { Button, Card } from "../../components/ui/primitives";
 import { alertDialog, confirmDialog } from "../../components/ui/dialogs";
+import { errMsg } from "../../lib/employeePortal";
 
 /** Saved attendance often has no times of its own (marked by HR, or confirmed from punches): take them from the punches. */
 function withPunchTimes(att, punches) {
@@ -118,7 +119,9 @@ export default function Attendance() {
   }, [visible]);
 
   const unconfirmed = visible.filter((r) => r.derived);
-  async function remove(row) { if (!(await confirmDialog(`Delete attendance for ${row.employee_name || row.employee || row.name} on ${row.attendance_date}?`))) return; try { if (Number(row.docstatus) === 1) await frappe.cancelDoc("Attendance", row.name); await frappe.deleteDoc("Attendance", row.name); load(); } catch (error) { alertDialog({ tone: "error", message: errMsg(error, "Couldn't delete this attendance record.") }); } }
+  // Only unsubmitted drafts can be deleted. Saved attendance (from punches or marked by HR) is corrected with Edit,
+  // which keeps the old record as cancelled history; a server rule refuses deleting it too.
+  async function remove(row) { if (Number(row.docstatus) !== 0) return; if (!(await confirmDialog(`Delete the draft attendance for ${row.employee_name || row.employee || row.name} on ${row.attendance_date}?`))) return; try { await frappe.deleteDoc("Attendance", row.name); load(); } catch (error) { alertDialog({ tone: "error", message: errMsg(error, "Couldn't delete this attendance record.") }); } }
   async function confirmRows(list) {
     if (!list.length || !(await confirmDialog(`Save ${list.length} punched-in day(s) as Present?`))) return;
     setConfirming(true);
@@ -185,7 +188,7 @@ export default function Attendance() {
               <td className={`px-3 py-1 font-medium ${STATUS_COLOR[row.status] || "text-[var(--color-text)]"}`} title={row.status}>{STATUS_SHORT[row.status] ? `${STATUS_SHORT[row.status]} · ` : ""}{row.status}{row.derived && <span className="ml-2 rounded bg-[var(--color-surface-2)] px-1.5 py-0.5 text-[10px] font-normal text-[var(--color-amber)]">{row.stillIn ? "Punched in" : "Unconfirmed"}</span>}</td>
               <td className="px-3 py-1 text-[var(--color-text-muted)]">{row.in_time ? `${hm(row.in_time)} – ${row.stillIn ? "…" : hm(row.out_time) || "…"}` : "—"}{row.derived && row.working_hours ? ` · ${row.working_hours}h` : ""}</td>
               <td className="px-3 py-1 text-[var(--color-text-muted)]">{row.company}</td>
-              <td className="px-3 py-1">{row.derived ? <div className="flex justify-end"><button type="button" title="Confirm as Present" disabled={confirming} onClick={() => confirmRows([row])} className="rounded p-1 text-[var(--color-green)] hover:bg-[var(--color-surface-2)]"><Check size={14} /></button></div> : <div className="flex justify-end gap-0.5"><button type="button" title="Edit attendance" onClick={() => { setEditing(row.name); setFormOpen(true); }} className="rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]"><Edit3 size={13} /></button><button type="button" title="Delete attendance" onClick={() => remove(row)} className="rounded p-1 text-[var(--color-text-muted)] hover:text-[var(--color-red-hover)]"><Trash2 size={13} /></button></div>}</td>
+              <td className="px-3 py-1">{row.derived ? <div className="flex justify-end"><button type="button" title="Confirm as Present" disabled={confirming} onClick={() => confirmRows([row])} className="rounded p-1 text-[var(--color-green)] hover:bg-[var(--color-surface-2)]"><Check size={14} /></button></div> : <div className="flex justify-end gap-0.5"><button type="button" title="Correct attendance (the previous entry is kept in the history)" onClick={() => { setEditing(row.name); setFormOpen(true); }} className="rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]"><Edit3 size={13} /></button>{Number(row.docstatus) === 0 && <button type="button" title="Delete draft" onClick={() => remove(row)} className="rounded p-1 text-[var(--color-text-muted)] hover:text-[var(--color-red-hover)]"><Trash2 size={13} /></button>}</div>}</td>
             </tr>)}
           </tbody>
         </table>}

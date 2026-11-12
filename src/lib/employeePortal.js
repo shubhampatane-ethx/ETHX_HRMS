@@ -258,7 +258,7 @@ export async function getLeaveBalance(emp, date = isoDate()) {
   throw last;
 }
 
-export const getLeaveTypes = () => frappe.getList("Leave Type", { fields: ["name"], limit: 0 });
+export const getLeaveTypes = () => frappe.getList("Leave Type", { fields: ["name", "is_lwp"], limit: 0 }).catch(() => frappe.getList("Leave Type", { fields: ["name"], limit: 0 }));
 
 export function getLeaveApplications(emp, limit = 0) {
   return frappe.getList("Leave Application", { filters: [["employee", "=", emp], ["docstatus", "<", 2]], fields: ["name", "leave_type", "from_date", "to_date", "total_leave_days", "half_day", "status", "docstatus", "description", "posting_date", "creation", "leave_approver", "leave_approver_name"], orderBy: "from_date desc", limit });

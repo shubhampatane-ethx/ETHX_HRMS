@@ -97,6 +97,7 @@ function accountMenu(user, roleLabel) {
   if (roleLabel === "Admin") {
     items.push({ to: "/admin/settings", label: "Settings", icon: Settings });
     if (hasPermission(user, "dashboard.hr")) items.push({ to: "/hr/setup/hr-settings", label: "HR Settings", icon: SlidersHorizontal });
+    if (hasPermission(user, "dashboard.employee")) items.push({ to: "/employee", label: "My Self-Service", icon: UserRound });
   } else if (roleLabel === "HR") {
     // Their own self-service pages are in the HR sidebar ("My Self-Service"); only the profile lives here.
     if (hasPermission(user, "dashboard.employee")) {

@@ -998,7 +998,13 @@ export function EmpLeave() {
 
 /** Apply for leave, or change an open request (`leave`). */
 function ApplyModal({ employee, balance, leave, onClose, onSaved }) {
-  const types = useAsync(async () => (balance.length ? balance.map((b) => b.leave_type) : (await getLeaveTypes()).map((t) => t.name)), []);
+  // Types with an allocation, plus Leave Without Pay (needs no balance). With no allocations at all, every type is listed.
+  const types = useAsync(async () => {
+    const all = await getLeaveTypes().catch(() => []);
+    if (!balance.length) return all.map((x) => x.name);
+    const mine = balance.map((b) => b.leave_type);
+    return [...mine, ...all.filter((x) => Number(x.is_lwp) && !mine.includes(x.name)).map((x) => x.name)];
+  }, []);
   const [f, setF] = useState(() => leave
     ? { leave_type: leave.leave_type || "", from_date: leave.from_date, to_date: leave.to_date, half_day: Boolean(Number(leave.half_day)), description: stripHtml(leave.description || "") }
     : { leave_type: "", from_date: isoDate(), to_date: isoDate(), half_day: false, description: "" });
@@ -1127,6 +1133,7 @@ export function EmpPayslips() {
   const { employee } = useEmployee();
   const q = useAsync(() => getPayslips(employee.name), [employee.name]);
   const [year, setYear] = useState("all");
+  const [month, setMonth] = useState("all"); // "01".."12" or "all"
   const [open, setOpen] = useState(null);
 
   return (
@@ -1135,7 +1142,10 @@ export function EmpPayslips() {
       <Async state={q}>
         {(rows) => {
           const years = [...new Set(rows.map((r) => r.end_date.slice(0, 4)))];
-          const shown = rows.filter((r) => year === "all" || r.end_date.startsWith(year));
+          // Months that have a payslip in the chosen year (or in any year)
+          const months = [...new Set(rows.filter((r) => year === "all" || r.end_date.startsWith(year)).map((r) => r.end_date.slice(5, 7)))].sort();
+          const shown = rows.filter((r) => (year === "all" || r.end_date.startsWith(year)) && (month === "all" || r.end_date.slice(5, 7) === month));
+          const period = [month !== "all" ? MONTHS_LONG[Number(month) - 1] : "", year !== "all" ? year : ""].filter(Boolean).join(" ");
           const sum = (k) => shown.reduce((s, r) => s + (Number(r[k]) || 0), 0);
           const cur = rows[0]?.currency || "INR";
           return (
@@ -1143,12 +1153,17 @@ export function EmpPayslips() {
               {shown.length > 0 && (
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   {[["Gross earnings", sum("gross_pay")], ["Total deductions", sum("total_deduction")], ["Net pay", sum("net_pay")]].map(([l, v]) => (
-                    <div key={l} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5"><p className="text-[12px] text-[var(--color-text-muted)]">{l}{year !== "all" ? ` · ${year}` : ""}</p><p className="mt-2 text-2xl font-semibold text-[var(--color-text)]">{money(v, cur)}</p></div>
+                    <div key={l} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5"><p className="text-[12px] text-[var(--color-text-muted)]">{l}{period ? ` · ${period}` : ""}</p><p className="mt-2 text-2xl font-semibold text-[var(--color-text)]">{money(v, cur)}</p></div>
                   ))}
                 </div>
               )}
-              <Panel title="Payslips" action={<select value={year} onChange={(e) => setYear(e.target.value)} className={`${inputCls} !w-auto !py-1`}><option value="all">All years</option>{years.map((y) => <option key={y}>{y}</option>)}</select>}>
-                <Grid rows={shown} empty="No payslips have been issued yet." columns={[
+              <Panel title="Payslips" action={
+                <div className="flex gap-2">
+                  <select aria-label="Month" value={month} onChange={(e) => setMonth(e.target.value)} className={`${inputCls} !w-auto !py-1`}><option value="all">All months</option>{months.map((m) => <option key={m} value={m}>{MONTHS_LONG[Number(m) - 1]}</option>)}</select>
+                  <select aria-label="Year" value={year} onChange={(e) => { setYear(e.target.value); setMonth("all"); }} className={`${inputCls} !w-auto !py-1`}><option value="all">All years</option>{years.map((y) => <option key={y}>{y}</option>)}</select>
+                </div>
+              }>
+                <Grid rows={shown} empty={rows.length ? "No payslip for this month." : "No payslips have been issued yet."} columns={[
                   { key: "end_date", label: "Month", render: (r) => <button type="button" className="text-left text-[var(--color-text)] hover:text-[var(--color-red-hover)]" onClick={() => setOpen(r.name)}>{MONTHS_LONG[Number(r.end_date.slice(5, 7)) - 1]} {r.end_date.slice(0, 4)}</button> },
                   { key: "start_date", label: "Period", render: (r) => `${dmy(r.start_date)} – ${dmy(r.end_date)}` },
                   { key: "gross_pay", label: "Gross", render: (r) => money(r.gross_pay, r.currency) },
