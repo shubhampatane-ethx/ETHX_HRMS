@@ -60,6 +60,7 @@ const Employees = lazy(() => import("./pages/hr/Employees"));
 const Attendance = lazy(() => import("./pages/hr/Attendance"));
 const Leave = lazy(() => import("./pages/hr/Leave"));
 const ExpenseClaims = lazy(() => import("./pages/hr/ExpenseClaims"));
+const AttendanceRequests = lazy(() => import("./pages/hr/AttendanceRequests"));
 const Payroll = lazy(() => import("./pages/hr/Payroll"));
 const Timesheets = lazy(() => import("./pages/hr/Timesheets"));
 const RecruitmentOverview = lazy(() => import("./pages/hr/recruitment/Overview"));
@@ -174,6 +175,7 @@ export default function App() {
               <Route path="requests" element={<EmployeeRequests />} />
               <Route path="offices" element={<Offices />} />
               <Route path="setup/expense-claim" element={<ExpenseClaims />} />
+              <Route path="setup/attendance-request" element={<AttendanceRequests />} />
               <Route path="payroll" element={<Payroll />} />
               <Route path="recruitment" element={<RecruitmentOverview />} />
               <Route path="recruitment/requisitions" element={<Requisitions />} />

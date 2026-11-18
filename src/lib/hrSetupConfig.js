@@ -122,7 +122,7 @@ export const HR_SETUP_SECTIONS = [
     icon: CalendarCheck,
     items: [
       {
-        label: "Attendance Request",
+        label: "Attendance Requests",
         doctype: "Attendance Request",
         kind: "list",
         formFields: [
