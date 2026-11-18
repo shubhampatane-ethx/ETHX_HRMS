@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Check, Copy, Edit3, HardHat, KeyRound, Plus, RefreshCw, Trash2, Users, X } from "lucide-react";
+import { Check, Copy, Edit3, HardHat, KeyRound, Plus, RefreshCw, Trash2, UserCheck, Users, UserX, X } from "lucide-react";
 import { frappe } from "../../lib/api/frappeClient";
-import { dmy, dmyHm, errMsg, getMyDocuments, useAsync } from "../../lib/employeePortal";
+import { dmy, dmyHm, errMsg, getMyDocuments, isoDate, useAsync } from "../../lib/employeePortal";
+import { useAuth } from "../../context/AuthContext";
+import { hasPermission } from "../../permissions/roles";
 import { HrRecordForm } from "../../components/hr/HrRecordForm";
 import { Button, Card, DateField, LinkField, Table } from "../../components/ui/primitives";
 import { Field, inputCls, Modal, Notice } from "../../components/employee/EmployeeShell";
@@ -39,7 +41,7 @@ const FIELDS = [
   { name: "health_insurance_no", label: "Health Insurance Number" },
 ];
 
-const LIST_FIELDS = ["name", "employee_name", "first_name", "last_name", "department", "designation", "status", "company", "date_of_joining", "user_id", "company_email", "personal_email", "custom_is_contractor"];
+const LIST_FIELDS = ["name", "employee_name", "first_name", "last_name", "department", "designation", "status", "company", "date_of_joining", "relieving_date", "user_id", "company_email", "personal_email", "custom_is_contractor"];
 const LIST_FALLBACK = ["name", "employee_name", "department", "designation", "status", "company", "date_of_joining", "user_id"];
 const PASSWORD_KEY = "hrms:defaultEmployeePassword";
 
@@ -153,6 +155,10 @@ export default function Employees({ contractorsOnly = false }) {
   const [loginFor, setLoginFor] = useState(null);
   const [addingContractor, setAddingContractor] = useState(false);
   const [detail, setDetail] = useState(null);
+  const [leaver, setLeaver] = useState(null); // { row, kind: "rejoin" | "remove" }
+  const [loginEnabled, setLoginEnabled] = useState({}); // user_id -> 1 / 0, when this account may read User
+  const { user } = useAuth();
+  const isAdmin = hasPermission(user, "dashboard.admin");
 
   async function load() {
     setState("loading");
@@ -164,6 +170,10 @@ export default function Employees({ contractorsOnly = false }) {
         : await frappe.getList("Employee", { ...opts, fields: LIST_FIELDS }).catch(() => frappe.getList("Employee", { ...opts, fields: LIST_FALLBACK }));
       setEmployees(records);
       setState("ready");
+      // Whether each login is actually enabled (HR usually can't read User; then the column just says a login exists).
+      const ids = records.map((r) => r.user_id).filter(Boolean);
+      const users = ids.length ? await frappe.getList("User", { filters: [["name", "in", ids]], fields: ["name", "enabled"], limit: 0 }).catch(() => []) : [];
+      setLoginEnabled(Object.fromEntries(users.map((u) => [u.name, Number(u.enabled)])));
     } catch {
       setEmployees([]);
       setState("error");
@@ -221,10 +231,16 @@ export default function Employees({ contractorsOnly = false }) {
           ]),
           { key: "company", label: "Company" },
           { key: "status", label: "Status", render: (row) => <span className={row.status === "Active" ? "text-[var(--color-green)]" : "text-[var(--color-text-muted)]"}>{row.status || "-"}{Number(row.custom_is_contractor) ? " · Contractor" : ""}</span> },
-          { key: "user_id", label: "Portal Login", render: (row) => row.user_id
-            ? <span className="text-[var(--color-green)]" title={row.user_id}>Active</span>
-            : <span className="text-[var(--color-amber)]">No login</span> },
-          { key: "_actions", label: "", render: (row) => <div className="flex justify-end gap-1">
+          { key: "user_id", label: "Portal Login", render: (row) => !row.user_id
+            ? <span className="text-[var(--color-amber)]">No login</span>
+            : loginEnabled[row.user_id] === 0
+              ? <span className="text-[var(--color-text-muted)]" title={row.user_id}>Disabled</span>
+              : <span className="text-[var(--color-green)]" title={row.user_id}>Active</span> },
+          { key: "_actions", label: "", render: (row) => <div className="flex items-center justify-end gap-1">
+            {isAdmin && row.status === "Left" && <>
+              <button type="button" title="Bring this employee back as Active" onClick={() => setLeaver({ row, kind: "rejoin" })} className="flex items-center gap-1 rounded px-1.5 py-1 text-[12px] text-[var(--color-green)] hover:bg-[var(--color-surface-2)]"><UserCheck size={14} /> Rejoin</button>
+              <button type="button" title="Close this employee's access, or delete the record" onClick={() => setLeaver({ row, kind: "remove" })} className="mr-1 flex items-center gap-1 rounded px-1.5 py-1 text-[12px] text-[var(--color-red-hover)] hover:bg-[var(--color-surface-2)]"><UserX size={14} /> Remove</button>
+            </>}
             <button type="button" title={row.user_id ? "Reset password" : "Create login"} onClick={() => setLoginFor(row)} className="rounded p-1.5 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]"><KeyRound size={14} /></button>
             <button type="button" title="Edit employee" onClick={() => { setEditing(row.name); setFormOpen(true); }} className="rounded p-1.5 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]"><Edit3 size={14} /></button>
             <button type="button" title="Delete employee" onClick={() => removeEmployee(row)} className="rounded p-1.5 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-red-hover)]"><Trash2 size={14} /></button>
@@ -234,8 +250,171 @@ export default function Employees({ contractorsOnly = false }) {
 
       {detail && <EmployeeDetail employee={detail} onClose={() => setDetail(null)} onEdit={() => { setEditing(detail.name); setFormOpen(true); setDetail(null); window.scrollTo?.({ top: 0 }); }} onLogin={() => { setLoginFor(detail); setDetail(null); }} />}
       {loginFor && <LoginModal employee={loginFor} onClose={() => setLoginFor(null)} onDone={load} />}
+      {leaver?.kind === "rejoin" && <RejoinModal employee={leaver.row} onClose={() => setLeaver(null)} onDone={(text, ok) => { setLeaver(null); load(); alertDialog({ tone: ok ? "info" : "error", title: ok ? "Employee Rejoined" : "Rejoined, With Problems", message: text }); }} />}
+      {leaver?.kind === "remove" && <RemoveModal employee={leaver.row} onClose={() => setLeaver(null)} onDone={(text) => { setLeaver(null); load(); alertDialog({ tone: "info", title: "Employee Removed", message: text }); }} />}
       {addingContractor && <ContractorModal onClose={() => setAddingContractor(false)} onSaved={() => { setAddingContractor(false); load(); }} />}
     </div>
+  );
+}
+
+// Super admin only. The Administrator changes User directly, so this also works for HR and manager logins, which
+// the HR-side login rule (ethx_employee_login_access) deliberately won't touch.
+const setUserEnabled = (email, enabled) => frappe.updateDoc("User", email, { enabled: enabled ? 1 : 0 });
+const noteOn = (employee, content) => frappe.createDoc("Comment", { comment_type: "Info", reference_doctype: "Employee", reference_name: employee, content }).catch(() => {});
+const sentence = (text) => text.replace(/[.\s]*$/, ".");
+
+// ERPNext allows a login on only one Active employee. These are the other Active records using this one's login
+// (typically a fresh record HR created for someone who came back).
+const sharingLogin = (employee) => (employee.user_id
+  ? frappe.getList("Employee", { filters: [["user_id", "=", employee.user_id], ["status", "=", "Active"], ["name", "!=", employee.name]], fields: ["name", "employee_name", "date_of_joining"], limit: 0 }).catch(() => [])
+  : Promise.resolve([]));
+const recordLabel = (r) => `${r.name}${r.date_of_joining ? ` (joined ${dmy(r.date_of_joining)})` : ""}`;
+
+/** Bring a Left employee back: drop any open exit, set them Active again and clear the leaving details. */
+function RejoinModal({ employee, onClose, onDone }) {
+  const name = employee.employee_name || employee.name;
+  const [date, setDate] = useState(isoDate());
+  const [newJoining, setNewJoining] = useState(false);
+  const [enableLogin, setEnableLogin] = useState(Boolean(employee.user_id));
+  const [loginChoice, setLoginChoice] = useState(""); // when another Active record has the login: "move" | "none"
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const others = useAsync(() => sharingLogin(employee), [employee.name]);
+  const clash = others.data || [];
+  const otherNames = clash.map((r) => r.name).join(", ");
+
+  async function submit(e) {
+    e.preventDefault();
+    setBusy(true);
+    setErr("");
+    const problems = [];
+    // Free the login first, or ERPNext refuses to make this record Active.
+    if (clash.length && loginChoice === "move") {
+      for (const r of clash) {
+        try {
+          const leaving = r.date_of_joining && r.date_of_joining > date ? r.date_of_joining : date;
+          await frappe.updateDoc("Employee", r.name, { user_id: null, status: "Left", relieving_date: leaving });
+          await noteOn(r.name, `Login moved to ${employee.name} when ${name} rejoined; this record was marked as Left`);
+        } catch (x) {
+          setErr(`${sentence(errMsg(x, `Couldn't free the login from ${r.name}.`))} ${r === clash[0] ? "Nothing was changed." : "Earlier records were already updated."}`);
+          setBusy(false);
+          return;
+        }
+      }
+    }
+    const unlink = clash.length > 0 && loginChoice === "none";
+    try {
+      await frappe.updateDoc("Employee", employee.name, { status: "Active", relieving_date: null, resignation_letter_date: null, reason_for_leaving: null, ...(newJoining ? { date_of_joining: date } : {}), ...(unlink ? { user_id: null } : {}) });
+    } catch (x) {
+      setErr(`${sentence(errMsg(x, "Couldn't update the employee."))} ${clash.length && loginChoice === "move" ? `The login was already moved off ${otherNames}.` : "Nothing was changed."}`);
+      setBusy(false);
+      return;
+    }
+    const exits = await frappe.getList("Employee Separation", { filters: [["employee", "=", employee.name], ["docstatus", "<", 2]], fields: ["name", "docstatus"], limit: 0 }).catch(() => []);
+    for (const s of exits) {
+      try {
+        if (Number(s.docstatus) === 1) await frappe.cancelDoc("Employee Separation", s.name);
+        else await frappe.deleteDoc("Employee Separation", s.name);
+      } catch (x) { problems.push(`Exit ${s.name} is still open (${errMsg(x, "refused")}): cancel it from HR › Lifecycle › Exits.`); }
+    }
+    if (enableLogin && employee.user_id && !unlink) {
+      try { await setUserEnabled(employee.user_id, true); } catch (x) { problems.push(`The portal login wasn't re-enabled (${errMsg(x, "refused")}).`); }
+    }
+    await noteOn(employee.name, `Rejoined on ${dmy(date)}`);
+    const moved = clash.length && loginChoice === "move" ? ` Their login now belongs to this record, and ${otherNames} is marked as Left.` : unlink ? " This record has no login; they keep signing in as before." : "";
+    onDone(`${name} is Active again from ${dmy(date)}.${moved}${problems.length ? ` ${problems.join(" ")}` : ""}`, problems.length === 0);
+  }
+
+  const loginOption = (value, title, text) => (
+    <label className={`flex cursor-pointer gap-2 rounded-lg border p-3 ${loginChoice === value ? "border-[var(--color-red-hover)]" : "border-[var(--color-border)]"}`}>
+      <input type="radio" name="rejoin-login" checked={loginChoice === value} onChange={() => setLoginChoice(value)} className="mt-0.5" />
+      <span><span className="block font-medium">{title}</span><span className="text-[12px] text-[var(--color-text-muted)]">{text}</span></span>
+    </label>
+  );
+
+  return (
+    <Modal title={`Rejoin · ${name}`} onClose={onClose}>
+      <form onSubmit={submit} className="space-y-3 text-[13px] text-[var(--color-text)]">
+        <p>{name} is marked as Left{employee.relieving_date ? ` from ${dmy(employee.relieving_date)}` : ""}. Rejoining will:</p>
+        <ul className="list-disc space-y-1 pl-5 text-[var(--color-text-muted)]">
+          <li>Set the status to Active</li>
+          <li>Clear the relieving date, resignation date and reason for leaving</li>
+          <li>Cancel any exit still open for them</li>
+        </ul>
+        <DateField label="Rejoining Date" value={date} onChange={setDate} required />
+        <label className="flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><input type="checkbox" checked={newJoining} onChange={(e) => setNewJoining(e.target.checked)} /> Use this as the new Date of Joining{employee.date_of_joining ? ` (currently ${dmy(employee.date_of_joining)})` : ""}</label>
+        {clash.length > 0 && <div className="space-y-2">
+          <Notice tone="info">Their login ({employee.user_id}) is already used by another active record: {clash.map(recordLabel).join(", ")}. A login can belong to only one active employee, so choose which record keeps it. If {otherNames} is now their record, cancel and use Remove on this one instead.</Notice>
+          {loginOption("move", "Move the Login to This Record", `${otherNames} is marked as Left from ${dmy(date)} and unlinked from the login. Its history stays on it.`)}
+          {loginOption("none", "Rejoin This Record Without a Login", `The login stays on ${otherNames}. This record becomes Active with no login.`)}
+        </div>}
+        {employee.user_id && !(clash.length && loginChoice === "none") && <label className="flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><input type="checkbox" checked={enableLogin} onChange={(e) => setEnableLogin(e.target.checked)} /> Enable their portal login ({employee.user_id})</label>}
+        {err && <Notice>{err}</Notice>}
+        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy || others.loading || (clash.length > 0 && !loginChoice)}>{busy ? "Saving…" : "Rejoin Employee"}</Button></div>
+      </form>
+    </Modal>
+  );
+}
+
+/** Finish off a Left employee: close their access but keep their history, or delete the record outright. */
+function RemoveModal({ employee, onClose, onDone }) {
+  const name = employee.employee_name || employee.name;
+  const [mode, setMode] = useState("disable");
+  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const deleting = mode === "delete";
+  const others = useAsync(() => sharingLogin(employee), [employee.name]);
+  const clash = others.data || [];
+  const otherNames = clash.map((r) => r.name).join(", ");
+  // The login is still in use on an Active record: unlink it from this old one instead of disabling it.
+  const shared = Boolean(employee.user_id) && clash.length > 0;
+  const loginDone = !employee.user_id ? "" : shared ? ` The login stays with ${otherNames}.` : " Their portal login is disabled.";
+
+  async function submit(e) {
+    e.preventDefault();
+    setBusy(true);
+    setErr("");
+    try {
+      if (shared && !deleting) await frappe.updateDoc("Employee", employee.name, { user_id: null });
+      else if (employee.user_id && !shared) await setUserEnabled(employee.user_id, false);
+      if (deleting) {
+        try {
+          await frappe.deleteDoc("Employee", employee.name);
+        } catch (x) {
+          setErr(`${sentence(errMsg(x, "Couldn't delete the record."))} ERPNext keeps employees that have attendance, leave, payroll or other history: choose "Close Access, Keep Records" instead.${employee.user_id && !shared ? " Their portal login has been disabled." : ""}`);
+          setBusy(false);
+          return;
+        }
+        onDone(`${name}'s employee record ${employee.name} has been deleted.${loginDone}`);
+      } else {
+        await noteOn(employee.name, shared ? `Login unlinked; it belongs to ${otherNames}` : "Portal access closed after leaving");
+        onDone(`${employee.name} is kept as Left with its history.${employee.user_id ? (shared ? ` It is no longer linked to the login, which stays with ${otherNames}.` : ` ${name} can no longer sign in.`) : ""}`);
+      }
+    } catch (x) {
+      setErr(`${sentence(errMsg(x, "Couldn't close access."))} Nothing was changed.`);
+      setBusy(false);
+    }
+  }
+
+  const choice = (value, title, text) => (
+    <label className={`flex cursor-pointer gap-2 rounded-lg border p-3 ${mode === value ? "border-[var(--color-red-hover)]" : "border-[var(--color-border)]"}`}>
+      <input type="radio" name="remove-mode" checked={mode === value} onChange={() => setMode(value)} className="mt-0.5" />
+      <span><span className="block font-medium">{title}</span><span className="text-[12px] text-[var(--color-text-muted)]">{text}</span></span>
+    </label>
+  );
+
+  return (
+    <Modal title={`Remove · ${name}`} onClose={onClose}>
+      <form onSubmit={submit} className="space-y-3 text-[13px] text-[var(--color-text)]">
+        {shared && <Notice tone="info">Their login ({employee.user_id}) is also used by the active record {clash.map(recordLabel).join(", ")}, so it won't be disabled.</Notice>}
+        {choice("disable", "Close Access, Keep Records (Recommended)", `${!employee.user_id ? "" : shared ? `Unlinks the login from this old record. ` : `Disables the portal login (${employee.user_id}). `}The record stays as Left, with attendance, leave and payroll history intact.`)}
+        {choice("delete", "Delete Employee Permanently", "Removes the employee record. ERPNext refuses this if they have any history. This cannot be undone.")}
+        {deleting && <Field label={`Type ${employee.name} to Confirm`}><input className={inputCls} value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={employee.name} /></Field>}
+        {err && <Notice>{err}</Notice>}
+        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy || others.loading || (deleting && typed.trim() !== employee.name)}>{busy ? "Working…" : deleting ? "Delete Employee" : "Close Access"}</Button></div>
+      </form>
+    </Modal>
   );
 }
 
