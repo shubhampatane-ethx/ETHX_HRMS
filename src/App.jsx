@@ -60,6 +60,9 @@ const Employees = lazy(() => import("./pages/hr/Employees"));
 const Attendance = lazy(() => import("./pages/hr/Attendance"));
 const Leave = lazy(() => import("./pages/hr/Leave"));
 const ExpenseClaims = lazy(() => import("./pages/hr/ExpenseClaims"));
+const AttendanceRequests = lazy(() => import("./pages/hr/AttendanceRequests"));
+const EmployeeAdvances = lazy(() => import("./pages/hr/AdvanceTravel").then((m) => ({ default: m.EmployeeAdvances })));
+const TravelRequests = lazy(() => import("./pages/hr/AdvanceTravel").then((m) => ({ default: m.TravelRequests })));
 const Payroll = lazy(() => import("./pages/hr/Payroll"));
 const Timesheets = lazy(() => import("./pages/hr/Timesheets"));
 const RecruitmentOverview = lazy(() => import("./pages/hr/recruitment/Overview"));
@@ -67,6 +70,7 @@ const Requisitions = lazy(() => import("./pages/hr/recruitment/Requisitions"));
 const Openings = lazy(() => import("./pages/hr/recruitment/Openings"));
 const Board = lazy(() => import("./pages/hr/recruitment/Board"));
 const Candidates = lazy(() => import("./pages/hr/recruitment/Candidates"));
+const TalentSearch = lazy(() => import("./pages/hr/recruitment/TalentSearch"));
 const CandidateProfile = lazy(() => import("./pages/hr/recruitment/CandidateProfile"));
 const Interviews = lazy(() => import("./pages/hr/recruitment/Interviews"));
 const Offers = lazy(() => import("./pages/hr/recruitment/Offers"));
@@ -178,12 +182,16 @@ export default function App() {
               <Route path="employee-groups" element={<EmployeeGroups />} />
               <Route path="leave-types" element={<LeaveTypes />} />
               <Route path="setup/expense-claim" element={<ExpenseClaims />} />
+              <Route path="setup/attendance-request" element={<AttendanceRequests />} />
+              <Route path="setup/employee-advance" element={<EmployeeAdvances />} />
+              <Route path="setup/travel-request" element={<TravelRequests />} />
               <Route path="payroll" element={<Payroll />} />
               <Route path="recruitment" element={<RecruitmentOverview />} />
               <Route path="recruitment/requisitions" element={<Requisitions />} />
               <Route path="recruitment/openings" element={<Openings />} />
               <Route path="recruitment/openings/:opening" element={<Board />} />
               <Route path="recruitment/candidates" element={<Candidates />} />
+              <Route path="recruitment/search" element={<TalentSearch />} />
               <Route path="recruitment/candidates/:id" element={<CandidateProfile />} />
               <Route path="recruitment/interviews" element={<Interviews />} />
               <Route path="recruitment/my-interviews" element={<MyInterviews />} />

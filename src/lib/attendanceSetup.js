@@ -79,7 +79,8 @@ for e in frappe.get_all("Employee", filters=filters, fields=["name", "user_id", 
 `;
 
 // Attendance correction requests go to an approver (the employee's leave approver, else their manager), who approves
-// them (the request is submitted and HRMS marks the days) or rejects them with a reason.
+// them (the request is submitted and HRMS marks the days) or rejects them with a reason. HR can decide any request
+// from HR › Attendance Requests (never their own).
 const ATTENDANCE_REQUEST_ASSIGN = `
 owner = frappe.db.get_value("Employee", doc.employee, ["user_id", "leave_approver", "reports_to"], as_dict=True)
 if owner:
@@ -116,11 +117,15 @@ if doc.docstatus != 0 or doc.get("custom_decision") == "Rejected":
 owner = frappe.db.get_value("Employee", doc.employee, "user_id")
 if owner == user:
     frappe.throw("You can't decide on your own request.")
-if doc.get("custom_approver") != user:
-    frappe.throw("Only the assigned approver can approve or reject this request.")
+roles = frappe.get_all("Has Role", filters={"parent": user, "parenttype": "User"}, pluck="role")
+is_hr = user == "Administrator" or "HR Manager" in roles or "HR User" in roles or "System Manager" in roles
+if doc.get("custom_approver") != user and not is_hr:
+    frappe.throw("Only the assigned approver or HR can approve or reject this request.")
 if status == "Approved":
     doc.flags.ignore_permissions = True
     doc.submit()
+    if note:
+        frappe.db.set_value("Attendance Request", name, "custom_decision_note", note)
 else:
     frappe.db.set_value("Attendance Request", name, {"custom_decision": "Rejected", "custom_decision_note": note})
 frappe.get_doc({"doctype": "Comment", "comment_type": "Info", "reference_doctype": "Attendance Request", "reference_name": name, "content": "Attendance request " + status.lower() + " by " + user + (": " + note if note else "")}).insert(ignore_permissions=True)
@@ -146,7 +151,7 @@ export const ATTENDANCE_SCRIPTS = [
   { name: "ETHX - Attendance can't be deleted", script_type: "DocType Event", reference_doctype: "Attendance", doctype_event: "Before Delete", script: ATTENDANCE_NO_DELETE, what: "Saved attendance can't be deleted (only corrected with Edit, which keeps the history)" },
   { name: "ETHX - Attendance request approver", script_type: "DocType Event", reference_doctype: "Attendance Request", doctype_event: "Before Insert", script: ATTENDANCE_REQUEST_ASSIGN, what: "Attendance requests go to the employee's leave approver (else their manager)" },
   { name: "ETHX - Attendance requests for me", script_type: "API", api_method: "ethx_attendance_requests", script: ATTENDANCE_REQUESTS_API, what: "Approvers see the attendance requests waiting for them" },
-  { name: "ETHX - Attendance request decision", script_type: "API", api_method: "ethx_attendance_decision", script: ATTENDANCE_DECISION_API, what: "Only the assigned approver approves or rejects an attendance request" },
+  { name: "ETHX - Attendance request decision", script_type: "API", api_method: "ethx_attendance_decision", script: ATTENDANCE_DECISION_API, what: "Only the assigned approver or HR approves or rejects an attendance request" },
   { name: "ETHX - Punch reminders", script_type: "Scheduler Event", event_frequency: "Hourly", script: PUNCH_REMINDERS, what: "Employees are notified when they haven't punched in or out on time" },
   { name: "ETHX - Attendance from punches", script_type: "Scheduler Event", event_frequency: "Daily", script: MARK_FROM_PUNCHES, what: `Every night, days with punches but no attendance are marked Present (Half Day under ${HALF_DAY_HOURS} h)` },
 ];

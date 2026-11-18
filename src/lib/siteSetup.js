@@ -10,6 +10,7 @@ import { APPROVAL_FIELDS, APPROVAL_SCRIPTS, APPROVAL_TRACK } from "./approvalSet
 import { ASSET_FIELDS, ASSET_SCRIPTS, ASSET_TRACK } from "./assetSetup";
 import { OFFICE_FIELDS, OFFICE_SCRIPTS, OFFICE_TRACK } from "./officeSetup";
 import { ATTENDANCE_FIELDS, ATTENDANCE_SCRIPTS } from "./attendanceSetup";
+import { ADVANCE_TRAVEL_FIELDS, ADVANCE_TRAVEL_SCRIPTS } from "./advanceTravelSetup";
 import { EMPLOYEE_RECORD_FIELDS, EMPLOYEE_RECORD_SCRIPTS, SIGNIN_FIELDS, SIGNIN_SCRIPTS } from "./peopleSetup";
 import { CONTRACTOR_FIELDS, CONTRACTOR_PERMISSIONS, CONTRACTOR_RECORDS, CONTRACTOR_RETIRED_SCRIPTS, CONTRACTOR_SCRIPTS } from "./contractorSetup";
 import { PAGE_ACCESS_FIELDS, PAGE_ACCESS_SCRIPTS } from "./pageAccessSetup";
@@ -21,7 +22,7 @@ import { PROJECT_ROLE_DOCTYPES, PROJECT_ROLE_FIELDS, PROJECT_ROLE_SCRIPTS, PROJE
 export const MODULES = [
   // First, so later modules can add fields to doctypes created here.
   { id: "doctypes", label: "Doctypes", doctypes: FALLBACK_DOCTYPES, fields: [], scripts: [], track: [] },
-  { id: "recruitment", label: "Recruitment", fields: RECRUITMENT_FIELDS, scripts: RECRUITMENT_SCRIPTS, track: RECRUITMENT_TRACK, properties: RECRUITMENT_PROPERTIES },
+  { id: "recruitment", label: "Recruitment", records: [{ doctype: "Role", name: "Interviewer", what: "Interviewer role (for interview panels)", doc: { role_name: "Interviewer", desk_access: 1 } }], fields: RECRUITMENT_FIELDS, scripts: RECRUITMENT_SCRIPTS, track: RECRUITMENT_TRACK, properties: RECRUITMENT_PROPERTIES },
   { id: "timesheets", label: "Timesheet review", fields: TIMESHEET_FIELDS, scripts: TIMESHEET_SCRIPTS, track: TIMESHEET_TRACK, migrate: "ethx_migrate_timesheet_reviews" },
   { id: "security", label: "Security & audit", fields: SECURITY_FIELDS, scripts: SECURITY_SCRIPTS, track: SECURITY_TRACK, properties: SECURITY_PROPERTIES },
   { id: "team", label: "Employee & manager self-service", fields: [], scripts: TEAM_SCRIPTS, track: [], properties: TEAM_PROPERTIES },
@@ -29,6 +30,7 @@ export const MODULES = [
   { id: "assets", label: "Asset register", fields: ASSET_FIELDS, scripts: ASSET_SCRIPTS, track: ASSET_TRACK },
   { id: "offices", label: "Office locations & holidays", fields: OFFICE_FIELDS, scripts: OFFICE_SCRIPTS, track: OFFICE_TRACK },
   { id: "attendance", label: "Attendance", fields: ATTENDANCE_FIELDS, scripts: ATTENDANCE_SCRIPTS, track: [] },
+  { id: "advanceTravel", label: "Advances & travel", fields: ADVANCE_TRAVEL_FIELDS, scripts: ADVANCE_TRAVEL_SCRIPTS, track: [] },
   { id: "employeeRecords", label: "Employee records", fields: EMPLOYEE_RECORD_FIELDS, scripts: EMPLOYEE_RECORD_SCRIPTS, track: [] },
   { id: "training", label: "Training changes", fields: [], scripts: [], track: TRAINING_TRACK, properties: TRAINING_PROPERTIES },
   { id: "leaveTypes", label: "Leave types", records: LEAVE_TYPE_RECORDS, fields: [], scripts: [], track: [] },

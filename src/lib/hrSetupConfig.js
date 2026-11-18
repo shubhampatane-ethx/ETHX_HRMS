@@ -132,7 +132,7 @@ export const HR_SETUP_SECTIONS = [
     icon: CalendarCheck,
     items: [
       {
-        label: "Attendance Request",
+        label: "Attendance Requests",
         doctype: "Attendance Request",
         kind: "list",
         formFields: [
@@ -174,7 +174,7 @@ export const HR_SETUP_SECTIONS = [
         ],
       },
       {
-        label: "Employee Advance",
+        label: "Employee Advances",
         doctype: "Employee Advance",
         kind: "list",
         formFields: [
@@ -184,7 +184,7 @@ export const HR_SETUP_SECTIONS = [
         ],
       },
       {
-        label: "Travel Request",
+        label: "Travel Requests",
         doctype: "Travel Request",
         kind: "list",
         formFields: [

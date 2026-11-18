@@ -1,7 +1,8 @@
-// All candidates across openings, with search and filters, plus CSV export.
+// All candidates across openings, with search and filters, CSV export and bulk import.
 import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Download, Pencil, Plus, Users } from "lucide-react";
+import { Download, FileSearch, Pencil, Plus, Upload, Users } from "lucide-react";
+import { ImportCandidatesModal } from "./ImportCandidates";
 import { Button } from "../../../components/ui/primitives";
 import { Async, chipCls, Grid, inputCls, Modal, Notice, PageHeader, Panel } from "../../../components/employee/EmployeeShell";
 import { dmy, errMsg, useAsync } from "../../../lib/employeePortal";
@@ -20,6 +21,8 @@ export default function Candidates() {
   const [adding, setAdding] = useState(params.get("add") === "1");
   const [editing, setEditing] = useState(null);
   const [moving, setMoving] = useState(null); // { applicant, to }
+  const [importing, setImporting] = useState(false);
+  const [imported, setImported] = useState("");
   const titles = useMemo(() => Object.fromEntries((openings.data || []).map((o) => [o.name, o.job_title])), [openings.data]);
   const sources = useMemo(() => [...new Set((apps.data || []).map((a) => a.source).filter(Boolean))].sort(), [apps.data]);
 
@@ -44,9 +47,12 @@ export default function Candidates() {
     <div className="space-y-5">
       <PageHeader icon={Users} title="Candidates" subtitle="Everyone who applied or was sourced, across all openings" actions={<>
         <Button variant="secondary" onClick={exportCsv} disabled={!rows.length}><Download size={14} /> CSV</Button>
+        <Link to="/hr/recruitment/search"><Button variant="secondary"><FileSearch size={14} /> Talent Search</Button></Link>
+        <Button variant="secondary" onClick={() => setImporting(true)}><Upload size={14} /> Import Candidates</Button>
         <Button onClick={() => setAdding(true)}><Plus size={14} /> Add Candidate</Button>
       </>} />
       <SetupHint />
+      {imported && <Notice tone="info">{imported}</Notice>}
       <Panel>
         <div className="mb-4 flex flex-wrap items-center gap-2">
           {[["active", "In Process"], ["all", "All"], ...ALL_STAGES.map((s) => [s.id, stageLabel(s.id)])].map(([v, l]) => <button key={v} type="button" onClick={() => setStage(v)} className={chipCls(stage === v)}>{l}</button>)}
@@ -90,6 +96,7 @@ export default function Candidates() {
         </WithApplicant>
       )}
       {moving && !["Interview", "Offer"].includes(moving.to) && <MoveStageModal applicant={moving.applicant} to={moving.to} opening={(openings.data || []).find((o) => o.name === moving.applicant.job_title)} onClose={() => setMoving(null)} onSaved={() => { setMoving(null); apps.reload(); }} />}
+      {importing && <ImportCandidatesModal openings={openings.data || []} onClose={() => { setImporting(false); apps.reload(); }} onDone={(text) => { setImporting(false); setImported(text); apps.reload(); }} />}
       {adding && <CandidateModal openings={openings.data || []} defaultOpening={opening && opening !== "-" ? opening : ""} onClose={() => { setAdding(false); if (params.get("add")) setParams({}); }} onSaved={() => { setAdding(false); apps.reload(); }} />}
     </div>
   );
