@@ -233,6 +233,21 @@ function NewAdvance({ onClose, onSaved }) {
   );
 }
 
+// ERPNext's purpose is a link to the Purpose of Travel list, but people describe the purpose in their own words:
+// add what they typed to that list when it isn't there yet, and use it.
+async function ensureTravelPurpose(text) {
+  const purpose = text.replace(/\s+/g, " ").trim();
+  const known = await frappe.getList("Purpose of Travel", { filters: [["name", "=", purpose]], fields: ["name"], limit: 1 });
+  if (known.length) return known[0].name;
+  try {
+    return (await frappe.createDoc("Purpose of Travel", { purpose_of_travel: purpose })).name || purpose;
+  } catch (x) {
+    // Someone added the same purpose a moment ago.
+    if (/Duplicate/i.test(`${x?.response?.data?.exc_type || ""}${x?.response?.data?.exception || ""}`)) return purpose;
+    throw x;
+  }
+}
+
 function NewTravel({ onClose, onSaved }) {
   const [f, setF] = useState({ employee: "", purpose_of_travel: "", travel_type: "Domestic" });
   const [busy, setBusy] = useState(false);
@@ -245,7 +260,8 @@ function NewTravel({ onClose, onSaved }) {
     setBusy(true);
     try {
       const emp = await employeeCompany(f.employee);
-      await frappe.createDoc("Travel Request", { employee: f.employee, company: emp.company, purpose_of_travel: f.purpose_of_travel, travel_type: f.travel_type });
+      const purpose = await ensureTravelPurpose(f.purpose_of_travel);
+      await frappe.createDoc("Travel Request", { employee: f.employee, company: emp.company, purpose_of_travel: purpose, travel_type: f.travel_type });
       onSaved();
     } catch (x) {
       setErr(x?.response ? errMsg(x, "Couldn't create the travel request.") : x.message);
@@ -257,11 +273,11 @@ function NewTravel({ onClose, onSaved }) {
     <Modal title="New Travel Request" onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
         <LinkField label="Employee" linkDoctype="Employee" value={f.employee} onChange={set("employee")} frappe={frappe} required />
-        <LinkField label="Purpose of Travel" linkDoctype="Purpose of Travel" value={f.purpose_of_travel} onChange={set("purpose_of_travel")} frappe={frappe} required />
+        <Field label="Purpose of Travel"><input required maxLength={140} className={inputCls} value={f.purpose_of_travel} onChange={(e) => set("purpose_of_travel")(e.target.value)} placeholder="In the employee's words, e.g. Client meeting in Mumbai" /></Field>
         <Field label="Travel Type"><select className={inputCls} value={f.travel_type} onChange={(e) => set("travel_type")(e.target.value)}><option>Domestic</option><option>International</option></select></Field>
         <p className="text-[11px] text-[var(--color-text-faint)]">It starts as Pending; approve it from the list.</p>
         {err && <Notice>{err}</Notice>}
-        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy || !f.employee || !f.purpose_of_travel}>{busy ? "Saving…" : "Create Request"}</Button></div>
+        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy || !f.employee || !f.purpose_of_travel.trim()}>{busy ? "Saving…" : "Create Request"}</Button></div>
       </form>
     </Modal>
   );
