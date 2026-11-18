@@ -1,9 +1,10 @@
-// Add many candidates at once: from a CSV / Excel file or rows pasted from Excel. Every row is checked first (name and
+// Add many candidates at once: CVs (PDF / Word, see CvImport.jsx), or a CSV / Excel file or rows pasted from Excel. Every row is checked first (name and
 // email present, not repeated in the file, not already a candidate), then the good rows are added as Applied.
 import { useMemo, useRef, useState } from "react";
 import { CheckCircle2, Download, Upload, XCircle } from "lucide-react";
 import { Button } from "../../../components/ui/primitives";
-import { Field, Grid, inputCls, Modal, Notice } from "../../../components/employee/EmployeeShell";
+import { chipCls, Field, Grid, inputCls, Modal, Notice } from "../../../components/employee/EmployeeShell";
+import { CvImport } from "./CvImport";
 import { errMsg, nowStamp } from "../../../lib/employeePortal";
 import { frappe } from "../../../lib/api/frappeClient";
 import { listApplicants } from "../../../lib/recruitment";
@@ -73,6 +74,7 @@ export function ImportCandidatesModal({ openings, onClose, onDone }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [log, setLog] = useState(null);
+  const [tab, setTab] = useState("cv");
 
   async function load(list) {
     setErr("");
@@ -145,6 +147,11 @@ export function ImportCandidatesModal({ openings, onClose, onDone }) {
 
   return (
     <Modal title="Import Candidates" onClose={onClose} wide="xl">
+      <div className="mb-4 flex gap-2">
+        <button type="button" onClick={() => setTab("cv")} className={chipCls(tab === "cv")}>CVs (PDF / Word)</button>
+        <button type="button" onClick={() => setTab("sheet")} className={chipCls(tab === "sheet")}>Spreadsheet (CSV / Excel)</button>
+      </div>
+      {tab === "cv" ? <CvImport openings={openings} onDone={onDone} /> : (
       <div className="space-y-4 text-[13px]">
         <div className="flex flex-wrap items-center gap-2">
           <Button type="button" variant="secondary" onClick={() => downloadSheet("candidates-template.csv", TEMPLATE)}><Download size={14} /> Template</Button>
@@ -195,6 +202,7 @@ export function ImportCandidatesModal({ openings, onClose, onDone }) {
           <Button type="button" disabled={busy || !good.length || Boolean(log?.length === good.length && !err)} onClick={importRows}>{busy ? `Adding ${log?.length || 0} of ${good.length}…` : `Add ${good.length} Candidate(s)`}</Button>
         </div>
       </div>
+      )}
     </Modal>
   );
 }

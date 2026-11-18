@@ -34,11 +34,27 @@ export const RECRUITMENT_FIELDS = [
   { dt: "Job Applicant", fieldname: "custom_consent_on", label: "Consent Recorded On", fieldtype: "Datetime", insert_after: "custom_consent" },
   { dt: "Job Applicant", fieldname: "custom_retain_until", label: "Retain Data Until", fieldtype: "Date", insert_after: "custom_consent_on" },
   { dt: "Job Applicant", fieldname: "custom_anonymised", label: "Anonymised", fieldtype: "Check", read_only: 1, insert_after: "custom_retain_until" },
+  // Candidate repository (REP-01 to REP-05): CV text for search and matching, a fingerprint of the CV file so the
+  // same file isn't imported twice, and the profile fields search filters on.
+  { dt: "Job Applicant", fieldname: "custom_profile_section", label: "Profile (from CV)", fieldtype: "Section Break", insert_after: "custom_anonymised" },
+  { dt: "Job Applicant", fieldname: "custom_current_title", label: "Current Title", fieldtype: "Data", insert_after: "custom_profile_section" },
+  { dt: "Job Applicant", fieldname: "custom_target_title", label: "Target Title", fieldtype: "Data", insert_after: "custom_current_title" },
+  { dt: "Job Applicant", fieldname: "custom_relevant_experience", label: "Relevant Experience (years)", fieldtype: "Float", insert_after: "custom_target_title" },
+  { dt: "Job Applicant", fieldname: "custom_preferred_locations", label: "Preferred Locations", fieldtype: "Data", insert_after: "custom_relevant_experience" },
+  { dt: "Job Applicant", fieldname: "custom_work_mode", label: "Work Mode", fieldtype: "Select", options: sel("", "Onsite", "Hybrid", "Remote", "Any"), insert_after: "custom_preferred_locations" },
+  { dt: "Job Applicant", fieldname: "custom_profile_col", fieldtype: "Column Break", insert_after: "custom_work_mode" },
+  { dt: "Job Applicant", fieldname: "custom_cv_updated_on", label: "CV Updated On", fieldtype: "Datetime", read_only: 1, insert_after: "custom_profile_col" },
+  { dt: "Job Applicant", fieldname: "custom_cv_hash", label: "CV Fingerprint", fieldtype: "Data", read_only: 1, hidden: 1, insert_after: "custom_cv_updated_on" },
+  { dt: "Job Applicant", fieldname: "custom_needs_review", label: "Needs Review", fieldtype: "Check", insert_after: "custom_cv_hash", description: "The CV couldn't be read fully - check the profile against the CV" },
+  { dt: "Job Applicant", fieldname: "custom_cv_text", label: "CV Text", fieldtype: "Long Text", read_only: 1, insert_after: "custom_needs_review", description: "Extracted from the CV for search and JD matching" },
 
   // Job Opening - skills, experience and the ordered interview rounds
   { dt: "Job Opening", fieldname: "custom_skills", label: "Key Skills", fieldtype: "Small Text", insert_after: "description" },
   { dt: "Job Opening", fieldname: "custom_experience", label: "Experience Required", fieldtype: "Data", insert_after: "custom_skills" },
   { dt: "Job Opening", fieldname: "custom_interview_rounds", label: "Interview Rounds (in order)", fieldtype: "Small Text", insert_after: "custom_experience", description: "Managed from the ETHX HRMS app" },
+  // JD matching (MATCH-01): the JD's text and the recruiter-confirmed criteria (JSON, with a version number).
+  { dt: "Job Opening", fieldname: "custom_jd_text", label: "Job Description Text", fieldtype: "Long Text", insert_after: "custom_interview_rounds", description: "Managed from the ETHX HRMS app" },
+  { dt: "Job Opening", fieldname: "custom_jd_criteria", label: "JD Matching Criteria", fieldtype: "Long Text", insert_after: "custom_jd_text", description: "Managed from the ETHX HRMS app" },
 
   // Job Requisition - project and decision trail
   { dt: "Job Requisition", fieldname: "custom_project", label: "Project", fieldtype: "Link", options: "Project", insert_after: "department" },

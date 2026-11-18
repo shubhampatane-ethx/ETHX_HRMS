@@ -1,7 +1,7 @@
 // All candidates across openings, with search and filters, CSV export and bulk import.
 import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Download, Pencil, Plus, Upload, Users } from "lucide-react";
+import { Download, FileSearch, Pencil, Plus, Upload, Users } from "lucide-react";
 import { ImportCandidatesModal } from "./ImportCandidates";
 import { Button } from "../../../components/ui/primitives";
 import { Async, chipCls, Grid, inputCls, Modal, Notice, PageHeader, Panel } from "../../../components/employee/EmployeeShell";
@@ -47,6 +47,7 @@ export default function Candidates() {
     <div className="space-y-5">
       <PageHeader icon={Users} title="Candidates" subtitle="Everyone who applied or was sourced, across all openings" actions={<>
         <Button variant="secondary" onClick={exportCsv} disabled={!rows.length}><Download size={14} /> CSV</Button>
+        <Link to="/hr/recruitment/search"><Button variant="secondary"><FileSearch size={14} /> Talent Search</Button></Link>
         <Button variant="secondary" onClick={() => setImporting(true)}><Upload size={14} /> Import Candidates</Button>
         <Button onClick={() => setAdding(true)}><Plus size={14} /> Add Candidate</Button>
       </>} />

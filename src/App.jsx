@@ -70,6 +70,7 @@ const Requisitions = lazy(() => import("./pages/hr/recruitment/Requisitions"));
 const Openings = lazy(() => import("./pages/hr/recruitment/Openings"));
 const Board = lazy(() => import("./pages/hr/recruitment/Board"));
 const Candidates = lazy(() => import("./pages/hr/recruitment/Candidates"));
+const TalentSearch = lazy(() => import("./pages/hr/recruitment/TalentSearch"));
 const CandidateProfile = lazy(() => import("./pages/hr/recruitment/CandidateProfile"));
 const Interviews = lazy(() => import("./pages/hr/recruitment/Interviews"));
 const Offers = lazy(() => import("./pages/hr/recruitment/Offers"));
@@ -186,6 +187,7 @@ export default function App() {
               <Route path="recruitment/openings" element={<Openings />} />
               <Route path="recruitment/openings/:opening" element={<Board />} />
               <Route path="recruitment/candidates" element={<Candidates />} />
+              <Route path="recruitment/search" element={<TalentSearch />} />
               <Route path="recruitment/candidates/:id" element={<CandidateProfile />} />
               <Route path="recruitment/interviews" element={<Interviews />} />
               <Route path="recruitment/my-interviews" element={<MyInterviews />} />

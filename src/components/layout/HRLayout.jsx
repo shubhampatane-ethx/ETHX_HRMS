@@ -46,6 +46,7 @@ export const TOP_NAV = [
       { to: "/hr/recruitment/requisitions", label: "Requisitions" },
       { to: "/hr/recruitment/openings", label: "Openings & Pipeline" },
       { to: "/hr/recruitment/candidates", label: "Candidates" },
+      { to: "/hr/recruitment/search", label: "Talent Search" },
       { to: "/hr/recruitment/interviews", label: "Interviews" },
       { to: "/hr/recruitment/my-interviews", label: "My Interviews" },
       { to: "/hr/recruitment/offers", label: "Offers" },
