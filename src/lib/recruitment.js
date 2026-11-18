@@ -394,18 +394,35 @@ export async function myInterviews(user) {
   return list.map((i) => ({ ...i, myFeedback: fb[i.name] || null }));
 }
 
-export function submitFeedback({ interview, interviewer, skills, result, feedback }) {
-  return frappe.callMethod("hrms.hr.doctype.interview.interview.create_interview_feedback", {
-    data: JSON.stringify({ skill_set: skills.map((s) => ({ skill: s.skill, rating: fromStars(s.stars) })), result, feedback }),
-    interview_name: interview.name,
-    interviewer,
-    job_applicant: interview.job_applicant,
-  });
+// HRMS's own interview methods aren't there when the interview doctypes were created by System Setup instead.
+const hrmsMethodMissing = (e) => e?.response?.status === 404 || /not found|not whitelisted|has no attribute|Failed to get method|No module named/i.test(String(e?.response?.data?.exception || ""));
+
+export async function submitFeedback({ interview, interviewer, skills, result, feedback }) {
+  const ratings = skills.map((s) => ({ skill: s.skill, rating: fromStars(s.stars) }));
+  try {
+    return await frappe.callMethod("hrms.hr.doctype.interview.interview.create_interview_feedback", {
+      data: JSON.stringify({ skill_set: ratings, result, feedback }),
+      interview_name: interview.name,
+      interviewer,
+      job_applicant: interview.job_applicant,
+    });
+  } catch (e) {
+    if (!hrmsMethodMissing(e)) throw e;
+  }
+  const average = ratings.length ? ratings.reduce((n, r) => n + Number(r.rating || 0), 0) / ratings.length : 0;
+  const doc = await frappe.createDoc("Interview Feedback", { interview: interview.name, interview_round: interview.interview_round, job_applicant: interview.job_applicant, interviewer, result, feedback, average_rating: average, skill_assessment: ratings });
+  return frappe.submitDoc(doc);
 }
 
 export async function expectedSkills(round) {
-  const rows = await frappe.callMethod("hrms.hr.doctype.interview.interview.get_expected_skill_set", { interview_round: round });
-  return (rows || []).map((r) => r.skill);
+  try {
+    const rows = await frappe.callMethod("hrms.hr.doctype.interview.interview.get_expected_skill_set", { interview_round: round });
+    return (rows || []).map((r) => r.skill);
+  } catch (e) {
+    if (!hrmsMethodMissing(e)) throw e;
+  }
+  const rows = await frappe.getList("Expected Skill Set", { filters: [["parent", "=", round]], fields: ["skill", "idx"], limit: 0, parent: "Interview Round", orderBy: "idx asc" });
+  return rows.map((r) => r.skill);
 }
 
 /* --------------------------------- offers --------------------------------- */

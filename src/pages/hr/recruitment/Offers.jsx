@@ -1,14 +1,14 @@
 // Offers: draft → HR Manager approval (maker-checker) → send → candidate response → joining / hire.
 import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Check, FileDown, Handshake, Mail, Pencil, RotateCcw, Send, Trash2, UserPlus, X } from "lucide-react";
+import { Check, FileDown, Handshake, Mail, Pencil, Plus, RotateCcw, Send, Trash2, UserPlus, X } from "lucide-react";
 import { frappe } from "../../../lib/api/frappeClient";
 import { Button } from "../../../components/ui/primitives";
 import { Async, chipCls, Field, Grid, inputCls, Modal, Notice, PageHeader, Panel, StatusPill } from "../../../components/employee/EmployeeShell";
 import { dmy, errMsg, money, useAsync } from "../../../lib/employeePortal";
-import { acceptedForOpening, canApprove, emailDocument, listOffers, offerStage, reviseOffer, sendOffer, setOfferApproval, vacanciesOf } from "../../../lib/recruitment";
+import { acceptedForOpening, canApprove, emailDocument, listApplicants, listOffers, offerStage, stageOf, reviseOffer, sendOffer, setOfferApproval, vacanciesOf } from "../../../lib/recruitment";
 import { useAuth } from "../../../context/AuthContext";
-import { candidateUrl, HireModal, NoShowModal, OfferModal, ResponseModal, SetupHint } from "./shared";
+import { candidateUrl, HireModal, NoShowModal, OfferModal, ResponseModal, SetupHint, StageBadge, WithApplicant } from "./shared";
 import { alertDialog, confirmDialog } from "../../../components/ui/dialogs";
 
 const FILTERS = [["open", "In Progress"], ["approval", "Needs Approval"], ["Sent", "Sent"], ["Accepted", "Accepted"], ["done", "Joined / Closed"], ["all", "All"]];
@@ -57,14 +57,14 @@ export default function Offers() {
 
   return (
     <div className="space-y-5">
-      <PageHeader icon={Handshake} title="Offers" subtitle="Draft → HR Manager approval → send → candidate response → joining" />
+      <PageHeader icon={Handshake} title="Offers" subtitle="Draft → HR Manager approval → send → candidate response → joining" actions={<Button onClick={() => setModal({ kind: "pick" })}><Plus size={14} /> New Offer</Button>} />
       <SetupHint />
       {!approver && <Notice tone="info">You can draft offers and send them for approval. An HR Manager approves them.</Notice>}
       {msg && <Notice tone={msg.ok ? "info" : "error"}>{msg.text}</Notice>}
       <Panel>
         <div className="mb-4 flex flex-wrap gap-2">{FILTERS.map(([v, l]) => <button key={v} type="button" onClick={() => setFilter(v)} className={chipCls(filter === v)}>{l}{v === "approval" && (offers.data || []).filter((o) => offerStage(o) === "Pending Approval").length ? ` (${(offers.data || []).filter((o) => offerStage(o) === "Pending Approval").length})` : ""}</button>)}</div>
         <Async state={offers}>
-          {() => <Grid rows={rows} empty="No offers here." columns={[
+          {() => <Grid rows={rows} empty={filter === "all" || filter === "open" ? "No offers yet. Use New Offer to make one for a selected candidate." : "No offers here."} columns={[
             { key: "applicant_name", label: "Candidate", render: (o) => <Link to={candidateUrl(o.job_applicant)} className="hover:underline"><b className="font-medium">{o.applicant_name}</b><span className="block text-[11px] text-[var(--color-text-faint)]">{o.name}{o.amended_from ? ` · revises ${o.amended_from}` : ""}</span></Link> },
             { key: "designation", label: "Role", render: (o) => <span>{o.designation}<span className="block text-[11px] text-[var(--color-text-faint)]">{o.company}</span></span> },
             { key: "custom_ctc", label: "CTC", render: (o) => (o.custom_ctc ? money(o.custom_ctc) : "—") },
@@ -74,6 +74,8 @@ export default function Offers() {
           ]} />}
         </Async>
       </Panel>
+      {modal?.kind === "pick" && <PickCandidate offers={offers.data || []} onClose={() => setModal(null)} onPick={(name) => setModal({ kind: "new", applicant: name })} />}
+      {modal?.kind === "new" && <WithApplicant name={modal.applicant} onClose={() => setModal(null)}>{({ applicant, opening }) => <OfferModal applicant={applicant} opening={opening} onClose={() => setModal(null)} onSaved={() => { setModal(null); setFilter("open"); setMsg({ ok: true, text: `Offer drafted for ${applicant.applicant_name}. Send it for approval from the list.` }); offers.reload(); }} />}</WithApplicant>}
       {modal?.kind === "edit" && <EditOffer offer={modal.offer} onClose={() => setModal(null)} onSaved={() => { setModal(null); offers.reload(); }} />}
       {modal?.kind === "decide" && <ApproveModal offer={modal.offer} approve={modal.approve} onClose={() => setModal(null)} onSaved={async () => {
         const o = modal.offer;
@@ -93,6 +95,40 @@ export default function Offers() {
       {modal?.kind === "hire" && <HireModal offer={modal.offer} onClose={() => setModal(null)} onSaved={(r) => { setModal(null); setMsg({ ok: true, text: r.employee ? `Employee ${r.employee.name} created. Give them a portal login from HR › Employees.` : `Onboarding ${r.onboarding.name} started.` }); offers.reload(); }} />}
       {modal?.kind === "noshow" && <NoShowWrapper offer={modal.offer} onClose={() => setModal(null)} onSaved={() => { setModal(null); offers.reload(); }} />}
     </div>
+  );
+}
+
+// Candidates who can get an offer: still in the process (not hired, rejected or withdrawn) and without an open offer.
+// Selected candidates come first.
+const OFFER_READY = ["Selected", "Interview", "Shortlisted", "Screening", "Applied", "Hold"];
+function PickCandidate({ offers, onClose, onPick }) {
+  const apps = useAsync(() => listApplicants(), []);
+  const [q, setQ] = useState("");
+  const [picked, setPicked] = useState("");
+  const live = new Set(offers.filter((o) => o.docstatus < 2 && !["Declined", "Withdrawn", "Expired"].includes(offerStage(o))).map((o) => o.job_applicant));
+  const list = (apps.data || [])
+    .filter((a) => OFFER_READY.includes(stageOf(a)) && !live.has(a.name))
+    .filter((a) => !q || [a.applicant_name, a.email_id].some((v) => String(v || "").toLowerCase().includes(q.toLowerCase())))
+    .sort((a, b) => OFFER_READY.indexOf(stageOf(a)) - OFFER_READY.indexOf(stageOf(b)));
+  return (
+    <Modal title="New Offer · Choose Candidate" onClose={onClose} wide>
+      <div className="space-y-3">
+        <input className={inputCls} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name or email" />
+        <Async state={apps}>
+          {() => (list.length ? (
+            <div className="max-h-80 overflow-y-auto rounded-md border border-[var(--color-border)]">
+              {list.map((a) => (
+                <label key={a.name} className={`flex cursor-pointer items-center justify-between gap-3 border-b border-[var(--color-border)] px-3 py-2 text-[13px] last:border-0 ${picked === a.name ? "bg-[var(--color-surface-2)]" : ""}`}>
+                  <span className="flex items-center gap-2"><input type="radio" name="offer-candidate" checked={picked === a.name} onChange={() => setPicked(a.name)} /><span>{a.applicant_name}<span className="block text-[11px] text-[var(--color-text-faint)]">{a.email_id}</span></span></span>
+                  <StageBadge stage={stageOf(a)} />
+                </label>
+              ))}
+            </div>
+          ) : <Notice tone="info">No candidates are waiting for an offer. Move a candidate to Selected (Candidates › Change Status) first.</Notice>)}
+        </Async>
+        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="button" disabled={!picked} onClick={() => onPick(picked)}>Continue</Button></div>
+      </div>
+    </Modal>
   );
 }
 

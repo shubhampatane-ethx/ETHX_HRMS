@@ -8,6 +8,9 @@ import { HR_SETUP_SECTIONS } from "./hrSetupConfig";
 const perm = (role, write) => ({ role, read: 1, ...(write ? { write: 1, create: 1, delete: 1, report: 1, export: 1 } : {}) });
 const PERMISSIONS = [perm("System Manager", true), perm("HR Manager", true), perm("HR User", true), perm("Employee")];
 
+const RECRUIT_HR = [perm("System Manager", true), perm("HR Manager", true), perm("HR User", true)];
+const RECRUIT_HR_SUBMIT = RECRUIT_HR.map((p) => ({ ...p, submit: 1, cancel: 1, amend: 1 }));
+
 const custom = (name, extra) => ({ name, module: "Custom", custom: 1, track_changes: 1, permissions: PERMISSIONS, ...extra });
 
 // Explicit definitions, for doctypes the app reads beyond their setup form.
@@ -37,6 +40,98 @@ const EXPLICIT = [
     autoname: "field:health_insurance_name",
     naming_rule: "By fieldname",
     fields: [{ fieldname: "health_insurance_name", label: "Health Insurance Name", fieldtype: "Data", reqd: 1, unique: 1, in_list_view: 1 }],
+  }),
+  // Interviews (HR › Recruitment). Some sites have HRMS without these, and saving a round then fails with "No module
+  // named frappe.core.doctype.interview_round". Same names and fields as HRMS, so the app works either way.
+  custom("Skill", {
+    autoname: "field:skill_name",
+    naming_rule: "By fieldname",
+    fields: [
+      { fieldname: "skill_name", label: "Skill", fieldtype: "Data", reqd: 1, unique: 1, in_list_view: 1 },
+      { fieldname: "description", label: "Description", fieldtype: "Small Text" },
+    ],
+    permissions: [...RECRUIT_HR, { role: "Interviewer", read: 1 }],
+  }),
+  custom("Interview Type", {
+    autoname: "Prompt",
+    fields: [{ fieldname: "description", label: "Description", fieldtype: "Small Text", in_list_view: 1 }],
+    permissions: [...RECRUIT_HR, { role: "Interviewer", read: 1 }],
+  }),
+  custom("Expected Skill Set", {
+    istable: 1,
+    permissions: [],
+    fields: [
+      { fieldname: "skill", label: "Skill", fieldtype: "Link", options: "Skill", reqd: 1, in_list_view: 1 },
+      { fieldname: "description", label: "Description", fieldtype: "Small Text", in_list_view: 1 },
+    ],
+  }),
+  custom("Interviewer", {
+    istable: 1,
+    permissions: [],
+    fields: [{ fieldname: "user", label: "User", fieldtype: "Link", options: "User", in_list_view: 1 }],
+  }),
+  custom("Interview Round", {
+    autoname: "field:round_name",
+    naming_rule: "By fieldname",
+    fields: [
+      { fieldname: "round_name", label: "Round Name", fieldtype: "Data", reqd: 1, unique: 1, in_list_view: 1 },
+      { fieldname: "interview_type", label: "Interview Type", fieldtype: "Link", options: "Interview Type" },
+      { fieldname: "designation", label: "Designation", fieldtype: "Link", options: "Designation", in_list_view: 1 },
+      { fieldname: "expected_average_rating", label: "Expected Average Rating", fieldtype: "Rating" },
+      { fieldname: "expected_skill_set", label: "Expected Skill Set", fieldtype: "Table", options: "Expected Skill Set" },
+      { fieldname: "interviewers", label: "Interviewers", fieldtype: "Table", options: "Interviewer" },
+    ],
+    permissions: [...RECRUIT_HR, { role: "Interviewer", read: 1 }],
+  }),
+  custom("Interview Detail", {
+    istable: 1,
+    permissions: [],
+    fields: [{ fieldname: "interviewer", label: "Interviewer", fieldtype: "Link", options: "User", in_list_view: 1 }],
+  }),
+  custom("Interview", {
+    is_submittable: 1,
+    autoname: "format:HR-INT-{YYYY}-{####}",
+    naming_rule: "Expression",
+    fields: [
+      { fieldname: "interview_round", label: "Interview Round", fieldtype: "Link", options: "Interview Round", reqd: 1, in_list_view: 1 },
+      { fieldname: "job_applicant", label: "Job Applicant", fieldtype: "Link", options: "Job Applicant", reqd: 1, in_list_view: 1 },
+      { fieldname: "job_opening", label: "Job Opening", fieldtype: "Link", options: "Job Opening", fetch_from: "job_applicant.job_title" },
+      { fieldname: "designation", label: "Designation", fieldtype: "Link", options: "Designation", fetch_from: "interview_round.designation" },
+      { fieldname: "status", label: "Status", fieldtype: "Select", options: "Pending\nUnder Review\nCleared\nRejected", default: "Pending", in_list_view: 1, allow_on_submit: 1 },
+      { fieldname: "scheduled_on", label: "Scheduled On", fieldtype: "Date", reqd: 1, in_list_view: 1 },
+      { fieldname: "from_time", label: "From Time", fieldtype: "Time", reqd: 1 },
+      { fieldname: "to_time", label: "To Time", fieldtype: "Time", reqd: 1 },
+      { fieldname: "expected_average_rating", label: "Expected Average Rating", fieldtype: "Rating", fetch_from: "interview_round.expected_average_rating" },
+      { fieldname: "average_rating", label: "Average Rating", fieldtype: "Rating", read_only: 1, allow_on_submit: 1 },
+      { fieldname: "interview_summary", label: "Interview Summary", fieldtype: "Text" },
+      { fieldname: "resume_link", label: "Resume Link", fieldtype: "Data", allow_on_submit: 1 },
+      { fieldname: "interview_details", label: "Interviewers", fieldtype: "Table", options: "Interview Detail" },
+    ],
+    permissions: [...RECRUIT_HR_SUBMIT, { role: "Interviewer", read: 1 }],
+  }),
+  custom("Skill Assessment", {
+    istable: 1,
+    permissions: [],
+    fields: [
+      { fieldname: "skill", label: "Skill", fieldtype: "Link", options: "Skill", in_list_view: 1 },
+      { fieldname: "rating", label: "Rating", fieldtype: "Rating", in_list_view: 1 },
+    ],
+  }),
+  custom("Interview Feedback", {
+    is_submittable: 1,
+    autoname: "format:HR-INT-FEEDBACK-{#####}",
+    naming_rule: "Expression",
+    fields: [
+      { fieldname: "interview", label: "Interview", fieldtype: "Link", options: "Interview", reqd: 1, in_list_view: 1 },
+      { fieldname: "interview_round", label: "Interview Round", fieldtype: "Link", options: "Interview Round", fetch_from: "interview.interview_round" },
+      { fieldname: "job_applicant", label: "Job Applicant", fieldtype: "Link", options: "Job Applicant", fetch_from: "interview.job_applicant" },
+      { fieldname: "interviewer", label: "Interviewer", fieldtype: "Link", options: "User", reqd: 1, in_list_view: 1 },
+      { fieldname: "result", label: "Result", fieldtype: "Select", options: "\nCleared\nRejected", in_list_view: 1 },
+      { fieldname: "average_rating", label: "Average Rating", fieldtype: "Rating" },
+      { fieldname: "feedback", label: "Feedback", fieldtype: "Text" },
+      { fieldname: "skill_assessment", label: "Skill Assessment", fieldtype: "Table", options: "Skill Assessment" },
+    ],
+    permissions: [...RECRUIT_HR_SUBMIT, { role: "Interviewer", read: 1, write: 1, create: 1, submit: 1 }],
   }),
 ];
 
@@ -81,11 +176,23 @@ function ordered(list) {
  * text, so the new doctype can still be saved.
  */
 async function prepare(doc, frappe) {
+  // Permission rows for roles the site doesn't have (e.g. Interviewer without HRMS) would stop the doctype saving.
+  const roles = [...new Set((doc.permissions || []).map((p) => p.role))];
+  if (roles.length) {
+    const known = await frappe.getList("Role", { filters: [["name", "in", roles]], fields: ["name"], limit: 0 }).catch(() => roles.map((name) => ({ name })));
+    const ok = new Set(known.map((r) => r.name));
+    doc = { ...doc, permissions: doc.permissions.filter((p) => ok.has(p.role)) };
+  }
   const targets = [...new Set(doc.fields.filter((f) => f.fieldtype === "Link").map((f) => f.options))];
   if (!targets.length) return doc;
   const existing = await frappe.getList("DocType", { filters: [["name", "in", targets]], fields: ["name"], limit: 0 }).catch(() => targets.map((name) => ({ name })));
   const have = new Set(existing.map((d) => d.name));
-  return { ...doc, fields: doc.fields.map((f) => (f.fieldtype === "Link" && !have.has(f.options) ? { ...f, fieldtype: "Data", options: undefined } : f)) };
+  // A plain-text field can't fetch from a link that was dropped, so its fetch goes too.
+  const dropped = new Set(doc.fields.filter((f) => f.fieldtype === "Link" && !have.has(f.options)).map((f) => f.fieldname));
+  return { ...doc, fields: doc.fields.map((f) => {
+    const g = f.fieldtype === "Link" && !have.has(f.options) ? { ...f, fieldtype: "Data", options: undefined } : f;
+    return g.fetch_from && dropped.has(g.fetch_from.split(".")[0]) ? { ...g, fetch_from: undefined } : g;
+  }) };
 }
 
 export const FALLBACK_DOCTYPES = ordered([...EXPLICIT, ...generated]).map((doc) => ({

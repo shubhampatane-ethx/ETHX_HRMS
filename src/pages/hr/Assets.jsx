@@ -8,8 +8,12 @@ import { fieldsReady } from "../../lib/siteSetup";
 import { addAsset, applyRegister, loadAssets, loadEmployees, norm, planRegister, readRegister, reassignAsset } from "../../lib/assetRegister";
 import { confirmDialog } from "../../components/ui/dialogs";
 
-// Same columns as the company's Excel register, so HR can keep maintaining it in Excel and re-upload it.
-const TEMPLATE = "S/N,Emp. Code,Employee Name,Asset Type,Manufacturer Serial Number,Asset Code,Asset Assigned on <Date>,Asset Assigned By <Name>,Asset Approved by <Name>,DoE / Terminated,Asset Submission on (DD-MMM-YY),Revoked all access On <Date>,Revoked all access By <Name>,Other Assets Assigned,Current Status,Location\r\n";
+// Same columns as the company's Excel register, so HR can keep maintaining it in Excel and re-upload it. The
+// "Example" row shows the format and is skipped on import (any row whose first cell starts with "Example").
+const TEMPLATE = [
+  "S/N,Emp. Code,Employee Name,Asset Name,Asset Type,Manufacturer Serial Number,Asset Code,Asset Assigned on <Date>,Asset Assigned By <Name>,Asset Approved by <Name>,DoE / Terminated,Asset Submission on (DD-MMM-YY),Revoked all access On <Date>,Revoked all access By <Name>,Other Assets Assigned,Current Status,Location",
+  'Example (delete this row),EMP-0001,Asha Rao,Dell Latitude 5420,Laptop,5CG1234XYZ,ESPL-LAP-001,01-Nov-26,HR,Manager,,,,,"Charger, Mouse",Working,Office',
+].join("\r\n") + "\r\n";
 
 const FILTERS = [
   { id: "all", label: "All" },
@@ -55,7 +59,11 @@ export default function Assets() {
     setReading(true);
     try {
       const reg = await readRegister(file);
-      if (!reg.rows.length) setError(`No asset rows found in ${file.name}. The sheet needs a header row with columns such as "Asset Code", "Asset Name" or "Manufacturer Serial Number".`);
+      if (!reg.rows.length) {
+        setError(reg.sheets.length
+          ? `${file.name} has the header row but no assets under it. Add one row per asset below the header (the template's "Example" row is ignored), save, and import again.`
+          : `No asset list found in ${file.name}. The first rows need a header with at least three columns such as "Employee Name", "Asset Type", "Asset Code", "Asset Name" or "Manufacturer Serial Number".${reg.headings?.[0] ? ` The file starts with: ${reg.headings[0]}.` : ""} Download the Register Template to see the expected columns.`);
+      }
       else setImporting({ file, reg });
     } catch (e) {
       setError(`Couldn't read ${file.name}: ${e?.message || e}`);

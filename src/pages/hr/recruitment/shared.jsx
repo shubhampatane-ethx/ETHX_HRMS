@@ -10,7 +10,7 @@ import { dmy, errMsg, isoDate, nowStamp, useAsync } from "../../../lib/employeeP
 import {
   addComment, ALL_STAGES, stageLabel, createEmployee, decideInterview, downloadIcs, emailDocument, employeeForApplicant, feedbackFor, findSamePerson,
   fmtTime, interviewClashes, interviewersOf, isoPlus, listRounds, listUsers, moveStage, onboardingForApplicant, prepareInterviewers,
-  recordJoining, recordResponse, regretEmail, roundsOf, roundsStatus, saveOffer, scheduleInterview, stageOf, STAGE_TONE, startOnboarding, toStars,
+  recordJoining, recordResponse, regretEmail, roundsOf, roundsStatus, saveOffer, saveRound, scheduleInterview, stageOf, STAGE_TONE, startOnboarding, toStars,
 } from "../../../lib/recruitment";
 import { recruitmentReady } from "../../../lib/recruitmentSetup";
 import { useAuth } from "../../../context/AuthContext";
@@ -257,6 +257,8 @@ export function MoveStageModal({ applicant, to, opening, onClose, onSaved }) {
 
 /* -------------------------------- interviews -------------------------------- */
 
+const STANDARD_ROUNDS = ["1st Round - Screening", "2nd Round - Technical", "3rd Round - Managerial", "HR Round"];
+
 /** Schedule (or reschedule) an interview: round, panel, time slot, with a clash check on the panel. */
 export function ScheduleModal({ applicant, opening, interview, onClose, onSaved }) {
   const rounds = useAsync(listRounds, []);
@@ -270,12 +272,33 @@ export function ScheduleModal({ applicant, opening, interview, onClose, onSaved 
 
   useEffect(() => { if (existingPanel.data) setF((v) => ({ ...v, panel: existingPanel.data })); }, [existingPanel.data]);
 
-  // Suggest the next configured round not yet scheduled.
+  // The opening's configured rounds first, then rounds for this designation, then every other round (never hidden).
   const roundList = useMemo(() => {
     const all = rounds.data || [];
-    const fits = all.filter((r) => !r.designation || !applicant.designation || r.designation === applicant.designation);
-    return [...configured.map((n) => fits.find((r) => r.name === n)).filter(Boolean), ...fits.filter((r) => !configured.includes(r.name))];
+    const fits = (r) => !r.designation || !applicant.designation || r.designation === applicant.designation;
+    const rest = all.filter((r) => !configured.includes(r.name));
+    return [...configured.map((n) => all.find((r) => r.name === n)).filter(Boolean), ...rest.filter(fits), ...rest.filter((r) => !fits(r))];
   }, [rounds.data, configured, applicant.designation]);
+
+  // No rounds yet: add them right here instead of leaving an empty list.
+  const [newRound, setNewRound] = useState("");
+  const [addingRounds, setAddingRounds] = useState(false);
+  async function addRounds(names) {
+    setAddingRounds(true);
+    setErr("");
+    try {
+      const have = new Set((rounds.data || []).map((r) => r.round_name.toLowerCase()));
+      for (const round_name of names) {
+        if (!have.has(round_name.toLowerCase())) await saveRound(null, { round_name, designation: null, interview_type: null, expected: 0, skills: [], interviewers: [] });
+      }
+      rounds.reload();
+      setF((v) => ({ ...v, round: v.round || names[0] }));
+      setNewRound("");
+    } catch (x) {
+      setErr(errMsg(x, "Couldn't add the round."));
+    }
+    setAddingRounds(false);
+  }
 
   function pickRound(name) {
     const r = (rounds.data || []).find((x) => x.name === name);
@@ -323,6 +346,18 @@ export function ScheduleModal({ applicant, opening, interview, onClose, onSaved 
             {roundList.map((r) => <option key={r.name} value={r.name}>{r.round_name}{r.designation ? ` · ${r.designation}` : ""}</option>)}
           </select>
         </Field>
+        {!interview && rounds.error && <Notice>Couldn't load interview rounds: {errMsg(rounds.error, "unknown error")}. If this mentions a missing module, the Administrator's next sign-in sets the interview records up.</Notice>}
+        {!interview && !rounds.loading && !rounds.error && (
+          <div className="space-y-2 rounded-md border border-[var(--color-border)] p-3 text-[12px] text-[var(--color-text-muted)]">
+            <p>{roundList.length ? "Need another round? Add it here, or set up scorecards under Interviews › Rounds & Scorecards." : "No interview rounds yet. Add the standard rounds, or name your own:"}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              {!roundList.length && <Button type="button" variant="secondary" disabled={addingRounds} onClick={() => addRounds(STANDARD_ROUNDS)}>Add Standard Rounds</Button>}
+              <input className={`${inputCls} !w-56`} value={newRound} onChange={(e) => setNewRound(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (newRound.trim()) addRounds([newRound.trim()]); } }} placeholder="e.g. 2nd Round - Technical" />
+              <Button type="button" variant="ghost" disabled={addingRounds || !newRound.trim()} onClick={() => addRounds([newRound.trim()])}>{addingRounds ? "Adding…" : "Add Round"}</Button>
+            </div>
+            {!roundList.length && <p className="text-[11px] text-[var(--color-text-faint)]">Standard rounds: {STANDARD_ROUNDS.join(", ")}.</p>}
+          </div>
+        )}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <DateField label="Date" value={f.date} onChange={(v) => setF({ ...f, date: v })} required />
           <Field label="From"><input type="time" required className={inputCls} value={f.from} onChange={(e) => setF({ ...f, from: e.target.value })} /></Field>
@@ -513,7 +548,7 @@ export function OfferModal({ applicant, opening, offer, amendFrom, onClose, onSa
         {missing.length > 0 && <Field label="Override Reason (Required to Send Without All Rounds Cleared)"><input className={inputCls} value={f.override} onChange={(e) => setF({ ...f, override: e.target.value })} /></Field>}
         <p className="text-[11px] text-[var(--color-text-faint)]">The offer is saved as a draft. It then needs approval by an HR Manager other than you before it can be sent.</p>
         {err && <Notice>{err}</Notice>}
-        <Buttons onClose={onClose} busy={busy} label={offer ? "Save offer" : "Save draft"} />
+        <Buttons onClose={onClose} busy={busy} label={offer ? "Save Offer" : "Save Draft"} />
       </form>
     </Modal>
   );

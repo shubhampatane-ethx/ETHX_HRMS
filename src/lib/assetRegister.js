@@ -5,7 +5,7 @@
 // uploaded at any time: rows are matched to existing assets by asset code (then serial number), changed details
 // are updated, and a change of holder is recorded as an Asset Movement (returned by one person, issued to another),
 // which keeps ERPNext's own history of who had what.
-import readExcelFile from "read-excel-file/browser";
+import { readSheets } from "./sheet";
 import { frappe } from "./api/frappeClient";
 import { listTry } from "./employeePortal";
 
@@ -71,25 +71,6 @@ export function parseDate(v) {
   return null;
 }
 
-function parseCsv(content) {
-  const rows = [];
-  let row = [];
-  let cell = "";
-  let quoted = false;
-  for (let i = 0; i < content.length; i += 1) {
-    const ch = content[i];
-    if (quoted) {
-      if (ch === '"' && content[i + 1] === '"') { cell += '"'; i += 1; } else if (ch === '"') quoted = false; else cell += ch;
-    } else if (ch === '"') quoted = true;
-    else if (ch === ",") { row.push(cell); cell = ""; } else if (ch === "\n" || ch === "\r") {
-      if (ch === "\r" && content[i + 1] === "\n") i += 1;
-      row.push(cell); rows.push(row); row = []; cell = "";
-    } else cell += ch;
-  }
-  if (cell || row.length) { row.push(cell); rows.push(row); }
-  return rows;
-}
-
 function headerMap(cells) {
   const map = {};
   const extra = [];
@@ -106,9 +87,7 @@ function headerMap(cells) {
 
 /** Rows of every sheet that looks like an asset list. Each row: register fields + sheet / line + warnings. */
 export async function readRegister(file) {
-  const sheets = /\.csv$/i.test(file.name)
-    ? [{ sheet: file.name.replace(/\.csv$/i, ""), data: parseCsv(await file.text()) }]
-    : await readExcelFile(file);
+  const sheets = await readSheets(file);
   const rows = [];
   const used = [];
   const skipped = [];
@@ -124,6 +103,7 @@ export async function readRegister(file) {
     used.push(sheet.trim());
     for (let i = header + 1; i < data.length; i += 1) {
       const cells = data[i] || [];
+      if (/^example/i.test(text(cells[0]))) continue; // the sample row in our template
       const get = (k) => (cols.map[k] == null ? null : cells[cols.map[k]]);
       const r = { sheet: sheet.trim(), line: i + 1, warnings: [] };
       for (const [k] of COLUMNS) if (!DATE_FIELDS.includes(k)) r[k] = text(get(k));
@@ -143,7 +123,9 @@ export async function readRegister(file) {
       rows.push(r);
     }
   }
-  return { rows, sheets: used, skipped };
+  // `headings`: what the first row of each skipped sheet says, so HR can see why it wasn't recognised.
+  const headings = sheets.filter(({ sheet }) => skipped.includes(sheet.trim())).map(({ data }) => (data.find((r) => (r || []).some((c) => text(c))) || []).map(text).filter(Boolean).slice(0, 8).join(", "));
+  return { rows, sheets: used, skipped, headings };
 }
 
 /* ------------------------------ matching ------------------------------ */
@@ -400,7 +382,11 @@ export async function addAsset(form, employees) {
   };
   const item = { key, assetName: form.name.trim(), type: form.type.trim(), holder: form.custodian, existing: null, want };
   const [result] = await applyRegister([item], { company: form.company, location: want.location, value: form.value, purchaseDate: form.purchaseDate }, employees);
-  if (!result.ok) throw new Error(result.text);
+  if (!result.ok) {
+    const e = new Error(result.text);
+    e.userMessage = result.text; // already the reason ERPNext gave, with the step it failed at
+    throw e;
+  }
   return result;
 }
 
@@ -417,13 +403,20 @@ export async function applyRegister(items, opts, employees, onStep = () => {}) {
 
   for (const item of items) {
     const w = { ...item.want, custodian: item.holder };
+    let stage = ""; // what was being done, so a refusal says where it happened
     try {
       if (!item.existing) {
         const company = (w.custodian && empCompany[w.custodian]) || opts.company;
         const location = w.location || opts.location;
+        if (!company) throw new Error("Choose the company this asset belongs to.");
+        if (!item.type) throw new Error("Choose the asset type.");
+        stage = `Adding the location "${location}"`;
         await ensureLocation(location, caches.locations);
+        stage = `Setting up the asset type "${item.type}" for ${company}`;
         await ensureCategory(item.type, company, caches);
+        stage = `Setting up the item for "${item.type}"`;
         const itemCode = await ensureItem(item.type, caches);
+        stage = "Saving the asset";
         const date = w.custom_assigned_on || opts.purchaseDate || today();
         const fields = Object.fromEntries(REGISTER_FIELDS.map((f) => [f, w[f] || undefined]));
         const doc = await frappe.createDoc("Asset", {
@@ -433,6 +426,7 @@ export async function applyRegister(items, opts, employees, onStep = () => {}) {
           purchase_date: date, available_for_use_date: date, [value]: Number(opts.value) > 0 ? Number(opts.value) : 1,
           ...fields, custom_register_key: item.key,
         });
+        stage = `Submitting ${doc.name} (it was saved as a draft)`;
         await frappe.submitDoc(doc);
         step(item, true, `Added ${doc.name}${w.custodian ? `, assigned to ${employees.find((e) => e.name === w.custodian)?.employee_name || w.custodian}` : ""}`);
         continue;
@@ -464,7 +458,7 @@ export async function applyRegister(items, opts, employees, onStep = () => {}) {
       }
       step(item, true, `Updated ${a.name}${notes.length ? ` - ${notes.join(", ")}` : ""}`);
     } catch (e) {
-      step(item, false, why(e));
+      step(item, false, stage ? `${stage} failed: ${why(e)}` : why(e));
     }
   }
   return results;

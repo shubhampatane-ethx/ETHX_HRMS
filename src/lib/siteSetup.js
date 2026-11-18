@@ -21,7 +21,7 @@ import { PROJECT_ROLE_DOCTYPES, PROJECT_ROLE_FIELDS, PROJECT_ROLE_SCRIPTS, PROJE
 export const MODULES = [
   // First, so later modules can add fields to doctypes created here.
   { id: "doctypes", label: "Doctypes", doctypes: FALLBACK_DOCTYPES, fields: [], scripts: [], track: [] },
-  { id: "recruitment", label: "Recruitment", fields: RECRUITMENT_FIELDS, scripts: RECRUITMENT_SCRIPTS, track: RECRUITMENT_TRACK, properties: RECRUITMENT_PROPERTIES },
+  { id: "recruitment", label: "Recruitment", records: [{ doctype: "Role", name: "Interviewer", what: "Interviewer role (for interview panels)", doc: { role_name: "Interviewer", desk_access: 1 } }], fields: RECRUITMENT_FIELDS, scripts: RECRUITMENT_SCRIPTS, track: RECRUITMENT_TRACK, properties: RECRUITMENT_PROPERTIES },
   { id: "timesheets", label: "Timesheet review", fields: TIMESHEET_FIELDS, scripts: TIMESHEET_SCRIPTS, track: TIMESHEET_TRACK, migrate: "ethx_migrate_timesheet_reviews" },
   { id: "security", label: "Security & audit", fields: SECURITY_FIELDS, scripts: SECURITY_SCRIPTS, track: SECURITY_TRACK, properties: SECURITY_PROPERTIES },
   { id: "team", label: "Employee & manager self-service", fields: [], scripts: TEAM_SCRIPTS, track: [], properties: TEAM_PROPERTIES },
