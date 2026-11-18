@@ -10,6 +10,7 @@ import { APPROVAL_FIELDS, APPROVAL_SCRIPTS, APPROVAL_TRACK } from "./approvalSet
 import { ASSET_FIELDS, ASSET_SCRIPTS, ASSET_TRACK } from "./assetSetup";
 import { OFFICE_FIELDS, OFFICE_SCRIPTS, OFFICE_TRACK } from "./officeSetup";
 import { ATTENDANCE_FIELDS, ATTENDANCE_SCRIPTS } from "./attendanceSetup";
+import { ADVANCE_TRAVEL_FIELDS, ADVANCE_TRAVEL_SCRIPTS } from "./advanceTravelSetup";
 import { EMPLOYEE_RECORD_FIELDS, EMPLOYEE_RECORD_SCRIPTS, SIGNIN_FIELDS, SIGNIN_SCRIPTS } from "./peopleSetup";
 import { CONTRACTOR_FIELDS, CONTRACTOR_PERMISSIONS, CONTRACTOR_RECORDS, CONTRACTOR_RETIRED_SCRIPTS, CONTRACTOR_SCRIPTS } from "./contractorSetup";
 import { PAGE_ACCESS_FIELDS, PAGE_ACCESS_SCRIPTS } from "./pageAccessSetup";
@@ -28,6 +29,7 @@ export const MODULES = [
   { id: "assets", label: "Asset register", fields: ASSET_FIELDS, scripts: ASSET_SCRIPTS, track: ASSET_TRACK },
   { id: "offices", label: "Office locations & holidays", fields: OFFICE_FIELDS, scripts: OFFICE_SCRIPTS, track: OFFICE_TRACK },
   { id: "attendance", label: "Attendance", fields: ATTENDANCE_FIELDS, scripts: ATTENDANCE_SCRIPTS, track: [] },
+  { id: "advanceTravel", label: "Advances & travel", fields: ADVANCE_TRAVEL_FIELDS, scripts: ADVANCE_TRAVEL_SCRIPTS, track: [] },
   { id: "employeeRecords", label: "Employee records", fields: EMPLOYEE_RECORD_FIELDS, scripts: EMPLOYEE_RECORD_SCRIPTS, track: [] },
   { id: "signin", label: "Sign-in page", fields: SIGNIN_FIELDS, scripts: SIGNIN_SCRIPTS, track: [] },
   { id: "projectRoles", label: "Project roles", doctypes: PROJECT_ROLE_DOCTYPES, fields: PROJECT_ROLE_FIELDS, scripts: PROJECT_ROLE_SCRIPTS, track: PROJECT_ROLE_TRACK },

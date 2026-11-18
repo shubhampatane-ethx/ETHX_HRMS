@@ -164,7 +164,7 @@ export const HR_SETUP_SECTIONS = [
         ],
       },
       {
-        label: "Employee Advance",
+        label: "Employee Advances",
         doctype: "Employee Advance",
         kind: "list",
         formFields: [
@@ -174,7 +174,7 @@ export const HR_SETUP_SECTIONS = [
         ],
       },
       {
-        label: "Travel Request",
+        label: "Travel Requests",
         doctype: "Travel Request",
         kind: "list",
         formFields: [
