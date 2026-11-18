@@ -1,8 +1,9 @@
 // HR › Lifecycle: promotions, transfers and exits on HRMS's own records (Employee Promotion, Employee Transfer,
 // Employee Separation). Submitting a promotion / transfer updates the Employee record (HRMS does this on its
-// effective date); an exit runs the separation checklist, then HR marks the employee as Left.
+// effective date); an exit runs the separation checklist, then HR marks the employee as Left. HR can cancel an exit
+// (the employee withdraws their resignation), which puts the Employee record back to Active.
 import { useRef, useState } from "react";
-import { ExternalLink, LogOut, Paperclip, Plus, Trash2, TrendingUp, Upload } from "lucide-react";
+import { ExternalLink, LogOut, Paperclip, Plus, Trash2, TrendingUp, Undo2, Upload } from "lucide-react";
 import { frappe } from "../../lib/api/frappeClient";
 import { Button, DateField, LinkField } from "../../components/ui/primitives";
 import { Async, Field, Grid, inputCls, Modal, Notice, PageHeader, Panel, StatusPill, Tabs } from "../../components/employee/EmployeeShell";
@@ -146,7 +147,7 @@ function MoveModal({ kind, onClose, onSaved }) {
 /* ---------------------------------- exits ---------------------------------- */
 
 function Exits() {
-  const list = useAsync(() => listTry("Employee Separation", { fields: ["name", "employee", "employee_name", "resignation_letter_date", "boarding_begins_on", "boarding_status", "docstatus", "department", "designation"], orderBy: "creation desc" }, ["name", "employee", "employee_name", "boarding_begins_on", "boarding_status", "docstatus"]), []);
+  const list = useAsync(() => listTry("Employee Separation", { filters: [["docstatus", "<", 2]], fields: ["name", "employee", "employee_name", "resignation_letter_date", "boarding_begins_on", "boarding_status", "docstatus", "department", "designation"], orderBy: "creation desc" }, ["name", "employee", "employee_name", "boarding_begins_on", "boarding_status", "docstatus"]), []);
   const emps = useAsync(async () => {
     const ids = [...new Set((list.data || []).map((r) => r.employee))];
     if (!ids.length) return {};
@@ -172,6 +173,7 @@ function Exits() {
               {r.docstatus === 0 && <Button variant="secondary" className="!px-2 !py-1 text-[11px]" onClick={async () => { if (!(await confirmDialog(`Start the separation checklist for ${r.employee_name || r.employee}?`))) return; try { await frappe.submitDoc(await frappe.getDoc("Employee Separation", r.name)); list.reload(); } catch (x) { setMsg({ ok: false, text: errMsg(x, "Couldn't start the checklist.") }); } }}>Start Checklist</Button>}
               <Button variant="ghost" className="!px-2 !py-1 text-[11px]" onClick={() => setModal({ kind: "documents", row: r })}><Paperclip size={12} /> Documents</Button>
               {e && e.status !== "Left" && <Button variant="ghost" className="!px-2 !py-1 text-[11px]" onClick={() => setModal({ kind: "left", row: r, emp: e })}><LogOut size={12} /> Mark as Left</Button>}
+              {e && <Button variant="ghost" className="!px-2 !py-1 text-[11px]" onClick={() => setModal({ kind: "cancel", row: r, emp: e })}><Undo2 size={12} /> Cancel Exit</Button>}
             </div>;
           } },
         ]} />}
@@ -179,6 +181,7 @@ function Exits() {
       {modal?.kind === "new" && <ExitModal onClose={() => setModal(null)} onSaved={(warning) => { setModal(null); if (warning) setMsg({ ok: false, text: warning }); list.reload(); }} />}
       {modal?.kind === "documents" && <Modal title={`Exit Documents · ${modal.row.employee_name || modal.row.employee}`} onClose={() => setModal(null)} wide><AttachedDocuments doctype="Employee Separation" name={modal.row.name} empty="No documents on this exit yet." /></Modal>}
       {modal?.kind === "templates" && <TemplateDocumentsModal onClose={() => setModal(null)} />}
+      {modal?.kind === "cancel" && <CancelExitModal row={modal.row} emp={modal.emp} onClose={() => setModal(null)} onSaved={(text, ok) => { setModal(null); setMsg({ ok, text }); list.reload(); emps.reload(); }} />}
       {modal?.kind === "left" && <LeftModal row={modal.row} emp={modal.emp} onClose={() => setModal(null)} onSaved={(text) => { setModal(null); setMsg({ ok: true, text }); list.reload(); emps.reload(); }} />}
     </Panel>
   );
@@ -301,6 +304,62 @@ function ExitModal({ onClose, onSaved }) {
         <Field label="Reason for Leaving"><input className={inputCls} value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} /></Field>
         {err && <Notice>{err}</Notice>}
         <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Saving…" : "Start Exit"}</Button></div>
+      </form>
+    </Modal>
+  );
+}
+
+// The employee withdrew their resignation: drop the separation and put the Employee record back as it was before the exit.
+function CancelExitModal({ row, emp, onClose, onSaved }) {
+  const submitted = Number(row.docstatus) === 1;
+  const wasLeft = emp.status === "Left";
+  const [enableLogin, setEnableLogin] = useState(Boolean(emp.user_id) && wasLeft);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const name = row.employee_name || row.employee;
+  const lastDay = emp.relieving_date || row.boarding_begins_on;
+  const missed = Boolean(lastDay) && lastDay < isoDate();
+
+  async function submit(e) {
+    e.preventDefault();
+    setBusy(true);
+    setErr("");
+    try {
+      // Re-read: the checklist may have been started (or the exit cancelled) since this page loaded.
+      const current = await frappe.getDoc("Employee Separation", row.name);
+      if (Number(current.docstatus) === 1) await frappe.cancelDoc("Employee Separation", row.name);
+      else if (Number(current.docstatus) === 0) await frappe.deleteDoc("Employee Separation", row.name);
+    } catch (x) {
+      setErr(`${errMsg(x, "Couldn't cancel the exit.")} Nothing was changed.`);
+      setBusy(false);
+      return;
+    }
+    const problems = [];
+    try {
+      await frappe.updateDoc("Employee", row.employee, { status: "Active", relieving_date: null, resignation_letter_date: null, reason_for_leaving: null });
+    } catch (x) {
+      problems.push(`The employee record wasn't updated (${errMsg(x, "unknown error")}): clear the relieving date and set the status to Active from HR › Employees.`);
+    }
+    if (enableLogin && emp.user_id) {
+      try { await frappe.callMethod("ethx_employee_login_access", { employee: row.employee, enable: 1 }); } catch { problems.push("The portal login wasn't re-enabled: do it from HR › Employees."); }
+    }
+    const attendance = missed ? ` Attendance after ${dmy(lastDay)} isn't marked automatically: add it from Attendance, or ask ${name} to raise attendance requests.` : "";
+    onSaved(`Exit cancelled for ${name}. ${problems.join(" ")}${attendance}`.replace(/\s+/g, " ").trim(), problems.length === 0);
+  }
+
+  return (
+    <Modal title={`Cancel Exit · ${name}`} onClose={onClose}>
+      <form onSubmit={submit} className="space-y-3 text-[13px] text-[var(--color-text)]">
+        <p>Use this when {name} withdraws their resignation. This will:</p>
+        <ul className="list-disc space-y-1 pl-5 text-[var(--color-text-muted)]">
+          <li>{submitted ? "Cancel the exit and its checklist" : "Delete the draft exit"} ({row.name})</li>
+          <li>Set the employee status to Active{wasLeft ? " (currently Left)" : ""}</li>
+          <li>Clear the resignation date{lastDay ? `, the last working day (${dmy(lastDay)})` : ""} and the reason for leaving</li>
+        </ul>
+        {emp.user_id && <label className="flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><input type="checkbox" checked={enableLogin} onChange={(e) => setEnableLogin(e.target.checked)} /> Re-enable their portal login ({emp.user_id})</label>}
+        {missed && <Notice tone="info">The last working day has passed. Attendance for the days after {dmy(lastDay)} will need to be added afterwards.</Notice>}
+        {err && <Notice>{err}</Notice>}
+        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Keep Exit</Button><Button type="submit" disabled={busy}>{busy ? "Cancelling…" : "Cancel Exit"}</Button></div>
       </form>
     </Modal>
   );

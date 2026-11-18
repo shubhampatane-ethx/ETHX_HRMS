@@ -64,7 +64,7 @@ export const HR_PRESET = [
   { doctype: "Leave Allocation", perms: ["read", "write", "create", "submit"], why: "Allocate leave and show balances" },
   { doctype: "Employee Promotion", perms: ["read", "write", "create", "submit"], why: "Promotions" },
   { doctype: "Employee Transfer", perms: ["read", "write", "create", "submit"], why: "Transfers" },
-  { doctype: "Employee Separation", perms: ["read", "write", "create", "submit"], why: "Exits" },
+  { doctype: "Employee Separation", perms: ["read", "write", "create", "delete", "submit", "cancel"], why: "Exits: start, run the checklist, cancel when an employee withdraws" },
   { doctype: "Employee Separation Template", perms: ["read", "write"], why: "Exit checklists and their documents" },
   { doctype: "Employee Grade", perms: ["read"], why: "Grades on promotions" },
   { doctype: "Appraisal Cycle", perms: ["read", "write", "create"], why: "Appraisal cycles" },
