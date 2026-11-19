@@ -179,15 +179,27 @@ function StaffRestrictions() {
   );
 }
 
+// The server rule "Keep login restrictions" (System Setup) restricts new and changed logins by itself, hourly and
+// whenever an employee record is saved. Opening this page also puts any remaining gap right straight away.
 function EmployeeRestrictions() {
   const [rows, setRows] = useState(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [fixed, setFixed] = useState(0);
 
   const load = useCallback(async () => {
     setRows(null);
     setError("");
-    try { setRows(await loadRestrictions()); } catch (e) { setRows([]); setError(errMsg(e, "Couldn't load employee logins.")); }
+    try {
+      let list = await loadRestrictions();
+      const gaps = list.filter((r) => !r.hasEmployee || !r.hasCompany);
+      if (gaps.length) {
+        for (const e of gaps) await restrict(e);
+        setFixed(gaps.length);
+        list = await loadRestrictions();
+      }
+      setRows(list);
+    } catch (e) { setRows((r) => r || []); setError(errMsg(e, "Couldn't check or fix employee logins.")); }
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -203,7 +215,7 @@ function EmployeeRestrictions() {
   }
 
   return (
-    <Section title="Employee Record Restrictions" hint="Employee logins should only see their own record and company. These restrictions may need administrator access to create - fix any gaps here."
+    <Section title="Employee Record Restrictions" hint="Employee logins see only their own record and company. This is kept up to date automatically - every hour and whenever an employee record is saved - so there is nothing to do here day to day. HR and Project Manager logins aren't listed: they keep access to their team."
       action={<div className="flex gap-2"><Button variant="secondary" onClick={load}><RefreshCw size={14} /> Refresh</Button><Button onClick={() => fix(open)} disabled={busy || !open.length}>{busy ? "Working…" : `Restrict ${open.length || ""}`.trim()}</Button></div>}>
       {!rows ? <p className="flex items-center gap-2 py-4 text-[13px] text-[var(--color-text-muted)]"><Loader2 size={14} className="animate-spin" /> Checking…</p> : rows.length === 0 ? <p className="py-3 text-[13px] text-[var(--color-text-muted)]">No employee-only logins yet.</p> : (
         <ul className="divide-y divide-[var(--color-border)]">
@@ -216,6 +228,7 @@ function EmployeeRestrictions() {
           ))}
         </ul>
       )}
+      {fixed > 0 && !error && <p className="mt-3 text-[12px] text-[var(--color-green)]">{fixed} login(s) were just restricted automatically.</p>}
       {error && <p className="mt-3 text-[12px] text-[var(--color-red-hover)]">{error}</p>}
     </Section>
   );

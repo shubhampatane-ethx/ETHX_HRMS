@@ -52,6 +52,8 @@ export const RECRUITMENT_FIELDS = [
   { dt: "Job Opening", fieldname: "custom_skills", label: "Key Skills", fieldtype: "Small Text", insert_after: "description" },
   { dt: "Job Opening", fieldname: "custom_experience", label: "Experience Required", fieldtype: "Data", insert_after: "custom_skills" },
   { dt: "Job Opening", fieldname: "custom_interview_rounds", label: "Interview Rounds (in order)", fieldtype: "Small Text", insert_after: "custom_experience", description: "Managed from the ETHX HRMS app" },
+  // Job posting: where the opening has been posted (JSON list of { board, on, by }).
+  { dt: "Job Opening", fieldname: "custom_job_boards", label: "Posted On", fieldtype: "Small Text", insert_after: "custom_interview_rounds", description: "Managed from the ETHX HRMS app" },
   // JD matching (MATCH-01): the JD's text and the recruiter-confirmed criteria (JSON, with a version number).
   { dt: "Job Opening", fieldname: "custom_jd_text", label: "Job Description Text", fieldtype: "Long Text", insert_after: "custom_interview_rounds", description: "Managed from the ETHX HRMS app" },
   { dt: "Job Opening", fieldname: "custom_jd_criteria", label: "JD Matching Criteria", fieldtype: "Long Text", insert_after: "custom_jd_text", description: "Managed from the ETHX HRMS app" },

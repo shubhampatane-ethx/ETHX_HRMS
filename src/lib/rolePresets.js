@@ -26,6 +26,7 @@ export const HR_PRESET = [
   { doctype: "Employee", permlevel: 1, perms: ["read", "write"], why: "Salary and bank details (restricted to HR by System Setup)" },
   { doctype: "Timesheet", perms: ["read", "write", "create", "submit", "cancel", "amend"], why: "Review timesheets: approve, or return for correction (cancels and creates an editable copy)" },
   { doctype: "Comment", perms: ["read", "create"], why: "Timesheet approvals and return notes are stored as comments" },
+  { doctype: "Note", perms: ["read", "write", "create", "delete"], why: "Announcements: history, portal notices" },
   { doctype: "Issue", perms: ["read", "write"], why: "Employee Requests: see what employees raise, update the status and close them" },
   { doctype: "Company", perms: ["read"], why: "Pick the company for an employee" },
   { doctype: "Department", perms: ["read"], why: "Pick the department" },
@@ -196,12 +197,16 @@ export const ELEVATED = [
   { doctype: "User Permission", permlevel: 0, perms: ["create", "write", "delete"] },
 ];
 
+// Logins that need to see beyond their own record: HR, the Administrator, and Project Managers (their team). They
+// are never restricted to their own record (liftStaffRestrictions removes ERPNext's automatic one from HR and PMs).
+export const UNRESTRICTED_ROLES = ["HR Manager", "HR User", "System Manager", "Projects Manager"];
+
 export async function loadRestrictions() {
   const emps = await frappe.getList("Employee", { filters: [["user_id", "is", "set"]], fields: ["name", "employee_name", "company", "user_id"], limit: 0 });
   if (!emps.length) return [];
   const users = emps.map((e) => e.user_id);
   const [staff, perms] = await Promise.all([
-    frappe.getList("Has Role", { parent: "User", filters: [["parent", "in", users], ["parenttype", "=", "User"], ["role", "in", ["HR Manager", "HR User", "System Manager"]]], fields: ["parent"], limit: 0 }),
+    frappe.getList("Has Role", { parent: "User", filters: [["parent", "in", users], ["parenttype", "=", "User"], ["role", "in", UNRESTRICTED_ROLES]], fields: ["parent"], limit: 0 }),
     frappe.getList("User Permission", { filters: [["user", "in", users], ["allow", "in", ["Employee", "Company"]]], fields: ["user", "allow", "for_value"], limit: 0 }),
   ]);
   const staffSet = new Set(staff.map((s) => s.parent));

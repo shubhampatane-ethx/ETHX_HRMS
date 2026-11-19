@@ -6,7 +6,7 @@ import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { useAuth } from "../../context/AuthContext";
 import { hasPermission, isStaffEmployee } from "../../permissions/roles";
-import { dashboardLink, SELF_SERVICE } from "./HRLayout";
+import { dashboardLink, SELF_SERVICE, SELF_SERVICE_PAGES } from "./HRLayout";
 import { ForcedPasswordScreen } from "../employee/EmployeeShell";
 
 const TITLES = {
@@ -26,7 +26,7 @@ const TITLES = {
 /** Top bar title for PM pages and for the person's own self-service pages shown in the PM workspace. */
 export function pmTitleFor(pathname) {
   if (TITLES[pathname]) return TITLES[pathname];
-  const own = [...SELF_SERVICE.children, { to: "/employee/profile", label: "My Profile" }, { to: "/employee/search", label: "Search" }, { to: "/employee/interviews", label: "My Interviews" }]
+  const own = [...SELF_SERVICE_PAGES, { to: "/employee/profile", label: "My Profile" }, { to: "/employee/search", label: "Search" }, { to: "/employee/interviews", label: "My Interviews" }]
     .sort((a, b) => b.to.length - a.to.length).find((n) => pathname === n.to || pathname.startsWith(`${n.to}/`));
   return own?.label ?? "Project Manager";
 }

@@ -1,12 +1,12 @@
 // Offers: draft → HR Manager approval (maker-checker) → send → candidate response → joining / hire.
 import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Check, FileDown, Handshake, Mail, Pencil, Plus, RotateCcw, Send, Trash2, UserPlus, X } from "lucide-react";
+import { Check, FileDown, Handshake, Mail, Paperclip, Pencil, Plus, RotateCcw, Send, Trash2, UserPlus, X } from "lucide-react";
 import { frappe } from "../../../lib/api/frappeClient";
 import { Button } from "../../../components/ui/primitives";
 import { Async, chipCls, Field, Grid, inputCls, Modal, Notice, PageHeader, Panel, StatusPill } from "../../../components/employee/EmployeeShell";
 import { dmy, errMsg, money, useAsync } from "../../../lib/employeePortal";
-import { acceptedForOpening, canApprove, emailDocument, listApplicants, listOffers, offerStage, stageOf, reviseOffer, sendOffer, setOfferApproval, vacanciesOf } from "../../../lib/recruitment";
+import { acceptedForOpening, attachedFiles, canApprove, offerTemplates, uploadOfferTemplate, emailDocument, listApplicants, listOffers, offerStage, stageOf, reviseOffer, sendOffer, setOfferApproval, vacanciesOf } from "../../../lib/recruitment";
 import { useAuth } from "../../../context/AuthContext";
 import { candidateUrl, HireModal, NoShowModal, OfferModal, ResponseModal, SetupHint, StageBadge, WithApplicant } from "./shared";
 import { alertDialog, confirmDialog } from "../../../components/ui/dialogs";
@@ -57,7 +57,7 @@ export default function Offers() {
 
   return (
     <div className="space-y-5">
-      <PageHeader icon={Handshake} title="Offers" subtitle="Draft → HR Manager approval → send → candidate response → joining" actions={<Button onClick={() => setModal({ kind: "pick" })}><Plus size={14} /> New Offer</Button>} />
+      <PageHeader icon={Handshake} title="Offers" subtitle="Draft → HR Manager approval → send → candidate response → joining" actions={<><Button variant="secondary" onClick={() => setModal({ kind: "templates" })}><Paperclip size={14} /> Offer Letter Templates</Button><Button onClick={() => setModal({ kind: "pick" })}><Plus size={14} /> New Offer</Button></>} />
       <SetupHint />
       {!approver && <Notice tone="info">You can draft offers and send them for approval. An HR Manager approves them.</Notice>}
       {msg && <Notice tone={msg.ok ? "info" : "error"}>{msg.text}</Notice>}
@@ -74,6 +74,7 @@ export default function Offers() {
           ]} />}
         </Async>
       </Panel>
+      {modal?.kind === "templates" && <TemplatesModal onClose={() => setModal(null)} />}
       {modal?.kind === "pick" && <PickCandidate offers={offers.data || []} onClose={() => setModal(null)} onPick={(name) => setModal({ kind: "new", applicant: name })} />}
       {modal?.kind === "new" && <WithApplicant name={modal.applicant} onClose={() => setModal(null)}>{({ applicant, opening }) => <OfferModal applicant={applicant} opening={opening} onClose={() => setModal(null)} onSaved={() => { setModal(null); setFilter("open"); setMsg({ ok: true, text: `Offer drafted for ${applicant.applicant_name}. Send it for approval from the list.` }); offers.reload(); }} />}</WithApplicant>}
       {modal?.kind === "edit" && <EditOffer offer={modal.offer} onClose={() => setModal(null)} onSaved={() => { setModal(null); offers.reload(); }} />}
@@ -155,7 +156,7 @@ function Actions({ o, user, approver, setModal, act }) {
         <Button className="!px-2 !py-1 text-[11px]" onClick={() => setModal({ kind: "hire", offer: o })}><UserPlus size={12} /> Hire</Button>
         <Button variant="ghost" className="!px-2 !py-1 text-[11px]" onClick={() => setModal({ kind: "noshow", offer: o })}>Didn't Join</Button>
       </>}
-      {o.docstatus === 0 && <button type="button" title="Delete draft" className={`${btn} hover:!text-[var(--color-red-hover)]`} onClick={async () => (await confirmDialog("Delete this draft offer?")) && act(() => frappe.deleteDoc("Job Offer", o.name), "Draft deleted.")}><Trash2 size={14} /></button>}
+      {o.docstatus === 0 && <button type="button" title="Delete Draft" className={`${btn} hover:!text-[var(--color-red-hover)]`} onClick={async () => (await confirmDialog("Delete this draft offer?")) && act(() => frappe.deleteDoc("Job Offer", o.name), "Draft deleted.")}><Trash2 size={14} /></button>}
     </div>
   );
 }
@@ -202,9 +203,14 @@ function ApproveModal({ offer, approve, onClose, onSaved }) {
 
 function SendModal({ offer, onClose, onSaved }) {
   const [email, setEmail] = useState(true);
+  const files = useAsync(() => attachedFiles("Job Offer", offer.name).catch(() => []), [offer.name]);
+  const hasLetter = (files.data || []).length > 0;
+  const [pdf, setPdf] = useState(null); // null = default: the system PDF only when HR attached no letter of their own
+  const withPdf = pdf ?? !hasLetter;
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   async function go() {
+    if (email && !withPdf && !hasLetter) return setErr("Attach the offer letter to the offer, or include the system-generated PDF.");
     setBusy(true);
     setErr("");
     try {
@@ -216,8 +222,8 @@ function SendModal({ offer, onClose, onSaved }) {
     }
     if (email && offer.applicant_email) {
       try {
-        await emailDocument({ doctype: "Job Offer", name: offer.name, to: offer.applicant_email, subject: `Offer of employment - ${offer.designation}`, message: `<p>Dear ${String(offer.applicant_name || "").split(" ")[0]},</p><p>We are delighted to offer you the position of ${offer.designation}. Please find your offer letter attached${offer.custom_valid_till ? `; this offer is valid until ${dmy(offer.custom_valid_till)}` : ""}.</p><p>Regards,<br/>HR Team</p>` });
-        return onSaved("Offer sent and emailed with the PDF letter.");
+        await emailDocument({ doctype: "Job Offer", name: offer.name, to: offer.applicant_email, files: (files.data || []).map((x) => x.name), printFormat: withPdf ? undefined : false, subject: `Offer of employment - ${offer.designation}`, message: `<p>Dear ${String(offer.applicant_name || "").split(" ")[0]},</p><p>We are delighted to offer you the position of ${offer.designation}. Please find your offer letter attached${offer.custom_valid_till ? `; this offer is valid until ${dmy(offer.custom_valid_till)}` : ""}.</p><p>Regards,<br/>HR Team</p>` });
+        return onSaved(`Offer sent and emailed with ${[hasLetter && `${files.data.length} attached letter(s)`, withPdf && "the PDF letter"].filter(Boolean).join(" and ")}.`);
       } catch (x) {
         return onSaved(`Offer marked as sent, but the email failed (${errMsg(x, "check the outgoing email settings")}). Download the PDF and send it yourself.`);
       }
@@ -227,9 +233,57 @@ function SendModal({ offer, onClose, onSaved }) {
   return (
     <Modal title={`Send Offer · ${offer.applicant_name}`} onClose={onClose}>
       <p className="text-[13px] text-[var(--color-text-muted)]">Sending locks the offer. To change it later, use Revise.</p>
-      <label className="mt-3 flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><input type="checkbox" checked={email} onChange={(e) => setEmail(e.target.checked)} /><Mail size={13} /> Email the PDF offer letter to {offer.applicant_email || "the candidate"}</label>
+      <label className="mt-3 flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><input type="checkbox" checked={email} onChange={(e) => setEmail(e.target.checked)} /><Mail size={13} /> Email the offer to {offer.applicant_email || "the candidate"}</label>
+      {email && (
+        <div className="ml-6 mt-2 space-y-1.5 text-[12px] text-[var(--color-text-muted)]">
+          {files.loading ? <p>Checking attachments…</p> : hasLetter ? <p className="flex flex-wrap items-center gap-1"><Paperclip size={12} /> Attached: {files.data.map((x) => x.file_name).join(", ")}</p> : <p>No offer letter is attached - edit the offer to attach one.</p>}
+          <label className="flex items-center gap-2"><input type="checkbox" checked={withPdf} onChange={(e) => setPdf(e.target.checked)} /> Also include the system-generated PDF letter</label>
+        </div>
+      )}
       {err && <div className="mt-3"><Notice>{err}</Notice></div>}
       <div className="mt-4 flex justify-end gap-2"><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={go} disabled={busy}>{busy ? "Sending…" : "Send Offer"}</Button></div>
+    </Modal>
+  );
+}
+
+/** The company offer letter templates (Word / PDF) HR fills in for each candidate and attaches to the offer. */
+function TemplatesModal({ onClose }) {
+  const list = useAsync(offerTemplates, []);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  async function upload(picked) {
+    const files = [...(picked || [])];
+    if (!files.length) return;
+    if (files.some((x) => x.size > 10 * 1024 * 1024)) return setMsg({ ok: false, text: "Each template must be 10 MB or smaller." });
+    setBusy(true);
+    setMsg(null);
+    try {
+      for (const file of files) await uploadOfferTemplate(file);
+      setMsg({ ok: true, text: `${files.length} template(s) uploaded.` });
+      list.reload();
+    } catch (x) {
+      setMsg({ ok: false, text: errMsg(x, "Couldn't upload the template.") });
+    }
+    setBusy(false);
+  }
+  async function remove(t) {
+    if (!(await confirmDialog({ title: "Remove Template", message: `Remove ${t.file_name}? Offers that already have a letter attached keep theirs.`, confirmLabel: "Remove", danger: true }))) return;
+    try { await frappe.deleteDoc("File", t.name); list.reload(); } catch (x) { setMsg({ ok: false, text: errMsg(x, "Couldn't remove it.") }); }
+  }
+  return (
+    <Modal title="Offer Letter Templates" onClose={onClose} wide>
+      <div className="space-y-3 text-[13px]">
+        <p className="text-[12px] text-[var(--color-text-muted)]">Keep the company's offer letter formats here. For each offer, download a template, fill in the candidate's details, and attach it in the offer form - it's emailed when the offer is sent.</p>
+        <label className="flex cursor-pointer items-center gap-2"><span className="inline-flex items-center gap-1.5 rounded-md border border-[var(--color-border-strong)] px-3 py-1.5 text-[12.5px] text-[var(--color-text)] hover:border-[var(--color-red)]"><Paperclip size={13} /> {busy ? "Uploading…" : "Upload Template"}</span><input type="file" multiple accept=".pdf,.doc,.docx" className="hidden" disabled={busy} onChange={(e) => { upload(e.target.files); e.target.value = ""; }} /></label>
+        {msg && <Notice tone={msg.ok ? "info" : "error"}>{msg.text}</Notice>}
+        <Async state={list}>
+          {(rows) => <Grid rows={rows} empty="No templates yet - upload your offer letter format." columns={[
+            { key: "file_name", label: "Template", render: (t) => <a href={t.file_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-[var(--color-red-hover)] hover:underline"><FileDown size={13} /> {t.file_name}</a> },
+            { key: "creation", label: "Added", render: (t) => dmy(t.creation) },
+            { key: "_a", label: "", render: (t) => <button type="button" onClick={() => remove(t)} className="text-[12px] text-[var(--color-text-faint)] hover:text-[var(--color-red-hover)]"><Trash2 size={13} /></button> },
+          ]} />}
+        </Async>
+      </div>
     </Modal>
   );
 }

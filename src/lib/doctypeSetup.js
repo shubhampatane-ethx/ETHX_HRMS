@@ -175,7 +175,7 @@ function ordered(list) {
  * Before creating, a Link to a doctype that doesn't exist on the site (and isn't created here first) becomes plain
  * text, so the new doctype can still be saved.
  */
-async function prepare(doc, frappe) {
+export async function prepare(doc, frappe) {
   // Permission rows for roles the site doesn't have (e.g. Interviewer without HRMS) would stop the doctype saving.
   const roles = [...new Set((doc.permissions || []).map((p) => p.role))];
   if (roles.length) {

@@ -5,7 +5,8 @@
 // stage, CTC, offer approval, joining outcome, consent, retention) live in custom fields that the Administrator
 // installs once from HR > Recruitment > Setup (see recruitmentSetup.js).
 import { frappe } from "./api/frappeClient";
-import { addDays, isoDate, listTry, nowStamp, pad, stripHtml } from "./employeePortal";
+import { candidateSender } from "./comms";
+import { addDays, ensureOfferTemplateFolder, isoDate, listTry, nowStamp, OFFER_TEMPLATE_FOLDER, pad, stripHtml } from "./employeePortal";
 
 /* --------------------------------- stages --------------------------------- */
 
@@ -505,8 +506,12 @@ export async function reviseOffer(offer) {
 export const recordResponse = (offer, status, date) => frappe.updateDoc("Job Offer", offer.name, { status, custom_response_on: date || isoDate(), ...(status === "Accepted" ? { custom_joining_status: "Awaiting Joining" } : {}) });
 export const recordJoining = (offer, joining) => frappe.updateDoc("Job Offer", offer.name, { custom_joining_status: joining });
 
-/** Email the offer letter (PDF of the Job Offer print format) through ERPNext's outgoing email account. */
-export function emailDocument({ doctype, name, to, subject, message, printFormat }) {
+/**
+ * Email a candidate (offer letter as a PDF of the Job Offer print format, or a plain message). Goes out from the
+ * candidate mail account (Gmail) set up in Admin › Communication, else ERPNext's default outgoing account.
+ */
+export async function emailDocument({ doctype, name, to, subject, message, printFormat, files = [] }) {
+  const sender = await candidateSender();
   return frappe.callMethod("frappe.core.doctype.communication.email.make", {
     doctype,
     name,
@@ -514,8 +519,10 @@ export function emailDocument({ doctype, name, to, subject, message, printFormat
     subject,
     content: message,
     send_email: 1,
+    ...(sender ? { sender } : {}),
     print_format: printFormat || "Standard",
-    attachments: printFormat === false ? [] : [{ print_format_attachment: 1, doctype, name, print_format: printFormat || "Standard", print_letterhead: 1 }],
+    // Uploaded files (e.g. the offer letter HR attached) go by their File record names.
+    attachments: [...(printFormat === false ? [] : [{ print_format_attachment: 1, doctype, name, print_format: printFormat || "Standard", print_letterhead: 1 }]), ...files],
   });
 }
 
@@ -534,6 +541,16 @@ export async function acceptedForOpening(opening) {
   if (!apps.length) return 0;
   const offers = await listOffers([["job_applicant", "in", apps.map((a) => a.name)], ["docstatus", "=", 1], ["status", "=", "Accepted"]]);
   return offers.filter((o) => !["No-show", "Withdrawn"].includes(o.custom_joining_status)).length;
+}
+
+/* ------------------------------ offer letters ------------------------------ */
+
+/** Files attached to a record (offer letters on a Job Offer, templates in the template folder). */
+export const attachedFiles = (doctype, name) => frappe.getList("File", { filters: [["attached_to_doctype", "=", doctype], ["attached_to_name", "=", name], ["is_folder", "=", 0]], fields: ["name", "file_name", "file_url", "creation"], orderBy: "creation asc", limit: 0 });
+export const offerTemplates = () => frappe.getList("File", { filters: [["folder", "=", OFFER_TEMPLATE_FOLDER], ["is_folder", "=", 0]], fields: ["name", "file_name", "file_url", "creation", "owner"], orderBy: "creation desc", limit: 0 });
+export async function uploadOfferTemplate(file) {
+  await ensureOfferTemplateFolder();
+  return frappe.uploadFile(file, { isPrivate: true, folder: OFFER_TEMPLATE_FOLDER });
 }
 
 /* ---------------------------- onboarding / hire ---------------------------- */

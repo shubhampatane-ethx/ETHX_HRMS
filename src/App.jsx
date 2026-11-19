@@ -30,6 +30,7 @@ const AdminUsers = lazy(() => import("./pages/admin/UsersHub"));
 const Organization = lazy(() => import("./pages/admin/Organization"));
 const Roles = lazy(() => import("./pages/admin/Roles"));
 const Settings = lazy(() => import("./pages/admin/Settings"));
+const Communication = lazy(() => import("./pages/admin/Communication"));
 const AuditLogs = lazy(() => import("./pages/admin/AuditLogs"));
 const ErpSetup = lazy(() => import("./pages/admin/ErpSetup"));
 
@@ -85,6 +86,7 @@ const Policies = lazy(() => import("./pages/hr/Policies"));
 const Assets = lazy(() => import("./pages/hr/Assets"));
 const Offices = lazy(() => import("./pages/hr/Offices"));
 const EmployeeRequests = lazy(() => import("./pages/hr/EmployeeRequests"));
+const Announcements = lazy(() => import("./pages/hr/Announcements"));
 
 export default function App() {
   return (
@@ -112,6 +114,7 @@ export default function App() {
               <Route path="organization" element={<Organization />} />
               <Route path="roles" element={<Roles />} />
               <Route path="settings" element={<Settings />} />
+              <Route path="communication" element={<Communication />} />
               <Route path="audit-logs" element={<AuditLogs />} />
               <Route path="setup" element={<ErpSetup />} />
             </Route>
@@ -176,6 +179,7 @@ export default function App() {
               <Route path="policies" element={<Policies />} />
               <Route path="assets" element={<Assets />} />
               <Route path="requests" element={<EmployeeRequests />} />
+              <Route path="announcements" element={<Announcements />} />
               <Route path="offices" element={<Offices />} />
               <Route path="setup/expense-claim" element={<ExpenseClaims />} />
               <Route path="setup/attendance-request" element={<AttendanceRequests />} />

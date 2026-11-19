@@ -3,7 +3,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, BadgeCheck, Briefcase, Bell, Cake, CalendarCheck, CalendarClock, CalendarDays, CheckCheck, ChevronLeft, ChevronRight, ClipboardCheck, Download, ExternalLink, FileText, GraduationCap, HeartPulse, KeyRound, Laptop, LifeBuoy, LogIn, LogOut, Mail, Megaphone, Paperclip, Pencil, Phone, Plus, Receipt, Search, ShieldAlert, Target, Trash2, Undo2, Upload, UserRound, Users, Wallet } from "lucide-react";
 import { Async, ChangePasswordForm, chipCls, Empty, ErrorState, Field, Grid, inputCls, KeyValue, Loading, Modal, Notice, PageHeader, Panel, Skeleton, Stat, StatusPill, Tabs, useEmployee } from "../../components/employee/EmployeeShell";
-import { CONTACTS, createRequest, daysBetween, daysUntil, dmy, dmyHm, errMsg, EXPIRY_WARN_DAYS, getAcknowledged, getAnnouncements, attReqStatus, getAppraisals, getApprovals, getAttendanceHistory, getAttendanceRequests, getCheckinsBetween, getEvents, getExpenseClaims, getFeedback, getGoals, getHelpArticles, getHolidays, getLeaveApplications, getLeaveBalance, getLeaveTypes, getMyAssets, getMyBenefits, getMyDocuments, getMyLeavesBetween, getMyTraining, getNotifications, getPayslips, getPolicies, getRequests, getShiftAssignments, getTeamAvailability, getTodayAttendance, getUpcomingBirthdays, hm, hoursLabel, isoDate, LETTER_TYPES, money, MONTHS, MONTHS_LONG, nowStamp, pad, removeMyDocument, REQUEST_CATEGORIES, splitRequest, stripHtml, updateRequest, uploadMyDocument, withdrawRequest, summariseCheckins, useAsync, WEEKDAYS } from "../../lib/employeePortal";
+import { CONTACTS, createRequest, joinLeaveReason, LEAVE_REASONS, OTHER_REASON, splitLeaveReason, daysBetween, daysUntil, dmy, dmyHm, errMsg, EXPIRY_WARN_DAYS, getAcknowledged, getAnnouncements, attReqStatus, getAppraisals, getApprovals, getAttendanceHistory, getAttendanceRequests, getCheckinsBetween, getEvents, getExpenseClaims, getFeedback, getGoals, getHelpArticles, getHolidays, getLeaveApplications, getLeaveBalance, getLeaveTypes, getMyAssets, getMyBenefits, getMyDocuments, getMyLeavesBetween, getMyTraining, getNotifications, getPayslips, getPolicies, getRequests, getShiftAssignments, getTeamAvailability, getTodayAttendance, getUpcomingBirthdays, hm, hoursLabel, isoDate, LETTER_TYPES, money, MONTHS, MONTHS_LONG, nowStamp, pad, removeMyDocument, REQUEST_CATEGORIES, splitRequest, stripHtml, updateRequest, uploadMyDocument, withdrawRequest, summariseCheckins, useAsync, WEEKDAYS } from "../../lib/employeePortal";
 import { useAuth } from "../../context/AuthContext";
 import { hasPermission } from "../../permissions/roles";
 import { isPageBlocked } from "../../permissions/pageAccess";
@@ -1000,8 +1000,8 @@ export function EmpLeave() {
 function ApplyModal({ employee, balance, leave, onClose, onSaved }) {
   const types = useAsync(async () => (balance.length ? balance.map((b) => b.leave_type) : (await getLeaveTypes()).map((t) => t.name)), []);
   const [f, setF] = useState(() => leave
-    ? { leave_type: leave.leave_type || "", from_date: leave.from_date, to_date: leave.to_date, half_day: Boolean(Number(leave.half_day)), description: stripHtml(leave.description || "") }
-    : { leave_type: "", from_date: isoDate(), to_date: isoDate(), half_day: false, description: "" });
+    ? { leave_type: leave.leave_type || "", from_date: leave.from_date, to_date: leave.to_date, half_day: Boolean(Number(leave.half_day)), ...(() => { const r = splitLeaveReason(stripHtml(leave.description || "")); return { reason: r.reason, description: r.details }; })() }
+    : { leave_type: "", from_date: isoDate(), to_date: isoDate(), half_day: false, reason: "", description: "" });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const days = daysBetween(f.from_date, f.to_date) - (f.half_day ? 0.5 : 0);
@@ -1018,15 +1018,17 @@ function ApplyModal({ employee, balance, leave, onClose, onSaved }) {
   async function submit(e) {
     e.preventDefault();
     if (f.to_date < f.from_date) return setErr("The end date can't be before the start date.");
+    if (f.reason === OTHER_REASON && !f.description.trim()) return setErr("Describe the reason for your leave.");
+    const description = joinLeaveReason(f.reason, f.description);
     setBusy(true);
     setErr("");
     try {
       if (leave) {
-        await frappe.updateDoc("Leave Application", leave.name, { leave_type: f.leave_type, from_date: f.from_date, to_date: f.to_date, half_day: f.half_day ? 1 : 0, half_day_date: f.half_day ? f.from_date : null, description: f.description, ...(approver ? { leave_approver: approver } : {}) });
+        await frappe.updateDoc("Leave Application", leave.name, { leave_type: f.leave_type, from_date: f.from_date, to_date: f.to_date, half_day: f.half_day ? 1 : 0, half_day_date: f.half_day ? f.from_date : null, description, ...(approver ? { leave_approver: approver } : {}) });
         onSaved();
         return;
       }
-      await frappe.createDoc("Leave Application", { employee: employee.name, leave_type: f.leave_type, from_date: f.from_date, to_date: f.to_date, half_day: f.half_day ? 1 : 0, ...(f.half_day ? { half_day_date: f.from_date } : {}), description: f.description, posting_date: isoDate(), status: "Open", leave_approver: approver || undefined });
+      await frappe.createDoc("Leave Application", { employee: employee.name, leave_type: f.leave_type, from_date: f.from_date, to_date: f.to_date, half_day: f.half_day ? 1 : 0, ...(f.half_day ? { half_day_date: f.from_date } : {}), description, posting_date: isoDate(), status: "Open", leave_approver: approver || undefined });
       onSaved();
     } catch (x) {
       setErr(errMsg(x, leave ? "Couldn't save the changes." : "Couldn't submit your leave application."));
@@ -1050,7 +1052,10 @@ function ApplyModal({ employee, balance, leave, onClose, onSaved }) {
         </Field>
         {switched && <Notice tone="info">{list[0].name} is on leave, so {auto.name} will approve instead.</Notice>}
         {list.length > 0 && approvers.data && !approvers.data.checked && <p className="text-[11px] text-[var(--color-text-faint)]">Couldn't check approvers' availability; HR re-assigns if your approver is away.</p>}
-        <Field label="Reason"><textarea rows={3} className={inputCls} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} /></Field>
+        <Field label="Reason">
+          <select required className={inputCls} value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })}><option value="">Select…</option>{LEAVE_REASONS.map((r) => <option key={r} value={r}>{r === OTHER_REASON ? "Other (Please Specify)" : r}</option>)}</select>
+        </Field>
+        <Field label={f.reason === OTHER_REASON ? "Details" : "Details (Optional)"}><textarea rows={3} required={f.reason === OTHER_REASON} className={inputCls} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} placeholder={f.reason === OTHER_REASON ? "Tell your approver the reason" : ""} /></Field>
         <p className="text-[12px] text-[var(--color-text-muted)]">Requesting about <b className="text-[var(--color-text)]">{Math.max(days, 0)}</b> day(s). Weekly offs and holidays are excluded automatically.</p>
         {err && <Notice>{err}</Notice>}
         <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy || !f.leave_type}>{busy ? "Saving…" : leave ? "Save Changes" : "Submit"}</Button></div>

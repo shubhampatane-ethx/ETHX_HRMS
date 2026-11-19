@@ -61,7 +61,7 @@ export default function Resources() {
         <Stat icon={Users} label="Over-Allocated" value={data.data ? rows.filter((r) => r.over).length : undefined} sub="Assigned more than capacity" accent="var(--color-red-hover)" />
       </div>
       <Panel title={label} hint="Capacity = working days (holiday list - weekends are off if it has no weekly offs - or Mon–Fri) minus approved leave × 8 h. Assigned = PM assignments' hours per day × weekdays in the month. Approved = approved timesheet hours." action={<Button variant="secondary" disabled={!shown.length} onClick={() => downloadCsv(`resources-${ym.y}-${pad(ym.m + 1)}.csv`, ["Employee", "ID", "Department", "Capacity h", "Assigned h", "Approved h", "Planned load %", "Utilisation %", "Projects", "Bench"], shown.map((r) => [r.employee_name, r.name, r.department, r.expected, r.assigned.toFixed(1), r.approved.toFixed(1), r.load.toFixed(0), r.util.toFixed(0), r.projects.join("; "), r.bench ? "yes" : ""]))}><Download size={14} /> CSV</Button>}>
-        <p className="mb-3 text-[12px] text-[var(--color-text-muted)]">Bench means no project assignment this month. To move someone to Allocated, {canAssign ? "use Assign to Project on their row" : "ask a Project Manager to assign them under Assignments"} - with dates in this month.</p>
+        <p className="mb-3 text-[12px] text-[var(--color-text-muted)]">Bench means no project assignment this month. To move someone to Allocated or give them another project, {canAssign ? "use Assign to Project or + Add Project on their row" : "ask a Project Manager to assign them under Assignments"} - with dates in this month.</p>
         <div className="mb-4 flex gap-2">{[["all", "Everyone"], ["bench", "Bench"], ["over", "Over-Allocated"], ["ok", "Allocated"]].map(([v, l]) => <button key={v} type="button" onClick={() => setFilter(v)} className={chipCls(filter === v)}>{l}</button>)}</div>
         <Async state={data}>
           {() => <Grid rows={shown} empty="No one here." columns={[
@@ -70,11 +70,13 @@ export default function Resources() {
             { key: "assigned", label: "Assigned", render: (r) => <span className={r.over ? "font-medium text-[var(--color-red-hover)]" : ""}>{r.assigned.toFixed(0)} h · {r.load.toFixed(0)}%</span> },
             { key: "approved", label: "Approved", render: (r) => `${r.approved.toFixed(0)} h · ${r.util.toFixed(0)}%` },
             { key: "bar", label: "", render: (r) => <span className="relative block h-2 w-32 overflow-hidden rounded-full bg-[var(--color-surface-2)]" title="dark = approved, light = assigned"><span className="absolute inset-y-0 left-0 bg-[color-mix(in_srgb,var(--color-red)_35%,transparent)]" style={{ width: `${Math.min(100, r.load)}%` }} /><span className="absolute inset-y-0 left-0 bg-[var(--color-red)]" style={{ width: `${Math.min(100, r.util)}%` }} /></span> },
-            { key: "projects", label: "Projects", render: (r) => (r.bench ? (
-              <span className="flex flex-wrap items-center gap-2"><span className="text-[var(--color-amber)]">Bench</span>
-                {canAssign && r.user_id && <Link to={`/pm/assignments?assign=1&person=${encodeURIComponent(r.user_id)}`} className="rounded-md border border-[var(--color-border-strong)] px-2 py-0.5 text-[11px] text-[var(--color-text)] hover:border-[var(--color-red)]">Assign to Project</Link>}
+            // Someone can work on several projects: each gets its own assignment, so "+ Add Project" adds another.
+            { key: "projects", label: "Projects", render: (r) => (
+              <span className="flex flex-wrap items-center gap-1.5">
+                {r.bench ? <span className="text-[var(--color-amber)]">Bench</span> : r.projects.map((p) => <span key={p} className="rounded-full bg-[var(--color-surface-2)] px-2 py-0.5 text-[11px] text-[var(--color-text)]">{p}</span>)}
+                {canAssign && r.user_id && <Link to={`/pm/assignments?assign=1&person=${encodeURIComponent(r.user_id)}`} className="whitespace-nowrap rounded-md border border-[var(--color-border-strong)] px-2 py-0.5 text-[11px] text-[var(--color-text)] hover:border-[var(--color-red)]">{r.bench ? "Assign to Project" : "+ Add Project"}</Link>}
               </span>
-            ) : <span className="text-[11.5px]">{r.projects.join(", ")}</span>) },
+            ) },
           ]} />}
         </Async>
       </Panel>

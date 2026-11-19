@@ -109,12 +109,29 @@ const TITLE_FIELDS = {
  * picking, the box shows the name. Free typing of an exact ID still works,
  * and Frappe validates the link server-side on save.
  */
-export function LinkField({ label, linkDoctype, value, onChange, required, frappe, titleField }) {
+export function LinkField({ label, linkDoctype, value, onChange, required, frappe, titleField, onCreate }) {
   const title = titleField || TITLE_FIELDS[linkDoctype] || "name";
   const [options, setOptions] = useState([]);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState("");
+
+  // `onCreate(text)` (optional) adds a missing option, e.g. a new Employee Grade, and returns its ID.
+  async function create(text) {
+    setCreating(true);
+    setCreateError("");
+    try {
+      const id = await onCreate(text);
+      setOptions((list) => [{ id, title: "" }, ...list.filter((o) => o.id !== id)]);
+      onChange(id);
+      setOpen(false);
+    } catch (e) {
+      setCreateError(e?.message && !e.response ? e.message : `Couldn't create "${text}" - you may not have permission.`);
+    }
+    setCreating(false);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -180,6 +197,12 @@ export function LinkField({ label, linkDoctype, value, onChange, required, frapp
               {o.title && <span className="shrink-0 text-[11px] text-[var(--color-text-muted)]">{o.id}</span>}
             </li>
           ))}
+          {onCreate && q && !options.some((o) => o.id.toLowerCase() === q || o.title.toLowerCase() === q) && (
+            <li onMouseDown={(e) => { e.preventDefault(); create(query.trim()); }} className="cursor-pointer border-t border-[var(--color-border)] px-3 py-1.5 text-[13px] text-[var(--color-red-hover)] hover:bg-[var(--color-red-wash)]">
+              {creating ? "Creating…" : `+ Create "${query.trim()}"`}
+            </li>
+          )}
+          {createError && <li className="px-3 py-1.5 text-[12px] text-[var(--color-red-hover)]">{createError}</li>}
         </ul>
       )}
     </label>

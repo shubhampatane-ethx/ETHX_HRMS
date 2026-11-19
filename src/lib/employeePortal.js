@@ -111,6 +111,8 @@ async function ensureHomeFolder(path) {
 }
 export const ensureAssetFolder = () => ensureHomeFolder(ASSET_FOLDER);
 export const ensurePolicyFolder = () => ensureHomeFolder(POLICY_FOLDER);
+export const OFFER_TEMPLATE_FOLDER = "Home/Offer Letter Templates";
+export const ensureOfferTemplateFolder = () => ensureHomeFolder(OFFER_TEMPLATE_FOLDER);
 export const getAssetLists = () =>
   frappe.getList("File", { filters: [["is_private", "=", 1], ["folder", "=", ASSET_FOLDER], ["is_folder", "=", 0]], fields: ["name", "file_name", "file_url", "creation"], orderBy: "creation desc", limit: 0 });
 
@@ -118,6 +120,23 @@ export const getAssetLists = () =>
 export const EXPIRY_WARN_DAYS = 90;
 
 export const REQUEST_CATEGORIES = ["HR Support", "IT Support", "Payroll", "Document request", "Other"];
+
+// Leave reasons offered when applying (employee and HR). "Other" needs the details typed in. Stored on the leave
+// application's description as "Reason: details".
+export const LEAVE_REASONS = ["Personal Work", "Not Feeling Well / Medical", "Family Function / Event", "Family Emergency", "Travel / Vacation", "Child Care", "Exam / Study", "Other"];
+export const OTHER_REASON = "Other";
+export function joinLeaveReason(reason, details) {
+  const d = String(details || "").trim();
+  if (!reason) return d;
+  return reason === OTHER_REASON ? d : d ? `${reason}: ${d}` : reason;
+}
+/** Back from a stored description to { reason, details } for editing. */
+export function splitLeaveReason(text) {
+  const t = String(text || "").trim();
+  const hit = LEAVE_REASONS.find((r) => r !== OTHER_REASON && (t === r || t.startsWith(`${r}: `)));
+  if (hit) return { reason: hit, details: t.slice(hit.length).replace(/^:\s*/, "") };
+  return t ? { reason: OTHER_REASON, details: t } : { reason: "", details: "" };
+}
 
 export const LETTER_TYPES = [
   { key: "Salary certificate", hint: "For banks, loans or visa applications" },

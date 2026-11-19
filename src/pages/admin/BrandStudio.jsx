@@ -253,19 +253,20 @@ export default function BrandStudio() {
       {(error || companiesQuery.error || companyQuery.error) && <p role="alert" className="rounded-md border border-[var(--color-red-deep)] bg-[var(--color-red-wash)] px-4 py-3 text-[12px] text-[var(--color-red-hover)]">{error || errMsg(companiesQuery.error || companyQuery.error, "Unable to load company branding.")}</p>}
       {message && <p role="status" className="rounded-md border border-[var(--color-green)]/30 bg-[color-mix(in_srgb,var(--color-green)_10%,transparent)] px-4 py-3 text-[12px] text-[var(--color-green)]">{message}</p>}
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.75fr)]">
+      <div className="space-y-6">
         <section className="space-y-3">
           <div className="flex items-end justify-between gap-3">
             <div><h2 className="text-[14px] font-semibold text-[var(--color-text)]">Theme System</h2><p className="mt-0.5 text-[12px] text-[var(--color-text-muted)]">Choose a complete color palette for this company.</p></div>
             {busy === "theme" && <span className="flex items-center gap-1.5 text-[11px] text-[var(--color-text-muted)]"><Loader2 size={13} className="animate-spin" />Saving</span>}
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {THEME_OPTIONS.map((theme) => <ThemePreview key={theme.id} theme={theme} selected={selectedTheme === theme.id} disabled={!companyName || Boolean(busy)} onClick={() => chooseTheme(theme)} />)}
           </div>
         </section>
 
         <section className="space-y-3">
           <div><h2 className="text-[14px] font-semibold text-[var(--color-text)]">Company Logos</h2><p className="mt-0.5 text-[12px] text-[var(--color-text-muted)]">Upload one logo for light themes and one for dark themes. With only one uploaded, it is adjusted to fit the other themes.</p></div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {LOGO_SLOTS.map((slot) => {
             const uploaded = currentCompany?.[slot.field] || "";
             const loading = companyQuery.loading && !currentCompany;
@@ -290,7 +291,13 @@ export default function BrandStudio() {
               </Card>
             );
           })}
-          <Card className="space-y-3 p-4">
+          </div>
+        </section>
+
+        <section className="space-y-3">
+          <div><h2 className="text-[14px] font-semibold text-[var(--color-text)]">Name & Sign-In Help</h2><p className="mt-0.5 text-[12px] text-[var(--color-text-muted)]">What people see next to the logo and on the sign-in page.</p></div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <Card className="order-2 space-y-3 p-4">
             <div>
               <p className="flex items-center gap-1.5 text-[13px] font-semibold text-[var(--color-text)]"><Headset size={14} /> Sign-In Help</p>
               <p className="mt-0.5 text-[11px] text-[var(--color-text-muted)]">Shown on the sign-in page under Contact IT Support, for people who can't sign in.</p>
@@ -303,7 +310,7 @@ export default function BrandStudio() {
             </div>
           </Card>
           {/* The company name is separate text from the Company record - never part of the logo image. */}
-          <Card className="space-y-3 p-4">
+          <Card className="order-1 space-y-3 p-4">
             <div>
               <p className="text-[13px] font-semibold text-[var(--color-text)]">Company Name</p>
               <p className="mt-0.5 text-[11px] text-[var(--color-text-muted)]">Shown under the logo, on the sign-in page and in the browser tab.{legalName && ` Legal name: ${legalName} (not changed).`}</p>
@@ -326,6 +333,7 @@ export default function BrandStudio() {
               </div>
             </div>
           </Card>
+          </div>
         </section>
       </div>
 

@@ -8,7 +8,7 @@ import { CalendarDays, Check, Download, Plus, UserCog, X } from "lucide-react";
 import { frappe } from "../../lib/api/frappeClient";
 import { Button, DateField, LinkField } from "../../components/ui/primitives";
 import { Async, chipCls, Field, Grid, inputCls, Modal, Notice, PageHeader, Panel, StatusPill, Tabs } from "../../components/employee/EmployeeShell";
-import { dmy, errMsg, getMyEmployee, isoDate, listTry, useAsync } from "../../lib/employeePortal";
+import { dmy, errMsg, getMyEmployee, isoDate, joinLeaveReason, LEAVE_REASONS, listTry, OTHER_REASON, useAsync } from "../../lib/employeePortal";
 import { useAuth } from "../../context/AuthContext";
 import { downloadCsv } from "../../lib/recruitment";
 import { approversOnLeave, decideLeaveDirect, getApprovers, pickApprover, reassignLeave, rerouteUnavailable } from "../../lib/approvals";
@@ -134,18 +134,19 @@ function DecideModal({ app, to, onClose, onSaved }) {
 }
 
 function ApplyModal({ onClose, onSaved }) {
-  const [f, setF] = useState({ employee: "", leave_type: "", from: isoDate(), to: isoDate(), half: false, reason: "" });
+  const [f, setF] = useState({ employee: "", leave_type: "", from: isoDate(), to: isoDate(), half: false, reason: "", details: "" });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   async function submit(e) {
     e.preventDefault();
     if (f.to < f.from) return setErr("The end date can't be before the start date.");
+    if (f.reason === OTHER_REASON && !f.details.trim()) return setErr("Describe the reason for the leave.");
     setBusy(true);
     setErr("");
     try {
       const emp = await frappe.getDoc("Employee", f.employee);
       const approver = pickApprover(await getApprovers(emp, "Leave Application").catch(() => []));
-      await frappe.createDoc("Leave Application", { employee: f.employee, leave_type: f.leave_type, from_date: f.from, to_date: f.to, half_day: f.half ? 1 : 0, ...(f.half ? { half_day_date: f.from } : {}), description: f.reason || `Entered by HR`, company: emp.company, ...(approver ? { leave_approver: approver.email } : {}), posting_date: isoDate(), status: "Open" });
+      await frappe.createDoc("Leave Application", { employee: f.employee, leave_type: f.leave_type, from_date: f.from, to_date: f.to, half_day: f.half ? 1 : 0, ...(f.half ? { half_day_date: f.from } : {}), description: joinLeaveReason(f.reason, f.details) || `Entered by HR`, company: emp.company, ...(approver ? { leave_approver: approver.email } : {}), posting_date: isoDate(), status: "Open" });
       onSaved();
     } catch (x) {
       setErr(errMsg(x, "Couldn't create the leave application."));
@@ -159,7 +160,10 @@ function ApplyModal({ onClose, onSaved }) {
         <LinkField label="Leave Type" linkDoctype="Leave Type" value={f.leave_type} onChange={(v) => setF({ ...f, leave_type: v })} required frappe={frappe} />
         <div className="grid grid-cols-2 gap-3"><DateField label="From" value={f.from} onChange={(v) => setF({ ...f, from: v, to: f.to < v ? v : f.to })} required /><DateField label="To" value={f.to} onChange={(v) => setF({ ...f, to: v })} required /></div>
         <label className="flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><input type="checkbox" checked={f.half} onChange={(e) => setF({ ...f, half: e.target.checked })} /> Half day (on the start date)</label>
-        <Field label="Reason"><input className={inputCls} value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} /></Field>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Field label="Reason"><select required className={inputCls} value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })}><option value="">Select…</option>{LEAVE_REASONS.map((r) => <option key={r} value={r}>{r === OTHER_REASON ? "Other (Please Specify)" : r}</option>)}</select></Field>
+          <Field label={f.reason === OTHER_REASON ? "Details" : "Details (Optional)"}><input required={f.reason === OTHER_REASON} className={inputCls} value={f.details} onChange={(e) => setF({ ...f, details: e.target.value })} /></Field>
+        </div>
         <p className="text-[11px] text-[var(--color-text-faint)]">It goes to the employee's leave approver to decide.</p>
         {err && <Notice>{err}</Notice>}
         <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Saving…" : "Save"}</Button></div>
