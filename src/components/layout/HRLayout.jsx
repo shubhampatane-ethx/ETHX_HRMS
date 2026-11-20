@@ -6,6 +6,7 @@ import { Sidebar } from "./Sidebar";
 import { useAuth } from "../../context/AuthContext";
 import { hasPermission, isStaffEmployee } from "../../permissions/roles";
 import { Topbar } from "./Topbar";
+import { useClientScope } from "../../lib/clientScope";
 import { HR_SETUP_SECTIONS, slugify } from "../../lib/hrSetupConfig";
 
 // A setup page or report from the HR setup config, by its doctype (its own page if it has one).
@@ -179,6 +180,7 @@ export function hrTitleFor(pathname) {
 }
 
 export function HRLayout() {
+  const client = useClientScope(); // the super admin's client; switching reloads the page for that client
   const { pathname } = useLocation();
   const { user } = useAuth();
   const isAdmin = hasPermission(user, "dashboard.admin");
@@ -190,7 +192,7 @@ export function HRLayout() {
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar roleLabel={isAdmin ? "Admin" : "HR"} pageTitle={hrTitleFor(pathname)} />
         <main className="flex-1 overflow-y-auto p-6">
-          <Suspense fallback={<PageLoading />}><Outlet /></Suspense>
+          <Suspense key={client || "all"} fallback={<PageLoading />}><Outlet /></Suspense>
         </main>
       </div>
     </div>

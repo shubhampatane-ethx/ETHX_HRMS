@@ -47,7 +47,7 @@ st = doc.custom_review_status or ""
 if st == "Finalized":
     frappe.throw("This timesheet is finalized and locked. Ask HR to reopen it if it really needs correcting.")
 if st in ("Approved", "Partly Approved") and not doc.flags.get("ethx_review"):
-    frappe.throw("Approved hours can only be sent back from ETHX HRMS (Timesheets › Return), which records who did it and why.")
+    frappe.throw("Approved hours can only be sent back from HRMS 360 (Timesheets › Return), which records who did it and why.")
 `;
 
 const REVIEW_API = `

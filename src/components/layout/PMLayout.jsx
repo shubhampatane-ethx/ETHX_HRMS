@@ -4,6 +4,7 @@ import { Outlet, useLocation } from "react-router-dom";
 import { ArrowLeft, Briefcase, CalendarCheck, CheckCheck, Gauge, Users, ClipboardCheck, ClipboardList, Timer, UserPlus } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
+import { useClientScope } from "../../lib/clientScope";
 import { useAuth } from "../../context/AuthContext";
 import { hasPermission, isStaffEmployee } from "../../permissions/roles";
 import { dashboardLink, SELF_SERVICE, SELF_SERVICE_PAGES } from "./HRLayout";
@@ -53,6 +54,7 @@ export function pmNav(user) {
 
 /** Project Manager workspace: projects, who is assigned to what (role + ETA), and the team's timesheets. */
 export function PMLayout() {
+  const client = useClientScope(); // the super admin's client; switching reloads the page for that client
   const { pathname } = useLocation();
   const { user } = useAuth();
   if (user?.mustChangePassword) return <ForcedPasswordScreen />;
@@ -65,7 +67,7 @@ export function PMLayout() {
         <Topbar roleLabel="Project Manager" pageTitle={pmTitleFor(pathname)} />
         <main className="flex-1 overflow-y-auto p-6">
           <div className="mx-auto max-w-6xl space-y-5">
-            <Suspense fallback={<PageLoading />}><Outlet /></Suspense>
+            <Suspense key={client || "all"} fallback={<PageLoading />}><Outlet /></Suspense>
           </div>
         </main>
       </div>

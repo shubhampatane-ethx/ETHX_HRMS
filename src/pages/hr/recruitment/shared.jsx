@@ -51,7 +51,7 @@ export function SetupHint() {
   return (
     <Notice>
       Recruitment isn't fully set up yet (pipeline stages, CTC, offer approval and retention fields are missing).{" "}
-      {user?.email === "Administrator" ? <Link to="/admin/setup" className="underline">See what's missing</Link> : "It's set up automatically the next time the Administrator signs in."}
+      {user?.email === "Administrator" ? <Link to="/admin/roles" className="underline">See what's missing</Link> : "It's set up automatically the next time the Administrator signs in."}
     </Notice>
   );
 }
@@ -389,7 +389,7 @@ export function icsFor(interview, applicantName) {
   downloadIcs({
     uid: interview.name,
     title: `Interview: ${applicantName || interview.job_applicant} – ${interview.interview_round}`,
-    description: `${interview.interview_round} interview with ${applicantName || interview.job_applicant}.${interview.custom_meeting_link ? `\n${interview.custom_meeting_link}` : ""}\nGive feedback in ETHX HRMS › My Interviews.`,
+    description: `${interview.interview_round} interview with ${applicantName || interview.job_applicant}.${interview.custom_meeting_link ? `\n${interview.custom_meeting_link}` : ""}\nGive feedback in HRMS 360 › My Interviews.`,
     date: interview.scheduled_on,
     from: fmtTime(interview.from_time),
     to: fmtTime(interview.to_time),

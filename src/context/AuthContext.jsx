@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { frappe } from "../lib/api/frappeClient";
+import { setClientScope, storedClient } from "../lib/clientScope";
+import { SUPER_ADMIN } from "../lib/modules";
 import { ADMIN_USERNAME, appRolesFor, effectiveRolesForUser, rolesToPermissions } from "../permissions/roles";
 
 const AuthContext = createContext(null);
@@ -55,7 +57,8 @@ export function AuthProvider({ children }) {
     try {
       const email = await frappe.getLoggedUser();
       if (!email || email === "Guest") {
-        setUser(null);
+        setClientScope(null);
+      setUser(null);
         setStatus("guest");
         return null;
       }
@@ -73,12 +76,20 @@ export function AuthProvider({ children }) {
         // A missing profile image or name must not prevent an otherwise valid login.
       }
       // Pages the Administrator has blocked for this person. Before setup has run there are none.
-      const deniedPages = await frappe.callMethod("ethx_my_page_access").catch(() => []);
-      const nextUser = { email, fullName, roles, erpRoles, permissions: rolesToPermissions(roles), mustChangePassword, userImage, deniedPages: Array.isArray(deniedPages) ? deniedPages : [] };
+      // and the product modules the person's company doesn't have (Admin › Modules & People). Before setup has run, everything is on.
+      const [deniedPages, modules] = await Promise.all([
+        frappe.callMethod("ethx_my_page_access").catch(() => []),
+        frappe.callMethod("ethx_modules").catch(() => null),
+      ]);
+      const disabledModules = Array.isArray(modules?.disabled) ? modules.disabled : [];
+      const nextUser = { email, fullName, roles, erpRoles, permissions: rolesToPermissions(roles), mustChangePassword, userImage, deniedPages: Array.isArray(deniedPages) ? deniedPages : [], disabledModules };
+      // The super admin works on one client at a time (lib/clientScope.js); everyone else is scoped by ERPNext.
+      setClientScope(email === SUPER_ADMIN ? storedClient() : null);
       setUser(nextUser);
       setStatus("authenticated");
       return nextUser;
     } catch {
+      setClientScope(null);
       setUser(null);
       setStatus("guest");
       return null;
@@ -88,6 +99,7 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     loadSession();
     const onUnauthorized = () => {
+      setClientScope(null);
       setUser(null);
       setStatus("guest");
     };
@@ -109,6 +121,7 @@ export function AuthProvider({ children }) {
     } catch {
       /* even if the server call fails, sign the user out of this app */
     } finally {
+      setClientScope(null);
       setUser(null);
       setStatus("guest");
     }

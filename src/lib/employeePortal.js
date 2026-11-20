@@ -1,6 +1,7 @@
 // Employee portal: helpers, settings, async hook and ERPNext API calls in one file.
 import { useEffect, useRef, useState } from "react";
 import { frappe } from "./api/frappeClient";
+import { FULL_DAY_HOURS } from "./attendanceSetup";
 import { getReviewsSafe, listTimesheets, reviewOf } from "./timesheets";
 
 /* ===== employeeUtils.js ===== */
@@ -549,6 +550,16 @@ export const getHelpArticles = (q) =>
 export function getCheckinsBetween(emp, from, to) {
   const filters = [["time", ">=", `${from} 00:00:00`], ["time", "<=", `${to} 23:59:59`], ...(emp ? [["employee", "=", emp]] : [])];
   return listTry("Employee Checkin", { filters, fields: ["name", "employee", "employee_name", "log_type", "time"], orderBy: "time asc" }, ["name", "employee", "log_type", "time"]);
+}
+
+/**
+ * What a punched day with no attendance record shows as - the same rule as the nightly job (attendanceSetup.js):
+ * Present at FULL_DAY_HOURS or more; otherwise Short Hours, Missed Punch Out (a past day never punched out) or
+ * Working (still punched in today). Only Present days are marked automatically.
+ */
+export function punchDayStatus(d) {
+  if (d.stillIn) return d.attendance_date === isoDate() ? "Working" : "Missed Punch Out";
+  return Number(d.working_hours) >= FULL_DAY_HOURS ? "Present" : "Short Hours";
 }
 
 /** Group raw logs into one row per employee per day: first in, last out and hours worked. */

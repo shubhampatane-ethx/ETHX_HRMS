@@ -1,11 +1,12 @@
 // Attendance from punches (installed from Admin › ERPNext Setup). Employees punch in / out as Employee Checkins;
 // ERPNext only turns those into Attendance when a Shift Type has auto-attendance configured. This daily job marks
 // every day of the last week that has punches but no attendance yet:
-//   - Half Day when the first-in to last-out time is under HALF_DAY_HOURS, otherwise Present;
+//   - Present when the time worked (each punch in to the next punch out, added up) is FULL_DAY_HOURS or more;
+//   - shorter days, and days with no punch out, are not marked: the employee asks for a correction or HR marks them;
 //   - days that already have attendance (marked by HR, or On Leave from an approved leave) are left alone.
-// HR can still change any record on the Attendance page.
+// The screens show the same rule (employeePortal.punchDayStatus). HR can still change any record on the Attendance page.
 
-export const HALF_DAY_HOURS = 4;
+export const FULL_DAY_HOURS = 8;
 
 const MARK_FROM_PUNCHES = `
 today = frappe.utils.getdate(frappe.utils.nowdate())
@@ -23,15 +24,20 @@ for back in range(1, 8):
         info = frappe.db.get_value("Employee", emp, ["company", "status"], as_dict=True)
         if not info or info.status == "Left":
             continue
-        ins = [r.time for r in rows if r.log_type != "OUT"]
-        outs = [r.time for r in rows if r.log_type == "OUT"]
-        status = "Present"
         hours = 0
-        if ins and outs and max(outs) > min(ins):
-            hours = frappe.utils.time_diff_in_hours(max(outs), min(ins))
-            if hours < ${HALF_DAY_HOURS}:
-                status = "Half Day"
-        att = frappe.get_doc({"doctype": "Attendance", "employee": emp, "attendance_date": day, "status": status, "company": info.company, "working_hours": hours, "in_time": min(ins) if ins else None, "out_time": max(outs) if outs else None})
+        open_in = None
+        for r in rows:
+            if r.log_type == "IN":
+                if not open_in:
+                    open_in = r.time
+            elif r.log_type == "OUT" and open_in:
+                hours += frappe.utils.time_diff_in_hours(r.time, open_in)
+                open_in = None
+        if hours < ${FULL_DAY_HOURS}:
+            continue
+        ins = [r.time for r in rows if r.log_type == "IN"]
+        outs = [r.time for r in rows if r.log_type == "OUT"]
+        att = frappe.get_doc({"doctype": "Attendance", "employee": emp, "attendance_date": day, "status": "Present", "company": info.company, "working_hours": round(hours, 2), "in_time": min(ins), "out_time": max(outs)})
         att.insert(ignore_permissions=True)
         att.submit()
 `;
@@ -119,7 +125,14 @@ if owner == user:
     frappe.throw("You can't decide on your own request.")
 roles = frappe.get_all("Has Role", filters={"parent": user, "parenttype": "User"}, pluck="role")
 is_hr = user == "Administrator" or "HR Manager" in roles or "HR User" in roles or "System Manager" in roles
-if doc.get("custom_approver") != user and not is_hr:
+# HR staff's own requests are decided by their approver or manager, not by fellow HR.
+owner_staff = owner and frappe.get_all("Has Role", filters={"parent": owner, "parenttype": "User", "role": ["in", ["HR Manager", "HR User"]]}, pluck="role")
+if owner_staff and user != "Administrator":
+    info = frappe.db.get_value("Employee", doc.employee, ["reports_to", "leave_approver"], as_dict=True) or {}
+    boss = frappe.db.get_value("Employee", info.get("reports_to"), "user_id") if info.get("reports_to") else None
+    if user not in (doc.get("custom_approver"), boss, info.get("leave_approver")) and "System Manager" not in roles:
+        frappe.throw("This is an HR team member's request, so their approver, their manager or an admin decides it.")
+elif doc.get("custom_approver") != user and not is_hr:
     frappe.throw("Only the assigned approver or HR can approve or reject this request.")
 if status == "Approved":
     doc.flags.ignore_permissions = True
@@ -134,6 +147,129 @@ if owner:
 frappe.response["message"] = {"status": status}
 `;
 
+// Who may mark or change a person's attendance by hand (the Attendance page, ERPNext desk). Nobody decides their own
+// days, and HR staff's attendance is decided by their manager - their Leave Approver or Reports To, the same people
+// attendance corrections go to - or by an admin (System Manager), not by themselves or by fellow HR. Days
+// that come from an approved leave or attendance request follow those approvals, and the nightly job runs as
+// Administrator, so neither is checked here. Without a manager set, HR (other than the person) may decide.
+const ATTENDANCE_GUARD = `
+user = frappe.session.user
+if user != "Administrator" and not doc.get("leave_application") and not doc.get("attendance_request"):
+    emp = frappe.db.get_value("Employee", doc.employee, ["user_id", "reports_to", "leave_approver", "employee_name"], as_dict=True)
+    if emp and emp.user_id:
+        if emp.user_id == user:
+            frappe.throw("You can't mark or change your own attendance - your manager does that.")
+        staff = frappe.get_all("Has Role", filters={"parent": emp.user_id, "parenttype": "User", "role": ["in", ["HR Manager", "HR User"]]}, pluck="role")
+        if staff:
+            managers = []
+            if emp.leave_approver:
+                managers.append(emp.leave_approver)
+            if emp.reports_to:
+                boss = frappe.db.get_value("Employee", emp.reports_to, "user_id")
+                if boss:
+                    managers.append(boss)
+            is_admin = frappe.db.exists("Has Role", {"parent": user, "parenttype": "User", "role": "System Manager"})
+            if managers and user not in managers and not is_admin:
+                frappe.throw((emp.employee_name or doc.employee) + " is HR staff, so their attendance is decided by their manager (" + " or ".join(managers) + ").")
+`;
+
+// My Team › Attendance to Decide: a manager's people (those who report to them, or whose leave approver they are) - past days in the last month that have punches but no
+// attendance and were too short to be marked automatically (under FULL_DAY_HOURS, or never punched out).
+const TEAM_ATTENDANCE_API = `
+user = frappe.session.user
+me = frappe.db.get_value("Employee", {"user_id": user, "status": "Active"}, "name")
+out = []
+names = {}
+if me:
+    for t in frappe.get_all("Employee", filters={"reports_to": me, "status": "Active"}, fields=["name", "employee_name", "user_id"]):
+        if t.user_id != user:
+            names[t.name] = t.employee_name
+for t in frappe.get_all("Employee", filters={"leave_approver": user, "status": "Active"}, fields=["name", "employee_name", "user_id"]):
+    if t.user_id != user:
+        names[t.name] = t.employee_name
+if names:
+    today = frappe.utils.nowdate()
+    since = str(frappe.utils.add_days(today, -31))
+    ids = list(names.keys())
+    have = set()
+    for a in frappe.get_all("Attendance", filters={"employee": ["in", ids], "attendance_date": [">=", since], "docstatus": ["<", 2]}, fields=["employee", "attendance_date"]):
+        have.add(a.employee + "|" + str(a.attendance_date))
+    days = {}
+    for l in frappe.get_all("Employee Checkin", filters={"employee": ["in", ids], "time": [">=", since + " 00:00:00"]}, fields=["employee", "time", "log_type"], order_by="time asc"):
+        days.setdefault(l.employee + "|" + str(l.time)[:10], []).append(l)
+    for key in days:
+        parts = key.split("|")
+        emp = parts[0]
+        day = parts[1]
+        if key in have or day >= today:
+            continue
+        rows = days[key]
+        hours = 0
+        open_in = None
+        for r in rows:
+            if r.log_type == "IN":
+                if not open_in:
+                    open_in = r.time
+            elif r.log_type == "OUT" and open_in:
+                hours += frappe.utils.time_diff_in_hours(r.time, open_in)
+                open_in = None
+        if hours >= ${FULL_DAY_HOURS}:
+            continue
+        ins = [r.time for r in rows if r.log_type == "IN"]
+        outs = [r.time for r in rows if r.log_type == "OUT"]
+        out.append({"employee": emp, "employee_name": names[emp], "date": day, "hours": round(hours, 2), "in_time": str(min(ins)) if ins else None, "out_time": str(max(outs)) if outs else None, "status": "Missed Punch Out" if open_in else "Short Hours"})
+out = sorted(out, key=lambda x: x["date"], reverse=True)
+frappe.response["message"] = out
+`;
+
+// A manager marks one of those days Present or Absent. Only the person's manager may, never for themselves, only for
+// a finished day without attendance. The person is notified.
+const TEAM_ATTENDANCE_DECIDE_API = `
+user = frappe.session.user
+emp_id = frappe.form_dict.get("employee")
+day = str(frappe.form_dict.get("date") or "")
+status = frappe.form_dict.get("status")
+if status not in ("Present", "Absent"):
+    frappe.throw("Choose Present or Absent.")
+me = frappe.db.get_value("Employee", {"user_id": user, "status": "Active"}, "name")
+emp = frappe.db.get_value("Employee", emp_id, ["reports_to", "leave_approver", "user_id", "company", "employee_name"], as_dict=True)
+if not emp or not ((me and emp.reports_to == me) or emp.leave_approver == user):
+    frappe.throw("Only this person's manager can decide their attendance here.")
+if emp.user_id == user:
+    frappe.throw("You can't decide your own attendance.")
+if not day or day >= frappe.utils.nowdate():
+    frappe.throw("Only a finished day can be decided.")
+if frappe.db.exists("Attendance", {"employee": emp_id, "attendance_date": day, "docstatus": ["<", 2]}):
+    frappe.throw("Attendance for this day is already marked.")
+data = {"doctype": "Attendance", "employee": emp_id, "attendance_date": day, "status": status, "company": emp.company}
+if status == "Present":
+    rows = frappe.get_all("Employee Checkin", filters={"employee": emp_id, "time": ["between", [day + " 00:00:00", day + " 23:59:59"]]}, fields=["time", "log_type"], order_by="time asc")
+    hours = 0
+    open_in = None
+    for r in rows:
+        if r.log_type == "IN":
+            if not open_in:
+                open_in = r.time
+        elif r.log_type == "OUT" and open_in:
+            hours += frappe.utils.time_diff_in_hours(r.time, open_in)
+            open_in = None
+    ins = [r.time for r in rows if r.log_type == "IN"]
+    outs = [r.time for r in rows if r.log_type == "OUT"]
+    data["working_hours"] = round(hours, 2)
+    if ins:
+        data["in_time"] = min(ins)
+    if outs:
+        data["out_time"] = max(outs)
+att = frappe.get_doc(data)
+att.insert(ignore_permissions=True)
+att.flags.ignore_permissions = True
+att.submit()
+frappe.get_doc({"doctype": "Comment", "comment_type": "Info", "reference_doctype": "Attendance", "reference_name": att.name, "content": "Marked " + status + " by their manager " + user}).insert(ignore_permissions=True)
+if emp.user_id:
+    frappe.get_doc({"doctype": "Notification Log", "for_user": emp.user_id, "type": "Alert", "subject": "Your manager marked your attendance on " + frappe.utils.formatdate(day) + " as " + status + ".", "document_type": "Attendance", "document_name": att.name}).insert(ignore_permissions=True)
+frappe.response["message"] = {"name": att.name, "status": status}
+`;
+
 export const ATTENDANCE_FIELDS = [
   { dt: "Attendance Request", fieldname: "custom_approver", label: "Approver", fieldtype: "Link", options: "User", insert_after: "employee_name" },
   { dt: "Attendance Request", fieldname: "custom_decision", label: "Decision", fieldtype: "Select", options: "\nRejected", read_only: 1, insert_after: "custom_approver" },
@@ -145,5 +281,9 @@ export const ATTENDANCE_SCRIPTS = [
   { name: "ETHX - Attendance requests for me", script_type: "API", api_method: "ethx_attendance_requests", script: ATTENDANCE_REQUESTS_API, what: "Approvers see the attendance requests waiting for them" },
   { name: "ETHX - Attendance request decision", script_type: "API", api_method: "ethx_attendance_decision", script: ATTENDANCE_DECISION_API, what: "Only the assigned approver or HR approves or rejects an attendance request" },
   { name: "ETHX - Punch reminders", script_type: "Scheduler Event", event_frequency: "Hourly", script: PUNCH_REMINDERS, what: "Employees are notified when they haven't punched in or out on time" },
-  { name: "ETHX - Attendance from punches", script_type: "Scheduler Event", event_frequency: "Daily", script: MARK_FROM_PUNCHES, what: `Every night, days with punches but no attendance are marked Present (Half Day under ${HALF_DAY_HOURS} h)` },
+  { name: "ETHX - Attendance by manager", script_type: "DocType Event", reference_doctype: "Attendance", doctype_event: "Before Validate", script: ATTENDANCE_GUARD, what: "Nobody marks their own attendance; HR staff's attendance is decided by their manager" },
+  { name: "ETHX - Attendance by manager (cancel)", script_type: "DocType Event", reference_doctype: "Attendance", doctype_event: "Before Cancel", script: ATTENDANCE_GUARD, what: "Nobody cancels their own attendance; HR staff's is cancelled by their manager" },
+  { name: "ETHX - Team attendance to decide", script_type: "API", api_method: "ethx_team_attendance", script: TEAM_ATTENDANCE_API, what: `Managers see their team's days under ${FULL_DAY_HOURS} hours or without a punch out` },
+  { name: "ETHX - Team attendance decision", script_type: "API", api_method: "ethx_team_attendance_decide", script: TEAM_ATTENDANCE_DECIDE_API, what: "Only a person's manager marks those days Present or Absent, never their own" },
+  { name: "ETHX - Attendance from punches", script_type: "Scheduler Event", event_frequency: "Daily", script: MARK_FROM_PUNCHES, what: `Every night, days with ${FULL_DAY_HOURS} or more hours punched are marked Present; shorter days are left for a correction` },
 ];

@@ -7,13 +7,13 @@ import { Brand } from "../components/Brand";
 import { useBranding } from "../context/BrandingContext";
 import { frappe } from "../lib/api/frappeClient";
 
-/** The company's logo and name (same component as the sidebar), with a clearly visible HRMS tag. */
+/** The company's logo and name (same component as the sidebar), with a clearly visible HRMS 360 tag. */
 function LoginBrand() {
   return (
     <div className="flex flex-col items-start gap-3">
       <Brand size="page" />
       <span className="rounded-md border border-[var(--color-red-deep)] bg-[var(--color-red-wash)] px-3 py-1 text-[12px] font-semibold uppercase tracking-[0.22em] text-[var(--color-text)]">
-        HRMS
+        HRMS 360
       </span>
     </div>
   );
@@ -242,7 +242,7 @@ function ContactSupport({ onBack }) {
       <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-[var(--color-text)]"><Headset size={22} className="text-[var(--color-red-hover)]" /> Contact IT Support</h1>
       <p className="mt-1.5 text-[14px] text-[var(--color-text-muted)]">Can't sign in, locked out or your account isn't working? Reach the administrator here.</p>
       <div className="mt-6 space-y-2.5">
-        {email && <a href={`mailto:${email}?subject=${encodeURIComponent("HRMS sign-in help")}`} className={row}><Mail size={16} className="shrink-0 text-[var(--color-red-hover)]" /><span className="min-w-0"><span className="block text-[11px] text-[var(--color-text-muted)]">Email</span><span className="break-all font-medium">{email}</span></span></a>}
+        {email && <a href={`mailto:${email}?subject=${encodeURIComponent("HRMS 360 sign-in help")}`} className={row}><Mail size={16} className="shrink-0 text-[var(--color-red-hover)]" /><span className="min-w-0"><span className="block text-[11px] text-[var(--color-text-muted)]">Email</span><span className="break-all font-medium">{email}</span></span></a>}
         {phone && <a href={`tel:${phone.replace(/[^\d+]/g, "")}`} className={row}><Phone size={16} className="shrink-0 text-[var(--color-red-hover)]" /><span><span className="block text-[11px] text-[var(--color-text-muted)]">Phone</span><span className="font-medium">{phone}</span></span></a>}
         {!email && !phone && <p className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-[13px] text-[var(--color-text-muted)]">Support contact details haven't been added yet. Ask your HR team or manager to reach the administrator.</p>}
       </div>

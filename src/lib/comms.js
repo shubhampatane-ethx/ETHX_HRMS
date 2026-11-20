@@ -186,7 +186,7 @@ if not sender:
     frappe.throw("That mail account isn't set up yet.")
 if not to or "@" not in to:
     frappe.throw("Enter the address to send the test to.")
-frappe.sendmail(recipients=[to], sender=sender, subject="Test email from ETHX HRMS", message="<p>This is a test email sent through the <b>" + account + "</b> account (" + sender + ").</p><p>If you received it, the account is working.</p>", now=True)
+frappe.sendmail(recipients=[to], sender=sender, subject="Test email from HRMS 360", message="<p>This is a test email sent through the <b>" + account + "</b> account (" + sender + ").</p><p>If you received it, the account is working.</p>", now=True)
 frappe.response["message"] = {"sent": to, "from": sender}
 `;
 

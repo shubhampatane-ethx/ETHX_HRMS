@@ -4,6 +4,7 @@ import { useBranding, brandName, cacheBranding, getSelectedBrandCompany } from "
 import { Button, Card } from "../../components/ui/primitives";
 import { errMsg, useAsync } from "../../lib/employeePortal";
 import { frappe } from "../../lib/api/frappeClient";
+import { useClientScope } from "../../lib/clientScope";
 import { getSavedTheme, isLightTheme, saveTheme, THEME_OPTIONS } from "../../lib/theme";
 import { Brand } from "../../components/Brand";
 import { confirmDialog } from "../../components/ui/dialogs";
@@ -85,7 +86,9 @@ export default function BrandStudio() {
 
   const companies = companiesQuery.data || [];
   const validSelectedCompany = !companies.length || companies.some((item) => item.name === selectedCompany) ? selectedCompany : "";
-  const companyName = validSelectedCompany || activeCompany?.name || companies[0]?.name || "";
+  // The super admin edits the client chosen in the sidebar - the one place a company is picked.
+  const client = useClientScope();
+  const companyName = client || validSelectedCompany || activeCompany?.name || companies[0]?.name || "";
   const companyQuery = useAsync(() => companyName ? frappe.getDoc("Company", companyName) : Promise.resolve(null), [companyName]);
   const currentCompany = companyQuery.data?.name === companyName ? companyQuery.data : activeCompany?.name === companyName ? activeCompany : null;
   const savedTheme = currentCompany?.custom_hrms_theme || getSavedTheme(companyName);
@@ -235,18 +238,24 @@ export default function BrandStudio() {
           <div className="max-w-xl">
             <p className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--color-red-hover)]"><Palette size={14} /> Tenant identity</p>
             <h1 className="text-xl font-semibold text-[var(--color-text)]">Brand Studio</h1>
-            <p className="mt-1.5 text-[13px] leading-5 text-[var(--color-text-muted)]">Give every company its own logo and color system. Changes are shared with that company’s users.</p>
+            <p className="mt-1.5 text-[13px] leading-5 text-[var(--color-text-muted)]">{client ? "This client's logo, name and colours. Changes are shared with everyone in the company." : "Give every company its own logo and color system. Changes are shared with that company’s users."}</p>
           </div>
-          <label className="min-w-60">
-            <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">Company Workspace</span>
-            <span className="relative block">
-              <Building2 size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-faint)]" />
-              <select value={companyName} onChange={(event) => changeCompany(event.target.value)} disabled={companiesQuery.loading || !companies.length} className="w-full appearance-none rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] py-2 pl-9 pr-3 text-[13px] text-[var(--color-text)] outline-none focus:border-[var(--color-red)]">
-                {!companyName && <option value="">No company available</option>}
-                {companies.map((item) => <option key={item.name} value={item.name}>{brandName(item) || item.name}</option>)}
-              </select>
-            </span>
-          </label>
+          {client ? (
+            <div className="min-w-60">
+              <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">Branding For</span>
+              <span className="flex items-center gap-2 rounded-md border border-[var(--color-border)] px-3 py-2 text-[13px] text-[var(--color-text)]" title="The client you're viewing - switch it in the sidebar"><Building2 size={14} className="text-[var(--color-red-hover)]" />{shownName}</span>
+            </div>
+          ) : companies.length > 1 && (
+            <label className="min-w-60">
+              <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">Company Workspace</span>
+              <span className="relative block">
+                <Building2 size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-faint)]" />
+                <select value={companyName} onChange={(event) => changeCompany(event.target.value)} disabled={companiesQuery.loading} className="w-full appearance-none rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] py-2 pl-9 pr-3 text-[13px] text-[var(--color-text)] outline-none focus:border-[var(--color-red)]">
+                  {companies.map((item) => <option key={item.name} value={item.name}>{brandName(item) || item.name}</option>)}
+                </select>
+              </span>
+            </label>
+          )}
         </div>
       </section>
 

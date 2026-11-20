@@ -1,4 +1,5 @@
 import axios from "axios";
+import { COMPANY_DOCTYPES, filtersMentionCompany, getClientScope } from "../clientScope";
 
 /**
  * Thin client around the Frappe/ERPNext REST API.
@@ -158,7 +159,27 @@ const refusedField = (e) => {
   return m ? m[1].replace(/`/g, "").split(".").pop() : "";
 };
 
+// Doctypes that turned out not to have a company field on this site, so the client scope is left off them.
+const unscoped = new Set();
+
+// The super admin's chosen client narrows lists of company records to that company (lib/clientScope.js). Pass
+// allCompanies: true for the few views that compare clients. If a site's doctype has no company field, the list is
+// asked for again without it and the doctype is remembered.
 async function getList(doctype, opts = {}) {
+  const client = opts.allCompanies ? null : getClientScope();
+  if (!client || !COMPANY_DOCTYPES.has(doctype) || unscoped.has(doctype) || filtersMentionCompany(opts.filters)) return getListFields(doctype, opts);
+  const filters = Array.isArray(opts.filters) || !opts.filters ? [...(opts.filters || []), ["company", "=", client]] : { ...opts.filters, company: client };
+  try {
+    return await getListFields(doctype, { ...opts, filters });
+  } catch (e) {
+    const rows = await getListFields(doctype, opts);
+    unscoped.add(doctype);
+    if (import.meta.env.DEV) console.warn(`[client scope] ${doctype} can't be narrowed to a company`, e);
+    return rows;
+  }
+}
+
+async function getListFields(doctype, opts = {}) {
   let fields = opts.fields || ["name"];
   for (;;) {
     try {
@@ -171,7 +192,7 @@ async function getList(doctype, opts = {}) {
   }
 }
 
-async function getListOnce(doctype, { filters = [], fields = ["name"], limit = 20, orderBy, parent } = {}) {
+async function getListOnce(doctype, { filters = [], fields = ["name"], limit = 20, orderBy, parent }) {
   const res = await client.get("/method/frappe.client.get_list", {
     params: {
       doctype,

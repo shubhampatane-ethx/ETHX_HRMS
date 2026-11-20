@@ -43,11 +43,11 @@ export function AutoSetup() {
           {state.phase === "running" ? <Loader2 size={15} className="animate-spin" /> : state.phase === "done" ? <CheckCircle2 size={15} className="text-[var(--color-green)]" /> : <Wrench size={15} />}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-semibold text-[var(--color-text)]">{state.phase === "running" ? "Setting Up HRMS" : state.phase === "done" ? "HRMS Setup Complete" : "HRMS Setup Needs Attention"}</p>
+          <p className="text-[13px] font-semibold text-[var(--color-text)]">{state.phase === "running" ? "Setting Up HRMS 360" : state.phase === "done" ? "HRMS 360 Setup Complete" : "HRMS 360 Setup Needs Attention"}</p>
           <p className="mt-0.5 text-[12px] text-[var(--color-text-muted)]">
             {state.phase === "running" ? <span className="line-clamp-2">{state.text}</span>
               : state.phase === "done" ? "Doctypes, fields, server rules, role permissions and login restrictions are applied. This won't run again until the app changes."
-                : <>{state.problems} step(s) couldn't be applied. <Link to="/admin/setup" className="text-[var(--color-red-hover)] underline" onClick={() => setState(null)}>See what's missing</Link>. It retries automatically tomorrow.</>}
+                : <>{state.problems} step(s) couldn't be applied. <Link to="/admin/roles" className="text-[var(--color-red-hover)] underline" onClick={() => setState(null)}>See what's missing</Link>. It retries automatically tomorrow.</>}
           </p>
         </div>
         {state.phase !== "running" && <button type="button" aria-label="Close" onClick={() => setState(null)} className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]"><X size={14} /></button>}

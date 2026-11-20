@@ -2,10 +2,12 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { useAuth } from "./AuthContext";
 import { frappe } from "../lib/api/frappeClient";
 import { getMyEmployee } from "../lib/employeePortal";
+import { setClientScope, STORED_CLIENT_KEY } from "../lib/clientScope";
+import { SUPER_ADMIN } from "../lib/modules";
 import { applySavedTheme, hasSavedTheme, saveTheme, THEME_OPTIONS } from "../lib/theme";
 
 const BrandingContext = createContext({ company: null, loading: true, refresh: () => {}, selectCompany: () => {} });
-const SELECTED_COMPANY_KEY = "hrms-branding-company";
+const SELECTED_COMPANY_KEY = STORED_CLIENT_KEY;
 const LOGO_CACHE_KEY = "hrms-branding-logo";
 const DARK_LOGO_CACHE_KEY = "hrms-branding-logo-dark";
 const COMPANY_NAME_CACHE_KEY = "hrms-branding-name";
@@ -99,7 +101,9 @@ export function BrandingProvider({ children }) {
       .then((company) => {
         if (cancelled) return;
         setState({ company, loading: false });
-        document.title = `${brandName(company) || getCachedBrandName() || "ETHX Softcon"} | HRMS`;
+        // The company shown to the super admin is also the client every list is narrowed to.
+        if (user?.email === SUPER_ADMIN) setClientScope(company?.name);
+        document.title = `${brandName(company) || getCachedBrandName() || "ETHX Softcon"} | HRMS 360`;
         if (company?.name) cacheBranding(company);
         // A personal theme always wins - even when no company could be resolved for this account (e.g. HR users
         // without a Company user permission, who used to be stuck on the default theme).
@@ -120,6 +124,7 @@ export function BrandingProvider({ children }) {
   const selectCompany = (name) => {
     setSelectedBrandCompany(name);
     setSelectedCompany(name);
+    if (user?.email === SUPER_ADMIN) setClientScope(name);
   };
 
   return <BrandingContext.Provider value={{ ...state, refresh, selectCompany }}>{children}</BrandingContext.Provider>;

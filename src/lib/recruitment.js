@@ -85,8 +85,8 @@ export function downloadIcs({ uid, title, description, date, from, to, location 
   const now = new Date();
   const dtstamp = `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}T${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}00Z`;
   const ics = [
-    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//ETHX HRMS//Recruitment//EN", "BEGIN:VEVENT",
-    `UID:${uid}@ethx-hrms`, `DTSTAMP:${dtstamp}`,
+    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//HRMS 360//Recruitment//EN", "BEGIN:VEVENT",
+    `UID:${uid}@hrms-360`, `DTSTAMP:${dtstamp}`,
     `DTSTART;TZID=Asia/Kolkata:${stamp(date, from)}`, `DTEND;TZID=Asia/Kolkata:${stamp(date, to)}`,
     `SUMMARY:${esc(title)}`, `DESCRIPTION:${esc(description)}`, location ? `LOCATION:${esc(location)}` : null,
     "END:VEVENT", "END:VCALENDAR",

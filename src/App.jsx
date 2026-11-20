@@ -31,8 +31,8 @@ const Organization = lazy(() => import("./pages/admin/Organization"));
 const Roles = lazy(() => import("./pages/admin/Roles"));
 const Settings = lazy(() => import("./pages/admin/Settings"));
 const Communication = lazy(() => import("./pages/admin/Communication"));
+const Companies = lazy(() => import("./pages/admin/Companies"));
 const AuditLogs = lazy(() => import("./pages/admin/AuditLogs"));
-const ErpSetup = lazy(() => import("./pages/admin/ErpSetup"));
 
 import { ContractorLayout, EmployeeLayout } from "./components/employee/EmployeeShell";
 const ContractorProjects = lazy(() => import("./pages/contractor/ContractorProjects"));
@@ -115,8 +115,10 @@ export default function App() {
               <Route path="roles" element={<Roles />} />
               <Route path="settings" element={<Settings />} />
               <Route path="communication" element={<Communication />} />
+              <Route path="modules" element={<Companies />} />
+              <Route path="companies" element={<Navigate to="/admin/modules" replace />} />
               <Route path="audit-logs" element={<AuditLogs />} />
-              <Route path="setup" element={<ErpSetup />} />
+              <Route path="setup" element={<Navigate to="/admin/roles" replace />} />
             </Route>
           </Route>
 

@@ -91,8 +91,8 @@ export function Stat({ to, icon: Icon, label, value, sub, accent = "var(--color-
 }
 
 const GOOD = ["Approved", "Present", "Paid", "Completed", "Submitted", "Closed", "Resolved", "Active", "Billed", "Reimbursed", "Done", "Accepted", "Joined", "Cleared", "Hired", "Filled", "Finalized"];
-const WARN = ["Open", "Pending", "Draft", "Unpaid", "Half Day", "On Leave", "Work From Home", "In Progress", "In Process", "Working", "Replied", "On Hold", "Pending Review", "Pending Approval", "Sent", "Awaiting Joining", "Partly Approved"];
-const BAD = ["Rejected", "Absent", "Cancelled", "Overdue", "Expired", "Declined", "No-show", "Withdrawn"];
+const WARN = ["Open", "Pending", "Draft", "Unpaid", "Half Day", "On Leave", "Work From Home", "In Progress", "In Process", "Working", "Replied", "On Hold", "Pending Review", "Pending Approval", "Sent", "Awaiting Joining", "Partly Approved", "Short Hours"];
+const BAD = ["Rejected", "Absent", "Cancelled", "Overdue", "Expired", "Declined", "No-show", "Withdrawn", "Missed Punch Out"];
 
 export function StatusPill({ status }) {
   const tone = GOOD.includes(status) ? "var(--color-green)" : WARN.includes(status) ? "var(--color-amber)" : BAD.includes(status) ? "var(--color-red-hover)" : "var(--color-text-muted)";

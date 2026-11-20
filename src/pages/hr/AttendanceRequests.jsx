@@ -1,9 +1,12 @@
 // HR › Attendance Requests: every attendance correction employees raise (missed punch, work from home, on duty).
-// HR sees the reason and details, and can approve or reject any pending request (never their own); a rejection needs
+// HR sees the reason and details, and can approve or reject any pending request (never their own, and an HR member's
+// only when they are its approver or that person's manager); a rejection needs
 // a remark, which the employee sees. Decisions go through the ethx_attendance_decision server rule (attendanceSetup.js).
 import { useMemo, useState } from "react";
 import { Ban, CalendarCheck, Check, Plus } from "lucide-react";
 import { frappe } from "../../lib/api/frappeClient";
+import { attendanceDecider } from "../../lib/attendanceDeciders";
+import { hasPermission } from "../../permissions/roles";
 import { useAuth } from "../../context/AuthContext";
 import { Button } from "../../components/ui/primitives";
 import { HrRecordForm } from "../../components/hr/HrRecordForm";
@@ -28,8 +31,9 @@ async function loadRequests() {
   const [rows, employees] = await Promise.all([
     listTry("Attendance Request", { fields: ["name", "employee", "employee_name", "from_date", "to_date", "reason", "explanation", "docstatus", "creation", "custom_approver", "custom_decision", "custom_decision_note"], orderBy: "creation desc" },
       ["name", "employee", "employee_name", "from_date", "to_date", "reason", "explanation", "docstatus", "creation"]),
-    frappe.getList("Employee", { fields: ["name", "employee_name", "user_id", "department"], limit: 0 }).catch(() => []),
+    frappe.getList("Employee", { fields: ["name", "employee_name", "user_id", "department", "reports_to", "leave_approver"], limit: 0 }).catch(() => []),
   ]);
+  const decide = await attendanceDecider(employees);
   const byId = new Map(employees.map((e) => [e.name, e]));
   const byUser = new Map(employees.filter((e) => e.user_id).map((e) => [e.user_id, e]));
   return rows.map((r) => ({
@@ -38,6 +42,8 @@ async function loadRequests() {
     department: byId.get(r.employee)?.department,
     ownerUser: byId.get(r.employee)?.user_id,
     approverName: r.custom_approver ? byUser.get(r.custom_approver)?.employee_name || r.custom_approver : "",
+    // Whether the signed-in person may decide it: not their own, and an HR member's only by their approver or manager.
+    canDecide: (me, admin) => decide(r.employee, me, r.custom_approver, admin),
   }));
 }
 
@@ -78,8 +84,9 @@ export default function AttendanceRequests() {
             { key: "status", label: "Status", render: (r) => <span><StatusPill status={r.status} />{r.custom_decision_note && <span className="mt-1 block max-w-[14rem] break-words text-[11px] text-[var(--color-text-muted)]">Remark: {stripHtml(r.custom_decision_note)}</span>}</span> },
             { key: "_a", label: "", render: (r) => {
               if (r.status !== "Pending") return null;
-              const own = r.ownerUser && r.ownerUser === user?.email;
-              const hint = own ? "You can't decide on your own request" : undefined;
+              const rule = r.canDecide(user?.email, hasPermission(user, "dashboard.admin"));
+              const own = !rule.ok;
+              const hint = own ? (r.ownerUser === user?.email ? "You can't decide on your own request" : rule.reason) : undefined;
               return (
                 <div className="flex justify-end gap-3 whitespace-nowrap">
                   <button type="button" disabled={own} title={hint} onClick={() => setDecide({ row: r, approve: true })} className="flex items-center gap-1 text-[12px] text-[var(--color-green)] hover:underline disabled:cursor-not-allowed disabled:opacity-40 disabled:no-underline"><Check size={13} /> Approve</button>

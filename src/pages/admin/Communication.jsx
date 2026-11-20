@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CheckCircle2, Mail, Send, Sparkles } from "lucide-react";
 import { frappe } from "../../lib/api/frappeClient";
+import { SharedAcrossClients } from "../../components/layout/ClientSwitcher";
 import { useAuth } from "../../context/AuthContext";
 import { Button } from "../../components/ui/primitives";
 import { Async, Field, inputCls, Notice, PageHeader, Panel, Tabs } from "../../components/employee/EmployeeShell";
@@ -23,10 +24,10 @@ export default function Communication() {
   const [tab, setTab] = useState("mail");
   return (
     <div className="space-y-5">
-      <PageHeader icon={Mail} title="Communication" subtitle="Mail accounts, automatic birthday and event emails, and AI job descriptions" />
+      <PageHeader icon={Mail} title="Communication" subtitle="Mail accounts, automatic birthday and event emails, and AI job descriptions" actions={<SharedAcrossClients what="Mail and email settings" />} />
       <Async state={data}>
         {(d) => !d.settings ? (
-          <Notice>Communication settings aren't set up on this site yet. They're created automatically by System Setup - open Admin › System Setup and run it, then come back.</Notice>
+          <Notice>Communication settings aren't set up on this site yet. They're created by the automatic setup - use Apply Again on Admin › Roles &amp; Permissions, then come back.</Notice>
         ) : (
           <>
             <Tabs value={tab} onChange={setTab} tabs={[{ id: "mail", label: "Mail Accounts" }, { id: "auto", label: "Birthday & Event Emails" }, { id: "ai", label: "AI Job Descriptions" }]} />

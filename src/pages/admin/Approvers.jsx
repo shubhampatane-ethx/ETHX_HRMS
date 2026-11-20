@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, Loader2, Pencil, Plus, Trash2, Wand2, X } from "lucide-react";
 import { frappe } from "../../lib/api/frappeClient";
+import { getClientScope } from "../../lib/clientScope";
 import { errMsg, listTry } from "../../lib/employeePortal";
 import { createTypeFields, ensureRole, EXPENSE_ROLE, LEAVE_ROLE, missingTypeFields } from "../../lib/approvals";
 import { Button, Card } from "../../components/ui/primitives";
@@ -64,7 +65,7 @@ export function LeaveApproversByBU() {
 
   return (
     <div>
-      <Hint>Each department is a business unit (sub-departments also use their parent unit's approvers). The first approver is the default; whoever is on approved leave is skipped and the next one is used - new requests at once, pending ones by a daily job (configured in Admin › System Setup). Employees without an approver here fall back to the approver on their own Employee record.</Hint>
+      <Hint>Each department is a business unit (sub-departments also use their parent unit's approvers). The first approver is the default; whoever is on approved leave is skipped and the next one is used - new requests at once, pending ones by a daily job (set up automatically by the Administrator's sign-in). Employees without an approver here fall back to the approver on their own Employee record.</Hint>
       <div className="mb-3"><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search business unit or company…" className={`${inputCls} max-w-xs`} /></div>
       <Card className="overflow-hidden">
         {rows === null ? <p className="flex h-28 items-center justify-center gap-2 text-[13px] text-[var(--color-text-muted)]"><Loader2 size={14} className="animate-spin" /> Loading…</p> : (
@@ -292,12 +293,15 @@ export function ExpenseAccounting() {
   const load = useCallback(async () => {
     setError("");
     try {
-      const [companies, accounts, centers, types] = await Promise.all([
+      const [allCompanies, accounts, centers, types] = await Promise.all([
         frappe.getList("Company", { fields: ["name", "default_expense_claim_payable_account", "default_payable_account", "cost_center"], limit: 0, orderBy: "name asc" }),
         frappe.getList("Account", { filters: [["is_group", "=", 0], ["disabled", "=", 0]], fields: ["name", "company", "account_type", "root_type"], limit: 0, orderBy: "name asc" }),
         frappe.getList("Cost Center", { filters: [["is_group", "=", 0], ["disabled", "=", 0]], fields: ["name", "company"], limit: 0, orderBy: "name asc" }),
         frappe.getList("Expense Claim Type", { fields: ["name"], limit: 0, orderBy: "name asc" }),
       ]);
+      // Viewing one client: only its company's expense accounts.
+      const client = getClientScope();
+      const companies = client ? allCompanies.filter((c) => c.name === client) : allCompanies;
       const typeDocs = await Promise.all(types.map((t) => frappe.getDoc("Expense Claim Type", t.name).catch(() => ({ name: t.name, accounts: [] }))));
       setData({ companies, accounts, centers, types: typeDocs });
     } catch (e) {
