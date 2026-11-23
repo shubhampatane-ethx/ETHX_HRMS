@@ -114,9 +114,14 @@ export function HrRecordForm({ doctype, fields, recordName, onCancel, onSaved, s
   );
 }
 
+// Short lists HR manages themselves: a missing entry can be added straight from the picker ("+ Create").
+const CREATABLE = {
+  "Employee Grade": async (text) => (await frappe.createDoc("Employee Grade", { __newname: text, name: text })).name || text,
+};
+
 function Field({ field, value, onChange }) {
   if (field.type === "link") {
-    return <LinkField label={field.label} linkDoctype={field.linkDoctype} value={value} onChange={onChange} required={field.required} frappe={frappe} />;
+    return <LinkField label={field.label} linkDoctype={field.linkDoctype} value={value} onChange={onChange} required={field.required} frappe={frappe} onCreate={CREATABLE[field.linkDoctype]} />;
   }
   if (field.type === "date") {
     return <DateField label={field.label} value={value} onChange={onChange} required={field.required} />;

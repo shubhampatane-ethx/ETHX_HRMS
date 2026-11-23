@@ -1,6 +1,7 @@
 // Employee portal: helpers, settings, async hook and ERPNext API calls in one file.
 import { useEffect, useRef, useState } from "react";
 import { frappe } from "./api/frappeClient";
+import { FULL_DAY_HOURS } from "./attendanceSetup";
 import { getReviewsSafe, listTimesheets, reviewOf } from "./timesheets";
 
 /* ===== employeeUtils.js ===== */
@@ -111,6 +112,8 @@ async function ensureHomeFolder(path) {
 }
 export const ensureAssetFolder = () => ensureHomeFolder(ASSET_FOLDER);
 export const ensurePolicyFolder = () => ensureHomeFolder(POLICY_FOLDER);
+export const OFFER_TEMPLATE_FOLDER = "Home/Offer Letter Templates";
+export const ensureOfferTemplateFolder = () => ensureHomeFolder(OFFER_TEMPLATE_FOLDER);
 export const getAssetLists = () =>
   frappe.getList("File", { filters: [["is_private", "=", 1], ["folder", "=", ASSET_FOLDER], ["is_folder", "=", 0]], fields: ["name", "file_name", "file_url", "creation"], orderBy: "creation desc", limit: 0 });
 
@@ -118,6 +121,23 @@ export const getAssetLists = () =>
 export const EXPIRY_WARN_DAYS = 90;
 
 export const REQUEST_CATEGORIES = ["HR Support", "IT Support", "Payroll", "Document request", "Other"];
+
+// Leave reasons offered when applying (employee and HR). "Other" needs the details typed in. Stored on the leave
+// application's description as "Reason: details".
+export const LEAVE_REASONS = ["Personal Work", "Not Feeling Well / Medical", "Family Function / Event", "Family Emergency", "Travel / Vacation", "Child Care", "Exam / Study", "Other"];
+export const OTHER_REASON = "Other";
+export function joinLeaveReason(reason, details) {
+  const d = String(details || "").trim();
+  if (!reason) return d;
+  return reason === OTHER_REASON ? d : d ? `${reason}: ${d}` : reason;
+}
+/** Back from a stored description to { reason, details } for editing. */
+export function splitLeaveReason(text) {
+  const t = String(text || "").trim();
+  const hit = LEAVE_REASONS.find((r) => r !== OTHER_REASON && (t === r || t.startsWith(`${r}: `)));
+  if (hit) return { reason: hit, details: t.slice(hit.length).replace(/^:\s*/, "") };
+  return t ? { reason: OTHER_REASON, details: t } : { reason: "", details: "" };
+}
 
 export const LETTER_TYPES = [
   { key: "Salary certificate", hint: "For banks, loans or visa applications" },
@@ -530,6 +550,16 @@ export const getHelpArticles = (q) =>
 export function getCheckinsBetween(emp, from, to) {
   const filters = [["time", ">=", `${from} 00:00:00`], ["time", "<=", `${to} 23:59:59`], ...(emp ? [["employee", "=", emp]] : [])];
   return listTry("Employee Checkin", { filters, fields: ["name", "employee", "employee_name", "log_type", "time"], orderBy: "time asc" }, ["name", "employee", "log_type", "time"]);
+}
+
+/**
+ * What a punched day with no attendance record shows as - the same rule as the nightly job (attendanceSetup.js):
+ * Present at FULL_DAY_HOURS or more; otherwise Short Hours, Missed Punch Out (a past day never punched out) or
+ * Working (still punched in today). Only Present days are marked automatically.
+ */
+export function punchDayStatus(d) {
+  if (d.stillIn) return d.attendance_date === isoDate() ? "Working" : "Missed Punch Out";
+  return Number(d.working_hours) >= FULL_DAY_HOURS ? "Present" : "Short Hours";
 }
 
 /** Group raw logs into one row per employee per day: first in, last out and hours worked. */

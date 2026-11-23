@@ -1,13 +1,14 @@
 // Employee portal: all employee pages in one file.
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { ArrowRight, BadgeCheck, Briefcase, Bell, Cake, CalendarCheck, CalendarClock, CalendarDays, CheckCheck, ChevronLeft, ChevronRight, ClipboardCheck, Download, ExternalLink, FileText, GraduationCap, HeartPulse, KeyRound, Laptop, LifeBuoy, LogIn, LogOut, Mail, Megaphone, Paperclip, Pencil, Phone, Plus, Receipt, Search, ShieldAlert, Target, Trash2, Undo2, Upload, UserRound, Users, Wallet } from "lucide-react";
 import { Async, ChangePasswordForm, chipCls, Empty, ErrorState, Field, Grid, inputCls, KeyValue, Loading, Modal, Notice, PageHeader, Panel, Skeleton, Stat, StatusPill, Tabs, useEmployee } from "../../components/employee/EmployeeShell";
-import { CONTACTS, createRequest, daysBetween, daysUntil, dmy, dmyHm, errMsg, EXPIRY_WARN_DAYS, getAcknowledged, getAnnouncements, attReqStatus, getAppraisals, getApprovals, getAttendanceHistory, getAttendanceRequests, getCheckinsBetween, getEvents, getExpenseClaims, getFeedback, getGoals, getHelpArticles, getHolidays, getLeaveApplications, getLeaveBalance, getLeaveTypes, getMyAssets, getMyBenefits, getMyDocuments, getMyLeavesBetween, getMyTraining, getNotifications, getPayslips, getPolicies, getRequests, getShiftAssignments, getTeamAvailability, getTodayAttendance, getUpcomingBirthdays, hm, hoursLabel, isoDate, LETTER_TYPES, money, MONTHS, MONTHS_LONG, nowStamp, pad, removeMyDocument, REQUEST_CATEGORIES, splitRequest, stripHtml, updateRequest, uploadMyDocument, withdrawRequest, summariseCheckins, useAsync, WEEKDAYS } from "../../lib/employeePortal";
+import { CONTACTS, createRequest, joinLeaveReason, LEAVE_REASONS, OTHER_REASON, splitLeaveReason, daysBetween, daysUntil, dmy, dmyHm, errMsg, EXPIRY_WARN_DAYS, getAcknowledged, getAnnouncements, attReqStatus, getAppraisals, getApprovals, getAttendanceHistory, getAttendanceRequests, getCheckinsBetween, getEvents, getExpenseClaims, getFeedback, getGoals, getHolidays, getLeaveApplications, getLeaveBalance, getLeaveTypes, getMyAssets, getMyBenefits, getMyDocuments, getMyLeavesBetween, getMyTraining, getNotifications, getPayslips, getPolicies, getRequests, getShiftAssignments, getTeamAvailability, getTodayAttendance, getUpcomingBirthdays, hm, punchDayStatus, hoursLabel, isoDate, LETTER_TYPES, money, MONTHS, MONTHS_LONG, nowStamp, pad, removeMyDocument, REQUEST_CATEGORIES, splitRequest, stripHtml, updateRequest, uploadMyDocument, withdrawRequest, summariseCheckins, useAsync, WEEKDAYS } from "../../lib/employeePortal";
 import { useAuth } from "../../context/AuthContext";
 import { hasPermission } from "../../permissions/roles";
-import { isPageBlocked } from "../../permissions/pageAccess";
 import { greetingName } from "../../lib/names";
+import { searchPages, searchRecords } from "../../lib/appSearch";
+import { GlobalSearch, GROUP_ICONS } from "../../components/search/GlobalSearch";
 
 // Workspace dashboards that HR staff / Project Managers who are also employees switch to from their one Dashboard.
 const HRDashboard = lazy(() => import("../hr/Dashboard"));
@@ -132,7 +133,7 @@ export function EmpAttendance() {
     // Days with punches but no attendance record yet still count - HR confirms them.
     const punches = new Map(summariseCheckins(logs).map((d) => [d.attendance_date, d]));
     const saved = att.map((r) => { const p = !r.in_time && punches.get(r.attendance_date); return p ? { ...r, in_time: p.in_time, out_time: p.stillIn ? null : p.out_time } : r; });
-    const derived = summariseCheckins(logs).filter((d) => !have.has(d.attendance_date)).map((d) => ({ name: `punch-${d.attendance_date}`, attendance_date: d.attendance_date, status: "Present", in_time: d.in_time, out_time: d.stillIn ? null : d.out_time, working_hours: d.working_hours, derived: true }));
+    const derived = summariseCheckins(logs).filter((d) => !have.has(d.attendance_date)).map((d) => ({ name: `punch-${d.attendance_date}`, attendance_date: d.attendance_date, status: punchDayStatus(d), in_time: d.in_time, out_time: d.stillIn ? null : d.out_time, working_hours: d.working_hours, derived: true }));
     return [...saved, ...derived].sort((a, b) => b.attendance_date.localeCompare(a.attendance_date));
   }, [emp, from]);
   const requests = useAsync(() => getAttendanceRequests(emp), [emp]);
@@ -467,7 +468,6 @@ export function EmpDashboard() {
 function SelfDashboard() {
   const { user } = useAuth();
   const { employee } = useEmployee();
-  const navigate = useNavigate();
   const now = useMemo(() => new Date(), []);
   const emp = employee.name;
 
@@ -505,10 +505,7 @@ function SelfDashboard() {
             <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-[var(--color-red-hover)]">{WEEKDAYS[now.getDay()]}, {String(now.getDate()).padStart(2, "0")} {MONTHS[now.getMonth()]} {now.getFullYear()}</p>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-[var(--color-text)]">{greeting(now.getHours())}, {greetingName(employee.first_name || employee.employee_name, employee.user_id)}</h2>
           </div>
-          <form data-no-preview onSubmit={(e) => { e.preventDefault(); const q = new FormData(e.currentTarget).get("q"); navigate(`/employee/search?q=${encodeURIComponent(q || "")}`); }} className="relative w-full max-w-xs">
-            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-faint)]" />
-            <input name="q" placeholder="Search policies, holidays, help…" className="w-full rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] py-2.5 pl-9 pr-3 text-[13px] text-[var(--color-text)] placeholder:text-[var(--color-text-faint)] outline-none focus:border-[var(--color-red)]" />
-          </form>
+          <GlobalSearch employee={employee} className="w-full max-w-sm" placeholder="Search anything - pages, people, policies…" />
         </div>
       </section>
 
@@ -1006,8 +1003,8 @@ function ApplyModal({ employee, balance, leave, onClose, onSaved }) {
     return [...mine, ...all.filter((x) => Number(x.is_lwp) && !mine.includes(x.name)).map((x) => x.name)];
   }, []);
   const [f, setF] = useState(() => leave
-    ? { leave_type: leave.leave_type || "", from_date: leave.from_date, to_date: leave.to_date, half_day: Boolean(Number(leave.half_day)), description: stripHtml(leave.description || "") }
-    : { leave_type: "", from_date: isoDate(), to_date: isoDate(), half_day: false, description: "" });
+    ? { leave_type: leave.leave_type || "", from_date: leave.from_date, to_date: leave.to_date, half_day: Boolean(Number(leave.half_day)), ...(() => { const r = splitLeaveReason(stripHtml(leave.description || "")); return { reason: r.reason, description: r.details }; })() }
+    : { leave_type: "", from_date: isoDate(), to_date: isoDate(), half_day: false, reason: "", description: "" });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const days = daysBetween(f.from_date, f.to_date) - (f.half_day ? 0.5 : 0);
@@ -1024,15 +1021,17 @@ function ApplyModal({ employee, balance, leave, onClose, onSaved }) {
   async function submit(e) {
     e.preventDefault();
     if (f.to_date < f.from_date) return setErr("The end date can't be before the start date.");
+    if (f.reason === OTHER_REASON && !f.description.trim()) return setErr("Describe the reason for your leave.");
+    const description = joinLeaveReason(f.reason, f.description);
     setBusy(true);
     setErr("");
     try {
       if (leave) {
-        await frappe.updateDoc("Leave Application", leave.name, { leave_type: f.leave_type, from_date: f.from_date, to_date: f.to_date, half_day: f.half_day ? 1 : 0, half_day_date: f.half_day ? f.from_date : null, description: f.description, ...(approver ? { leave_approver: approver } : {}) });
+        await frappe.updateDoc("Leave Application", leave.name, { leave_type: f.leave_type, from_date: f.from_date, to_date: f.to_date, half_day: f.half_day ? 1 : 0, half_day_date: f.half_day ? f.from_date : null, description, ...(approver ? { leave_approver: approver } : {}) });
         onSaved();
         return;
       }
-      await frappe.createDoc("Leave Application", { employee: employee.name, leave_type: f.leave_type, from_date: f.from_date, to_date: f.to_date, half_day: f.half_day ? 1 : 0, ...(f.half_day ? { half_day_date: f.from_date } : {}), description: f.description, posting_date: isoDate(), status: "Open", leave_approver: approver || undefined });
+      await frappe.createDoc("Leave Application", { employee: employee.name, leave_type: f.leave_type, from_date: f.from_date, to_date: f.to_date, half_day: f.half_day ? 1 : 0, ...(f.half_day ? { half_day_date: f.from_date } : {}), description, posting_date: isoDate(), status: "Open", leave_approver: approver || undefined });
       onSaved();
     } catch (x) {
       setErr(errMsg(x, leave ? "Couldn't save the changes." : "Couldn't submit your leave application."));
@@ -1056,7 +1055,10 @@ function ApplyModal({ employee, balance, leave, onClose, onSaved }) {
         </Field>
         {switched && <Notice tone="info">{list[0].name} is on leave, so {auto.name} will approve instead.</Notice>}
         {list.length > 0 && approvers.data && !approvers.data.checked && <p className="text-[11px] text-[var(--color-text-faint)]">Couldn't check approvers' availability; HR re-assigns if your approver is away.</p>}
-        <Field label="Reason"><textarea rows={3} className={inputCls} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} /></Field>
+        <Field label="Reason">
+          <select required className={inputCls} value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })}><option value="">Select…</option>{LEAVE_REASONS.map((r) => <option key={r} value={r}>{r === OTHER_REASON ? "Other (Please Specify)" : r}</option>)}</select>
+        </Field>
+        <Field label={f.reason === OTHER_REASON ? "Details" : "Details (Optional)"}><textarea rows={3} required={f.reason === OTHER_REASON} className={inputCls} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} placeholder={f.reason === OTHER_REASON ? "Tell your approver the reason" : ""} /></Field>
         <p className="text-[12px] text-[var(--color-text-muted)]">Requesting about <b className="text-[var(--color-text)]">{Math.max(days, 0)}</b> day(s). Weekly offs and holidays are excluded automatically.</p>
         {err && <Notice>{err}</Notice>}
         <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy || !f.leave_type}>{busy ? "Saving…" : leave ? "Save Changes" : "Submit"}</Button></div>
@@ -1410,59 +1412,68 @@ export function EmpProfile() {
 }
 
 /* ===== EmpSearch.jsx ===== */
-const PAGES = [
-  ["/employee", "Dashboard"], ["/employee/profile", "My Profile"], ["/employee/attendance", "Attendance, Punch In/Out, Correction"], ["/employee/leave", "Leave Balance & Apply"],
-  ["/employee/approvals", "My Approvals"], ["/employee/calendar", "Calendar, Holidays, Shifts, Team Availability"], ["/employee/timesheet", "Timesheet"], ["/employee/expenses", "Expense Claims & Reimbursement"],
-  ["/employee/payslips", "Payslips & Salary"], ["/employee/documents", "Policies, Handbook & Documents"], ["/employee/assets", "My Assets: Laptop, Mobile"], ["/employee/help", "Help, Requests, Letters, Contacts"],
-  ["/employee/notifications", "Notifications & Announcements"], ["/employee/goals", "Goals & Feedback"], ["/employee/training", "Training & Learning"], ["/employee/benefits", "Benefits & Insurance"],
-];
-
+/** The full Search page: every page and record the person can open (lib/appSearch.js), grouped. */
 export function EmpSearch() {
   const { user } = useAuth();
   const { employee } = useEmployee();
   const [params, setParams] = useSearchParams();
   const q = (params.get("q") || "").trim();
   const [text, setText] = useState(q);
-  const [res, setRes] = useState(null);
+  const [res, setRes] = useState({ q: "", groups: [] });
 
   useEffect(() => {
     let off = false;
     if (!q) return undefined;
-    const needle = q.toLowerCase();
-    const has = (s) => String(s || "").toLowerCase().includes(needle);
-    Promise.allSettled([getHolidays(employee), getPolicies(), getMyDocuments(employee.name), getHelpArticles(q)]).then(([h, p, d, a]) => {
-      if (off) return;
-      setRes({
-        pages: PAGES.filter(([to, label]) => has(label) && !isPageBlocked(user, to)),
-        holidays: h.status === "fulfilled" ? h.value.holidays.filter((x) => !x.weeklyOff && has(x.description)) : [],
-        policies: p.status === "fulfilled" ? p.value.filter((x) => has(x.file_name)) : [],
-        docs: d.status === "fulfilled" ? d.value.filter((x) => has(x.file_name)) : [],
-        articles: a.status === "fulfilled" ? a.value : [],
-      });
-    });
+    searchRecords(user, employee, q).catch(() => []).then((groups) => { if (!off) setRes({ q, groups }); });
     return () => { off = true; };
-  }, [q, employee]);
+  }, [q, user, employee]);
 
-  const loading = Boolean(q) && !res;
-  const total = res ? Object.values(res).reduce((s, a) => s + a.length, 0) : 0;
+  const pages = useMemo(() => (q ? searchPages(user, q) : []), [user, q]);
+  const groups = [...(pages.length ? [{ id: "pages", title: "Pages", items: pages.map((p) => ({ key: p.to, label: p.label, sub: p.trail, to: p.to })) }] : []), ...(res.q === q ? res.groups : [])];
+  const loading = Boolean(q) && res.q !== q;
+  const total = groups.reduce((n, g) => n + g.items.length, 0);
 
   return (
     <>
-      <PageHeader icon={Search} title="Search" subtitle="Find policies, holidays, documents, help articles and pages" />
-      <form data-no-preview onSubmit={(e) => { e.preventDefault(); setRes(null); setParams(text ? { q: text } : {}); }} className="relative">
+      <PageHeader icon={Search} title="Search" subtitle="Everything in the app you can open: pages, people, candidates, openings, projects, holidays, policies, documents and help" />
+      <form data-no-preview onSubmit={(e) => { e.preventDefault(); setParams(text.trim() ? { q: text.trim() } : {}); }} className="relative">
         <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--color-text-faint)]" />
-        <input autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder="Try “leave policy”, “Diwali”, “laptop”…" className="w-full rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] py-3 pl-10 pr-3 text-[14px] text-[var(--color-text)] placeholder:text-[var(--color-text-faint)] outline-none focus:border-[var(--color-red)]" />
+        <input autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder="Try “leave”, “payslip”, a colleague's name, “Diwali”…" className="w-full rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] py-3 pl-10 pr-3 text-[14px] text-[var(--color-text)] placeholder:text-[var(--color-text-faint)] outline-none focus:border-[var(--color-red)]" />
       </form>
 
-      {!q && <Panel><Empty icon={Search} text="Type something to search." /></Panel>}
-      {loading && <Loading />}
-      {res && total === 0 && <Panel><Empty icon={Search} text={`Nothing found for “${q}”.`} /></Panel>}
-
-      {res?.pages.length > 0 && <Panel title="Pages"><ul className="space-y-2">{res.pages.map(([to, label]) => <li key={to}><Link to={to} className="text-[13px] text-[var(--color-red-hover)] hover:underline">{label}</Link></li>)}</ul></Panel>}
-      {res?.holidays.length > 0 && <Panel title="Holidays"><ul className="space-y-2">{res.holidays.map((h) => <li key={h.date} className="flex items-center gap-2 text-[13px]"><CalendarDays size={14} className="text-[var(--color-text-muted)]" /><span className="text-[var(--color-text)]">{h.description}</span><span className="text-[var(--color-text-muted)]">{dmy(h.date)}</span></li>)}</ul></Panel>}
-      {res?.policies.length > 0 && <Panel title="Policies"><ul className="space-y-2">{res.policies.map((f) => <li key={f.name}><a href={f.file_url} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-[13px] text-[var(--color-text)] hover:text-[var(--color-red-hover)]"><FileText size={14} /> {f.file_name} <ExternalLink size={12} /></a></li>)}</ul></Panel>}
-      {res?.docs.length > 0 && <Panel title="My Documents"><ul className="space-y-2">{res.docs.map((f) => <li key={f.name}><a href={f.file_url} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-[13px] text-[var(--color-text)] hover:text-[var(--color-red-hover)]"><FileText size={14} /> {f.file_name} <ExternalLink size={12} /></a></li>)}</ul></Panel>}
-      {res?.articles.length > 0 && <Panel title="Help Articles"><ul className="space-y-2">{res.articles.map((a) => <li key={a.name} className="flex items-center gap-2 text-[13px] text-[var(--color-text)]"><LifeBuoy size={14} className="text-[var(--color-text-muted)]" /> {a.title}{a.category && <span className="text-[var(--color-text-faint)]">· {a.category}</span>}</li>)}</ul></Panel>}
+      {!q && <Panel><Empty icon={Search} text="Type something to search the whole app." /></Panel>}
+      {q && <p className="text-[12px] text-[var(--color-text-muted)]">{loading ? `Searching for “${q}”…` : `${total} result${total === 1 ? "" : "s"} for “${q}”`}</p>}
+      {q && !loading && total === 0 && <Panel><Empty icon={Search} text={`Nothing found for “${q}”.`} /></Panel>}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {groups.map((g) => {
+          const Icon = GROUP_ICONS[g.id] || Search;
+          return (
+            <Panel key={g.id} title={`${g.title} (${g.items.length})`}>
+              <ul className="divide-y divide-[var(--color-border)]">
+                {g.items.map((it) => {
+                  const body = (
+                    <>
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--color-surface-2)] text-[var(--color-text-muted)] group-hover:bg-[var(--color-red-wash)] group-hover:text-[var(--color-red-hover)]"><Icon size={15} /></span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[13px] font-medium text-[var(--color-text)] group-hover:text-[var(--color-red-hover)]">{it.label}</span>
+                        {it.sub && <span className="block truncate text-[11.5px] text-[var(--color-text-muted)]">{it.sub}</span>}
+                      </span>
+                      {it.href ? <ExternalLink size={13} className="shrink-0 text-[var(--color-text-faint)]" /> : <ArrowRight size={13} className="shrink-0 text-[var(--color-text-faint)] opacity-0 group-hover:opacity-100" />}
+                    </>
+                  );
+                  return (
+                    <li key={it.key}>
+                      {it.href
+                        ? <a href={it.href} target="_blank" rel="noreferrer" className="group flex items-center gap-3 py-2.5">{body}</a>
+                        : <Link to={it.to} className="group flex items-center gap-3 py-2.5">{body}</Link>}
+                    </li>
+                  );
+                })}
+              </ul>
+            </Panel>
+          );
+        })}
+      </div>
     </>
   );
 }

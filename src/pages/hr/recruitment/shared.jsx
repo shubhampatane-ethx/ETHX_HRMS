@@ -2,13 +2,13 @@
 // interview scheduling / decision, offers and hiring.
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, CalendarPlus, Star } from "lucide-react";
+import { AlertTriangle, CalendarPlus, Paperclip, Star } from "lucide-react";
 import { frappe } from "../../../lib/api/frappeClient";
 import { Button, DateField, LinkField } from "../../../components/ui/primitives";
 import { Field, inputCls, Modal, Notice } from "../../../components/employee/EmployeeShell";
 import { dmy, errMsg, isoDate, nowStamp, useAsync } from "../../../lib/employeePortal";
 import {
-  addComment, ALL_STAGES, stageLabel, createEmployee, decideInterview, downloadIcs, emailDocument, employeeForApplicant, feedbackFor, findSamePerson,
+  addComment, ALL_STAGES, attachedFiles, offerTemplates, stageLabel, createEmployee, decideInterview, downloadIcs, emailDocument, employeeForApplicant, feedbackFor, findSamePerson,
   fmtTime, interviewClashes, interviewersOf, isoPlus, listRounds, listUsers, moveStage, onboardingForApplicant, prepareInterviewers,
   recordJoining, recordResponse, regretEmail, roundsOf, roundsStatus, saveOffer, saveRound, scheduleInterview, stageOf, STAGE_TONE, startOnboarding, toStars,
 } from "../../../lib/recruitment";
@@ -51,7 +51,7 @@ export function SetupHint() {
   return (
     <Notice>
       Recruitment isn't fully set up yet (pipeline stages, CTC, offer approval and retention fields are missing).{" "}
-      {user?.email === "Administrator" ? <Link to="/admin/setup" className="underline">See what's missing</Link> : "It's set up automatically the next time the Administrator signs in."}
+      {user?.email === "Administrator" ? <Link to="/admin/roles" className="underline">See what's missing</Link> : "It's set up automatically the next time the Administrator signs in."}
     </Notice>
   );
 }
@@ -389,7 +389,7 @@ export function icsFor(interview, applicantName) {
   downloadIcs({
     uid: interview.name,
     title: `Interview: ${applicantName || interview.job_applicant} – ${interview.interview_round}`,
-    description: `${interview.interview_round} interview with ${applicantName || interview.job_applicant}.${interview.custom_meeting_link ? `\n${interview.custom_meeting_link}` : ""}\nGive feedback in ETHX HRMS › My Interviews.`,
+    description: `${interview.interview_round} interview with ${applicantName || interview.job_applicant}.${interview.custom_meeting_link ? `\n${interview.custom_meeting_link}` : ""}\nGive feedback in HRMS 360 › My Interviews.`,
     date: interview.scheduled_on,
     from: fmtTime(interview.from_time),
     to: fmtTime(interview.to_time),
@@ -516,13 +516,25 @@ export function OfferModal({ applicant, opening, offer, amendFrom, onClose, onSa
   });
   const { busy, err, setErr, run } = useSubmit();
   const missing = rs.data?.missing || [];
+  // The offer letter HR prepared (from a company template) goes with the offer and is emailed when it's sent.
+  const attached = useAsync(() => (offer?.name ? attachedFiles("Job Offer", offer.name) : Promise.resolve([])), [offer?.name]);
+  const templates = useAsync(() => offerTemplates().catch(() => []), []);
+  const [files, setFiles] = useState([]);
+  const tooBig = (file) => file.size > 10 * 1024 * 1024;
+
+  async function removeAttached(file) {
+    try { await frappe.deleteDoc("File", file.name); attached.reload(); } catch (x) { setErr(errMsg(x, "Couldn't remove the file.")); }
+  }
 
   function submit(e) {
     e.preventDefault();
     if (missing.length && !f.override.trim()) return setErr(`Rounds not cleared: ${missing.join(", ")}. Give an override reason or clear them first.`);
     if (f.valid_till && f.valid_till < f.offer_date) return setErr("The offer can't expire before the offer date.");
+    if (files.some(tooBig)) return setErr("Each attachment must be 10 MB or smaller.");
     run(async () => {
       const saved = await saveOffer(offer, { ...f, applicant: applicant.name, opening: opening?.name || applicant.job_title, amended_from: amendFrom?.name });
+      const offerName = saved?.name || offer?.name;
+      for (const file of files) await frappe.uploadFile(file, { doctype: "Job Offer", docname: offerName, isPrivate: true });
       if (!["Offer", "Hired"].includes(stageOf(applicant))) { try { await moveStage(applicant, "Offer", { note: `Offer ${saved.name} drafted` }); } catch { /* keep the offer */ } }
       onSaved(saved);
     }, "Couldn't save the offer.");
@@ -545,6 +557,17 @@ export function OfferModal({ applicant, opening, offer, amendFrom, onClose, onSa
         {(applicant.custom_expected_ctc || applicant.custom_current_ctc) && <p className="text-[11px] text-[var(--color-text-faint)]">Candidate: current {applicant.custom_current_ctc || "—"} · expected {applicant.custom_expected_ctc || "—"}</p>}
         <LinkField label="Offer Terms Template (Optional)" linkDoctype="Job Offer Term Template" value={f.template} onChange={(v) => setF({ ...f, template: v })} frappe={frappe} />
         <Field label="Terms / Letter Body (Optional)"><textarea rows={3} className={inputCls} value={f.terms} onChange={(e) => setF({ ...f, terms: e.target.value })} /></Field>
+        <div className="space-y-2 rounded-lg border border-[var(--color-border)] p-3">
+          <p className="flex items-center gap-1.5 text-[12.5px] font-medium text-[var(--color-text)]"><Paperclip size={13} /> Offer Letter (Optional)</p>
+          {(templates.data || []).length > 0 && (
+            <p className="text-[11.5px] text-[var(--color-text-muted)]">Company templates: {templates.data.map((t, i) => <span key={t.name}>{i ? ", " : ""}<a href={t.file_url} target="_blank" rel="noreferrer" className="text-[var(--color-red-hover)] hover:underline">{t.file_name}</a></span>)} - download one, fill it in, and attach it here.</p>
+          )}
+          {(attached.data || []).map((file) => (
+            <p key={file.name} className="flex items-center justify-between gap-2 text-[12px]"><a href={file.file_url} target="_blank" rel="noreferrer" className="truncate text-[var(--color-text)] hover:underline">{file.file_name}</a><button type="button" onClick={() => removeAttached(file)} className="text-[11px] text-[var(--color-text-faint)] hover:text-[var(--color-red-hover)]">Remove</button></p>
+          ))}
+          <input type="file" multiple accept=".pdf,.doc,.docx" className={inputCls} onChange={(e) => setFiles([...e.target.files])} />
+          <p className="text-[11px] text-[var(--color-text-faint)]">PDF or Word, up to 10 MB each. Attached files are emailed with the offer when it's sent.</p>
+        </div>
         {missing.length > 0 && <Field label="Override Reason (Required to Send Without All Rounds Cleared)"><input className={inputCls} value={f.override} onChange={(e) => setF({ ...f, override: e.target.value })} /></Field>}
         <p className="text-[11px] text-[var(--color-text-faint)]">The offer is saved as a draft. It then needs approval by an HR Manager other than you before it can be sent.</p>
         {err && <Notice>{err}</Notice>}

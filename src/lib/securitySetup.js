@@ -93,9 +93,45 @@ frappe.get_doc({"doctype": "Comment", "comment_type": "Info", "reference_doctype
 frappe.response["message"] = {"enabled": enable}
 `;
 
+// Keeps every login's record restrictions right without anyone clicking "Restrict": plain employee logins see only
+// their own Employee record and company; HR and Project Manager logins keep their team view (ERPNext re-adds an
+// own-record restriction whenever their Employee record is saved, so it's removed again). The Administrator's
+// accounts are left alone. Runs every hour and right after an Employee record is saved.
+const RESTRICT_FIX = `
+def fix_login(e):
+    if not e.user_id or e.user_id in ("Administrator", "Guest"):
+        return
+    roles = frappe.get_all("Has Role", filters={"parent": e.user_id, "parenttype": "User"}, pluck="role")
+    if "System Manager" in roles:
+        return
+    staff = False
+    for r in roles:
+        if r in ("HR Manager", "HR User", "Projects Manager"):
+            staff = True
+    if staff:
+        for p in frappe.get_all("User Permission", filters={"user": e.user_id, "allow": "Employee"}, pluck="name"):
+            frappe.delete_doc("User Permission", p, ignore_permissions=True)
+        return
+    if e.status == "Left":
+        return
+    if not frappe.db.exists("User Permission", {"user": e.user_id, "allow": "Employee", "for_value": e.name}):
+        frappe.get_doc({"doctype": "User Permission", "user": e.user_id, "allow": "Employee", "for_value": e.name, "apply_to_all_doctypes": 1}).insert(ignore_permissions=True)
+    if e.company and not frappe.db.exists("User Permission", {"user": e.user_id, "allow": "Company", "for_value": e.company}):
+        frappe.get_doc({"doctype": "User Permission", "user": e.user_id, "allow": "Company", "for_value": e.company, "apply_to_all_doctypes": 1}).insert(ignore_permissions=True)
+`;
+const RESTRICT_ALL = `${RESTRICT_FIX}
+for e in frappe.get_all("Employee", filters={"user_id": ["is", "set"]}, fields=["name", "user_id", "company", "status"]):
+    fix_login(e)
+`;
+const RESTRICT_ONE = `${RESTRICT_FIX}
+fix_login(doc)
+`;
+
 export const SECURITY_SCRIPTS = [
   { name: "ETHX - Employee login", script_type: "API", api_method: "ethx_employee_login", script: LOGIN_API, what: "HR creates / resets employee logins server-side - only plain employee accounts, always restricted to their own record and company" },
   { name: "ETHX - Employee login access", script_type: "API", api_method: "ethx_employee_login_access", script: DISABLE_API, what: "HR enables / disables employee logins (never HR or admin accounts)" },
+  { name: "ETHX - Keep login restrictions", script_type: "Scheduler Event", event_frequency: "Hourly", script: RESTRICT_ALL, what: "Every hour, employee logins are restricted to their own record and company (HR and Project Managers keep their team view)" },
+  { name: "ETHX - Restrict login on save", script_type: "DocType Event", reference_doctype: "Employee", doctype_event: "After Save", script: RESTRICT_ONE, what: "When an employee record is saved, its login's restrictions are put right straight away" },
 ];
 
 // Recruitment: putting someone on an interview panel gives them HRMS's Interviewer role (only that role).

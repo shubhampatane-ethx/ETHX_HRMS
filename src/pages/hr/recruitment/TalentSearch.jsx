@@ -1,5 +1,5 @@
 // Talent Search: the candidate repository's search (SRCH-01 to SRCH-05) and JD-to-CV matching (MATCH-01 to MATCH-04).
-// Works before any opening exists. Filters combine with AND (cities OR within the list); keywords search skill tags,
+// Works before any opening exists. Filter by title, skills / keywords (all must match) and total experience; keywords search skill tags,
 // profile fields and the CV text, with aliases and quoted phrases. With a JD, every candidate gets a match score with
 // the evidence behind it and the mandatory requirements it misses.
 import { Fragment, useMemo, useRef, useState } from "react";
@@ -10,10 +10,9 @@ import { Async, chipCls, Field, inputCls, Modal, Notice, PageHeader, Panel } fro
 import { dmy, errMsg, nowStamp, useAsync } from "../../../lib/employeePortal";
 import { frappe } from "../../../lib/api/frappeClient";
 import { useAuth } from "../../../context/AuthContext";
-import { ALL_STAGES, listApplicants, listOpenings, stageLabel, stageOf } from "../../../lib/recruitment";
-import { SOURCES } from "../../../lib/recruitmentSetup";
+import { listApplicants, listOpenings, stageLabel, stageOf } from "../../../lib/recruitment";
 import { CvError, readDocument } from "../../../lib/cvText";
-import { CITIES, matchCandidate, parseJd, searchCandidates, splitList, yearsLabel } from "../../../lib/talent";
+import { matchCandidate, parseJd, searchCandidates, splitList, yearsLabel } from "../../../lib/talent";
 import { downloadSheet } from "../../../lib/sheet";
 import { candidateUrl, StageBadge } from "./shared";
 
@@ -36,7 +35,6 @@ export default function TalentSearch() {
   const apps = useAsync(() => listApplicants([], ["custom_cv_text"]), []);
   const openings = useAsync(() => listOpenings(), []);
   const [f, setF] = useState(EMPTY);
-  const [cityInput, setCityInput] = useState("");
   const [sort, setSort] = useState("relevance");
   const [page, setPage] = useState(0);
   const [picked, setPicked] = useState([]);
@@ -65,21 +63,13 @@ export default function TalentSearch() {
 
   const active = [
     f.title && ["title", `Title: ${f.title}`],
-    f.keywords && ["keywords", `${f.mode === "all" ? "All" : "Any"} of: ${f.keywords}`],
+    f.keywords && ["keywords", `Skills: ${f.keywords}`],
     (f.totalMin !== "" || f.totalMax !== "") && ["total", `Total ${f.totalMin || 0}–${f.totalMax || "∞"} yrs`],
-    (f.relMin !== "" || f.relMax !== "") && ["rel", `Relevant ${f.relMin || 0}–${f.relMax || "∞"} yrs`],
-    f.cities.length && ["cities", `${f.cityScope === "current" ? "Current" : f.cityScope === "preferred" ? "Preferred" : "Current or preferred"}: ${f.cities.join(" / ")}`],
-    f.workMode && ["workMode", f.workMode],
-    f.noticeMax !== "" && ["noticeMax", `Notice ≤ ${f.noticeMax} days`],
-    f.source && ["source", `Source: ${f.source}`],
-    f.stage !== "all" && ["stage", `Stage: ${stageLabel(f.stage)}`],
-    f.updatedSince && ["updatedSince", `CV since ${dmy(f.updatedSince)}`],
   ].filter(Boolean);
   const clear = (k) => {
-    const reset = { title: { title: "" }, keywords: { keywords: "" }, total: { totalMin: "", totalMax: "" }, rel: { relMin: "", relMax: "" }, cities: { cities: [] }, workMode: { workMode: "" }, noticeMax: { noticeMax: "" }, source: { source: "" }, stage: { stage: "all" }, updatedSince: { updatedSince: "" } }[k];
+    const reset = { title: { title: "" }, keywords: { keywords: "" }, total: { totalMin: "", totalMax: "" } }[k];
     setF((x) => ({ ...x, ...reset }));
   };
-  const addCity = (c) => { const v = c.trim(); if (v && !f.cities.some((x) => x.toLowerCase() === v.toLowerCase())) set("cities")([...f.cities, v]); setCityInput(""); };
 
   const shown = results.slice(page * PAGE, page * PAGE + PAGE);
   const pages = Math.max(1, Math.ceil(results.length / PAGE));
@@ -88,8 +78,8 @@ export default function TalentSearch() {
   function exportCsv() {
     const rows = results.filter((r) => !picked.length || picked.includes(r.a.name));
     downloadSheet("talent-search.csv", [
-      ["ID", "Name", "Email", "Phone", "Current Title", "Skills", "Total Exp (Yrs)", "Relevant Exp (Yrs)", "Current Location", "Preferred Locations", "Notice (Days)", "Stage", "Opening", "CV Updated", ...(jd ? ["Match %", "Missing Mandatory"] : [])],
-      ...rows.map(({ a, match }) => [a.name, a.applicant_name, a.email_id, a.phone_number, a.custom_current_title, a.custom_skills, a.custom_total_experience, a.custom_relevant_experience, a.custom_location, a.custom_preferred_locations, a.custom_notice_days, stageLabel(a._stage), titles[a.job_title] || a.job_title, dmy(a.custom_cv_updated_on), ...(jd ? [match.score ?? "Review required", match.missing.join("; ")] : [])]),
+      ["ID", "Name", "Email", "Phone", "Current Title", "Skills", "Total Exp (Yrs)", "Current Location", "Preferred Locations", "Stage", "Opening", "CV Updated", ...(jd ? ["Match %", "Missing Mandatory"] : [])],
+      ...rows.map(({ a, match }) => [a.name, a.applicant_name, a.email_id, a.phone_number, a.custom_current_title, a.custom_skills, a.custom_total_experience, a.custom_location, a.custom_preferred_locations, stageLabel(a._stage), titles[a.job_title] || a.job_title, dmy(a.custom_cv_updated_on), ...(jd ? [match.score ?? "Review required", match.missing.join("; ")] : [])]),
     ]);
   }
 
@@ -102,36 +92,18 @@ export default function TalentSearch() {
       {msg && <Notice tone={msg.ok ? "info" : "error"}>{msg.text}</Notice>}
 
       <Panel>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <Field label="Position / Title"><input className={inputCls} value={f.title} onChange={(e) => set("title")(e.target.value)} placeholder="e.g. Oracle Fusion Finance Consultant" /></Field>
-          <Field label="Skills / Keywords" hint='Commas separate terms; "quotes" keep a phrase together'>
-            <div className="flex gap-2">
-              <input className={inputCls} value={f.keywords} onChange={(e) => set("keywords")(e.target.value)} placeholder='"Oracle Fusion", GL, AP, BI Publisher' />
-              <select aria-label="Keyword Mode" className={`${inputCls} !w-32`} value={f.mode} onChange={(e) => set("mode")(e.target.value)}><option value="all">Match All</option><option value="any">Match Any</option></select>
-            </div>
+          <Field label="Skills / Keywords" hint='Commas separate terms; "quotes" keep a phrase together. Candidates must have all of them.'>
+            <input className={inputCls} value={f.keywords} onChange={(e) => set("keywords")(e.target.value)} placeholder='"Oracle Fusion", GL, AP, BI Publisher' />
           </Field>
           <Field label="Total Experience (Years)"><div className="flex items-center gap-2"><input type="number" min="0" step="0.5" className={inputCls} value={f.totalMin} onChange={(e) => set("totalMin")(e.target.value)} placeholder="Min" /><span className="text-[var(--color-text-faint)]">–</span><input type="number" min="0" step="0.5" className={inputCls} value={f.totalMax} onChange={(e) => set("totalMax")(e.target.value)} placeholder="Max" /></div></Field>
-          <Field label="Relevant Experience (Years)"><div className="flex items-center gap-2"><input type="number" min="0" step="0.5" className={inputCls} value={f.relMin} onChange={(e) => set("relMin")(e.target.value)} placeholder="Min" /><span className="text-[var(--color-text-faint)]">–</span><input type="number" min="0" step="0.5" className={inputCls} value={f.relMax} onChange={(e) => set("relMax")(e.target.value)} placeholder="Max" /></div></Field>
-          <Field label="Locations">
-            <div className="flex gap-2">
-              <input list="talent-cities" className={inputCls} value={cityInput} onChange={(e) => setCityInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCity(cityInput); } }} placeholder="Type a city, press Enter" />
-              <datalist id="talent-cities">{CITIES.map((c) => <option key={c} value={c} />)}</datalist>
-              <select aria-label="Location Scope" className={`${inputCls} !w-36`} value={f.cityScope} onChange={(e) => set("cityScope")(e.target.value)}><option value="either">Current or Preferred</option><option value="current">Current</option><option value="preferred">Preferred</option></select>
-            </div>
-          </Field>
-          <Field label="Work Mode"><select className={inputCls} value={f.workMode} onChange={(e) => set("workMode")(e.target.value)}><option value="">Any</option>{["Onsite", "Hybrid", "Remote"].map((m) => <option key={m}>{m}</option>)}</select></Field>
-          <Field label="Notice Period (Max Days)"><input type="number" min="0" className={inputCls} value={f.noticeMax} onChange={(e) => set("noticeMax")(e.target.value)} /></Field>
-          <div className="grid grid-cols-2 gap-2">
-            <Field label="Source"><select className={inputCls} value={f.source} onChange={(e) => set("source")(e.target.value)}><option value="">Any</option>{SOURCES.map((s) => <option key={s}>{s}</option>)}</select></Field>
-            <Field label="Stage"><select className={inputCls} value={f.stage} onChange={(e) => set("stage")(e.target.value)}><option value="all">Any</option>{ALL_STAGES.map((s) => <option key={s.id} value={s.id}>{stageLabel(s.id)}</option>)}</select></Field>
+        </div>
+        {jd && (
+          <div className="mt-3 flex flex-wrap items-center gap-4 text-[12px] text-[var(--color-text-muted)]">
+            <label className="flex items-center gap-2"><input type="checkbox" checked={onlyMandatory} onChange={(e) => setOnlyMandatory(e.target.checked)} /> All Mandatory Criteria Met</label>
           </div>
-          <Field label="CV Updated Since"><input type="date" className={inputCls} value={f.updatedSince} onChange={(e) => set("updatedSince")(e.target.value)} /></Field>
-        </div>
-        <div className="mt-3 flex flex-wrap items-center gap-4 text-[12px] text-[var(--color-text-muted)]">
-          <label className="flex items-center gap-2"><input type="checkbox" checked={f.includeUnknown} onChange={(e) => set("includeUnknown")(e.target.checked)} /> Include Unknown Experience</label>
-          <label className="flex items-center gap-2"><input type="checkbox" checked={f.allowRemote} onChange={(e) => set("allowRemote")(e.target.checked)} /> Include Open to Remote</label>
-          {jd && <label className="flex items-center gap-2"><input type="checkbox" checked={onlyMandatory} onChange={(e) => setOnlyMandatory(e.target.checked)} /> All Mandatory Criteria Met</label>}
-        </div>
+        )}
         {active.length > 0 && (
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {active.map(([k, label]) => <span key={k} className={`${chipCls(true)} flex items-center gap-1`}>{label}<button type="button" aria-label={`Clear ${label}`} onClick={() => clear(k)}><X size={12} /></button></span>)}
@@ -163,7 +135,7 @@ export default function TalentSearch() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-[12.5px]">
                     <thead className="text-[11px] uppercase tracking-wide text-[var(--color-text-faint)]">
-                      <tr>{["", "Candidate", "Title / Top Skills", "Experience", "Location", "Notice", "CV", ...(jd ? ["Match"] : []), ""].map((h, i) => <th key={i} className="px-2 py-2 font-medium">{h}</th>)}</tr>
+                      <tr>{["", "Candidate", "Title / Top Skills", "Experience", "Location", "CV", ...(jd ? ["Match"] : []), ""].map((h, i) => <th key={i} className="px-2 py-2 font-medium">{h}</th>)}</tr>
                     </thead>
                     <tbody>
                       {shown.map(({ a, hits, match }) => {
@@ -174,9 +146,8 @@ export default function TalentSearch() {
                               <td className="px-2 py-2"><input type="checkbox" aria-label={`Select ${a.applicant_name}`} checked={picked.includes(a.name)} onChange={() => toggle(a.name)} /></td>
                               <td className="px-2 py-2"><Link to={candidateUrl(a.name)} className="font-medium text-[var(--color-text)] hover:underline">{a.applicant_name}</Link><span className="block text-[11px] text-[var(--color-text-faint)]">{a.email_id}</span><span className="mt-1 inline-block"><StageBadge stage={a._stage} /></span>{Number(a.custom_needs_review) ? <span className="ml-1 text-[10.5px] text-[var(--color-amber)]">Needs review</span> : null}</td>
                               <td className="max-w-[18rem] px-2 py-2">{a.custom_current_title || a.designation || "—"}<span className="block text-[11px] text-[var(--color-text-muted)]">{splitList(a.custom_skills).slice(0, 5).join(" · ") || "—"}</span></td>
-                              <td className="whitespace-nowrap px-2 py-2">{yearsLabel(a.custom_total_experience)} total<span className="block text-[11px] text-[var(--color-text-muted)]">{yearsLabel(a.custom_relevant_experience)} relevant</span></td>
+                              <td className="whitespace-nowrap px-2 py-2">{yearsLabel(a.custom_total_experience)}</td>
                               <td className="px-2 py-2">{a.custom_location || "—"}{a.custom_preferred_locations && <span className="block text-[11px] text-[var(--color-text-muted)]">Prefers {a.custom_preferred_locations}</span>}{a.custom_work_mode && <span className="block text-[11px] text-[var(--color-text-faint)]">{a.custom_work_mode}</span>}</td>
-                              <td className="whitespace-nowrap px-2 py-2">{a.custom_notice_days != null && a.custom_notice_days !== "" ? `${a.custom_notice_days} days` : "—"}</td>
                               <td className="whitespace-nowrap px-2 py-2">{a.resume_attachment || a.resume_link ? <a href={a.resume_attachment || a.resume_link} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-[var(--color-red-hover)] hover:underline"><Paperclip size={12} /> CV</a> : "—"}<span className="block text-[11px] text-[var(--color-text-faint)]">{dmy(a.custom_cv_updated_on || a.modified)}</span></td>
                               {jd && <td className="whitespace-nowrap px-2 py-2">{match.score == null ? <span className="text-[var(--color-amber)]">Review required</span> : <span className={`text-[15px] font-semibold ${match.score >= 75 ? "text-[var(--color-green)]" : match.score >= 50 ? "text-[var(--color-amber)]" : "text-[var(--color-text-muted)]"}`}>{match.score}%</span>}{match.missing.length > 0 && <span className="block text-[11px] text-[var(--color-red-hover)]">Missing {match.missing.length} mandatory</span>}</td>}
                               <td className="px-2 py-2"><button type="button" onClick={() => setExpanded(open ? null : a.name)} className="flex items-center gap-1 text-[12px] text-[var(--color-text-muted)] hover:text-[var(--color-text)]">{open ? <ChevronDown size={13} /> : <ChevronRight size={13} />} {jd ? "Evidence" : "Matches"}</button></td>
@@ -184,7 +155,7 @@ export default function TalentSearch() {
                             {open && (
                               <tr className="bg-[var(--color-surface-2)]">
                                 <td />
-                                <td colSpan={jd ? 8 : 7} className="space-y-2 px-2 py-3 text-[12px]">
+                                <td colSpan={jd ? 7 : 6} className="space-y-2 px-2 py-3 text-[12px]">
                                   {jd && (
                                     <>
                                       {match.review && <p className="text-[var(--color-amber)]">{match.review}</p>}

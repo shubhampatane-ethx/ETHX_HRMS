@@ -11,7 +11,7 @@ export default function Unauthorized() {
       <h1 className="text-[15px] font-semibold text-[var(--color-text)]">Not Authorized</h1>
       <p className="max-w-sm text-[13px] text-[var(--color-text-muted)]">
         {noWorkspace
-          ? `${user.email} isn't set up for ETHX HRMS yet - it has no HR, Project Manager or Employee role. Ask your administrator to assign the right access.`
+          ? `${user.email} isn't set up for HRMS 360 yet - it has no HR, Project Manager or Employee role. Ask your administrator to assign the right access.`
           : "Your account doesn't have access to this section. Contact your admin if you think this is wrong."}
       </p>
       <div className="flex items-center gap-4">

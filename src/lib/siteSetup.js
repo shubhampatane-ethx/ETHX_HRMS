@@ -11,6 +11,11 @@ import { ASSET_FIELDS, ASSET_SCRIPTS, ASSET_TRACK } from "./assetSetup";
 import { OFFICE_FIELDS, OFFICE_SCRIPTS, OFFICE_TRACK } from "./officeSetup";
 import { ATTENDANCE_FIELDS, ATTENDANCE_SCRIPTS } from "./attendanceSetup";
 import { ADVANCE_TRAVEL_FIELDS, ADVANCE_TRAVEL_SCRIPTS } from "./advanceTravelSetup";
+import { COMMS_DOCTYPES, COMMS_FIELDS, COMMS_SCRIPTS } from "./comms";
+import { MODULE_DOCTYPES, MODULE_SCRIPTS } from "./modules";
+import { ANALYTICS_DOCTYPES } from "./analytics";
+import { INTEGRATION_RECORDS, INTEGRATION_SCRIPTS } from "./integrationSetup";
+import { prepare as prepareDoctype } from "./doctypeSetup";
 import { EMPLOYEE_RECORD_FIELDS, EMPLOYEE_RECORD_SCRIPTS, SIGNIN_FIELDS, SIGNIN_SCRIPTS } from "./peopleSetup";
 import { CONTRACTOR_FIELDS, CONTRACTOR_PERMISSIONS, CONTRACTOR_RECORDS, CONTRACTOR_RETIRED_SCRIPTS, CONTRACTOR_SCRIPTS } from "./contractorSetup";
 import { PAGE_ACCESS_FIELDS, PAGE_ACCESS_SCRIPTS } from "./pageAccessSetup";
@@ -31,6 +36,10 @@ export const MODULES = [
   { id: "offices", label: "Office locations & holidays", fields: OFFICE_FIELDS, scripts: OFFICE_SCRIPTS, track: OFFICE_TRACK },
   { id: "attendance", label: "Attendance", fields: ATTENDANCE_FIELDS, scripts: ATTENDANCE_SCRIPTS, track: [] },
   { id: "advanceTravel", label: "Advances & travel", fields: ADVANCE_TRAVEL_FIELDS, scripts: ADVANCE_TRAVEL_SCRIPTS, track: [] },
+  { id: "modules", label: "Product modules", doctypes: MODULE_DOCTYPES.map((d) => ({ ...d, prepare: prepareDoctype })), fields: [], scripts: MODULE_SCRIPTS, track: [] },
+  { id: "analytics", label: "Analytics", doctypes: ANALYTICS_DOCTYPES.map((d) => ({ ...d, prepare: prepareDoctype })), fields: [], scripts: [], track: [] },
+  { id: "integrations", label: "Integrations", records: INTEGRATION_RECORDS, fields: [], scripts: INTEGRATION_SCRIPTS, track: [] },
+  { id: "comms", label: "Communication", doctypes: COMMS_DOCTYPES.map((d) => ({ ...d, prepare: prepareDoctype })), fields: COMMS_FIELDS, scripts: COMMS_SCRIPTS, track: [] },
   { id: "employeeRecords", label: "Employee records", fields: EMPLOYEE_RECORD_FIELDS, scripts: EMPLOYEE_RECORD_SCRIPTS, track: [] },
   { id: "training", label: "Training changes", fields: [], scripts: [], track: TRAINING_TRACK, properties: TRAINING_PROPERTIES },
   { id: "leaveTypes", label: "Leave types", records: LEAVE_TYPE_RECORDS, fields: [], scripts: [], track: [] },

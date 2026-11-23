@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { Briefcase, Building2, KeyRound, Plus, Power, Settings2, X } from "lucide-react";
 import { frappe } from "../../lib/api/frappeClient";
+import { CompanyField } from "../../components/layout/ClientSwitcher";
+import { getClientScope } from "../../lib/clientScope";
+import { clientUsers } from "../../lib/clientPeople";
 import { dmyHm, errMsg } from "../../lib/employeePortal";
 import { Button, Card, Input, LinkField } from "../../components/ui/primitives";
 import { setUserCompany } from "./Users";
@@ -21,7 +24,8 @@ async function loadManagers() {
     frappe.getList("User", { filters: [["name", "in", names]], fields: ["name", "full_name", "enabled", "last_login"], limit: 0, orderBy: "creation desc" }),
     frappe.getList("User Permission", { filters: [["user", "in", names], ["allow", "=", "Company"]], fields: ["user", "for_value"], limit: 0 }).catch(() => []),
   ]);
-  return users.map((u) => ({ ...u, company: perms.find((p) => p.user === u.name)?.for_value || "" }));
+  const scope = await clientUsers(); // viewing one client: only its Project Managers
+  return users.filter((u) => !scope || scope.has(u.name)).map((u) => ({ ...u, company: perms.find((p) => p.user === u.name)?.for_value || "" }));
 }
 
 const Shell = ({ title, onClose, children }) => (
@@ -87,7 +91,7 @@ export default function ProjectManagers() {
 }
 
 function CreateModal({ onClose, onDone }) {
-  const [f, setF] = useState({ first: "", last: "", email: "", password: "", company: "", portal: false });
+  const [f, setF] = useState({ first: "", last: "", email: "", password: "", company: getClientScope() || "", portal: false });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
@@ -128,7 +132,7 @@ function CreateModal({ onClose, onDone }) {
         <div className="grid grid-cols-2 gap-3"><Input label="First Name" value={f.first} onChange={set("first")} required /><Input label="Last Name" value={f.last} onChange={set("last")} /></div>
         <Input label="Email" type="email" value={f.email} onChange={set("email")} required />
         <Input label="Temporary Password" value={f.password} onChange={set("password")} required minLength={8} autoComplete="off" />
-        <LinkField label="Company" linkDoctype="Company" value={f.company} onChange={(v) => setF((x) => ({ ...x, company: v }))} required frappe={frappe} />
+        <CompanyField value={f.company} onChange={(v) => setF((x) => ({ ...x, company: v }))} required />
         <label className="flex items-start gap-2 text-[12px] text-[var(--color-text-muted)]"><input type="checkbox" className="mt-0.5" checked={f.portal} onChange={(e) => setF((x) => ({ ...x, portal: e.target.checked }))} /> Also give them the Employee portal (their own attendance, leave and timesheet). HR still has to link their Employee record to this email.</label>
         {error && <ErrorNote>{error}</ErrorNote>}
         <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Creating…" : "Create"}</Button></div>

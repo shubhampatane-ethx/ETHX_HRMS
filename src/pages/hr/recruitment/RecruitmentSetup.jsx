@@ -6,7 +6,7 @@ import { Button } from "../../../components/ui/primitives";
 import { Async, Grid, Notice, PageHeader, Panel } from "../../../components/employee/EmployeeShell";
 import { dmy, errMsg, useAsync } from "../../../lib/employeePortal";
 import { anonymise, dueForAnonymisation, RETENTION_MONTHS, stageOf } from "../../../lib/recruitment";
-import { SiteSetupPanel } from "../../../components/SiteSetupPanel";
+import { SetupIssues } from "../../../components/SetupIssues";
 import { useAuth } from "../../../context/AuthContext";
 import { candidateUrl, StageBadge } from "./shared";
 import { confirmDialog } from "../../../components/ui/dialogs";
@@ -17,7 +17,7 @@ export default function RecruitmentSetup() {
   return (
     <div className="space-y-5">
       <PageHeader icon={Settings2} title="Recruitment Setup" subtitle="One-time setup and candidate data retention" />
-      {isAdmin ? <SiteSetupPanel /> : <Notice tone="info">The one-time setup can only be run by the Administrator. Data retention is below.</Notice>}
+      {isAdmin ? <><Notice tone="info">Setup runs automatically when you sign in; re-run it from <Link to="/admin/roles" className="underline">Admin › Roles &amp; Permissions</Link>.</Notice><SetupIssues /></> : <Notice tone="info">The one-time setup is done by the Administrator. Data retention is below.</Notice>}
       <Retention />
     </div>
   );

@@ -4,6 +4,7 @@ import { ChevronDown } from "lucide-react";
 import { Brand } from "../Brand";
 import { useAuth } from "../../context/AuthContext";
 import { visibleNav } from "../../permissions/pageAccess";
+import { ClientSwitcher } from "./ClientSwitcher";
 
 /**
  * @param {{
@@ -23,6 +24,7 @@ export function Sidebar({ title, items }) {
     <aside className="flex h-screen w-64 shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)]">
       <div className="border-b border-[var(--color-border)] px-5 pb-4 pt-5">
         <Brand size="sidebar" />
+        <ClientSwitcher />
       </div>
 
       <nav aria-label={title} className="flex-1 overflow-y-auto px-3 py-4">

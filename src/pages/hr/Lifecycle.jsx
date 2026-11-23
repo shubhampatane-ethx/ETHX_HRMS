@@ -1,9 +1,9 @@
 // HR › Lifecycle: promotions, transfers and exits on HRMS's own records (Employee Promotion, Employee Transfer,
 // Employee Separation). Submitting a promotion / transfer updates the Employee record (HRMS does this on its
-// effective date); an exit runs the separation checklist, then HR marks the employee as Left. HR can cancel an exit
+// effective date), and can be edited while a draft, revised or withdrawn after; an exit runs the separation checklist, then HR marks the employee as Left. HR can cancel an exit
 // (the employee withdraws their resignation), which puts the Employee record back to Active.
 import { useRef, useState } from "react";
-import { ExternalLink, LogOut, Paperclip, Plus, Trash2, TrendingUp, Undo2, Upload } from "lucide-react";
+import { ExternalLink, FileDown, LogOut, Paperclip, Pencil, Plus, Trash2, TrendingUp, Undo2, Upload } from "lucide-react";
 import { frappe } from "../../lib/api/frappeClient";
 import { Button, DateField, LinkField } from "../../components/ui/primitives";
 import { Async, Field, Grid, inputCls, Modal, Notice, PageHeader, Panel, StatusPill, Tabs } from "../../components/employee/EmployeeShell";
@@ -38,7 +38,7 @@ const DT = { promotion: "Employee Promotion", transfer: "Employee Transfer" };
 function Moves({ kind }) {
   const dt = DT[kind];
   const date = kind === "promotion" ? "promotion_date" : "transfer_date";
-  const list = useAsync(() => listTry(dt, { fields: ["name", "employee", "employee_name", date, "docstatus", "company", ...(kind === "promotion" ? ["revised_ctc", "current_ctc"] : ["new_company"])], orderBy: `${date} desc` }, ["name", "employee", "employee_name", date, "docstatus"]), [dt]);
+  const list = useAsync(() => listTry(dt, { fields: ["name", "employee", "employee_name", date, "docstatus", "company", "amended_from", ...(kind === "promotion" ? ["revised_ctc", "current_ctc"] : ["new_company"])], orderBy: `${date} desc` }, ["name", "employee", "employee_name", date, "docstatus"]), [dt]);
   const details = useAsync(async () => {
     const names = (list.data || []).map((r) => r.name);
     if (!names.length) return {};
@@ -47,78 +47,198 @@ function Moves({ kind }) {
     rows.forEach((r) => { (m[r.parent] ||= []).push(r); });
     return m;
   }, [list.data]);
-  const [open, setOpen] = useState(false);
+  const [modal, setModal] = useState(null); // { record?, revise? }
   const [msg, setMsg] = useState(null);
+  const done = (text) => { setMsg({ ok: true, text }); list.reload(); };
 
   async function submit(r) {
     if (r[date] > isoDate()) return setMsg({ ok: false, text: `A ${kind} can only be submitted on or after its effective date (${dmy(r[date])}). Submit it then.` });
     if (!(await confirmDialog(`Submit this ${kind}? The employee record is updated now.`))) return;
     try {
       await frappe.submitDoc(await frappe.getDoc(dt, r.name));
-      setMsg({ ok: true, text: `${r.employee_name}: ${kind} submitted.` });
-      list.reload();
+      done(`${r.employee_name}: ${kind} submitted.`);
     } catch (e) {
       setMsg({ ok: false, text: errMsg(e, `Couldn't submit the ${kind}.`) });
     }
   }
 
+  // A draft is simply deleted; a submitted one is cancelled, which makes HRMS put the employee record back.
+  async function withdraw(r) {
+    const submitted = r.docstatus === 1;
+    const ok = await confirmDialog({
+      title: `Withdraw ${kind === "promotion" ? "Promotion" : "Transfer"}`,
+      message: submitted ? `Cancel ${r.employee_name}'s ${kind}? The employee record goes back to what it was before (${(details.data?.[r.name] || []).map((p) => `${p.property}: ${p.current || "—"}`).join(", ") || "previous details"}).` : `Delete ${r.employee_name}'s draft ${kind}? Nothing on the employee record has changed yet.`,
+      confirmLabel: submitted ? "Cancel It" : "Delete Draft",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      if (submitted) await frappe.cancelDoc(dt, r.name);
+      else await frappe.deleteDoc(dt, r.name);
+      done(submitted ? `${r.employee_name}: ${kind} cancelled and the employee record restored.` : `${r.employee_name}: draft ${kind} deleted.`);
+    } catch (e) {
+      setMsg({ ok: false, text: errMsg(e, `Couldn't withdraw the ${kind}.`) });
+    }
+  }
+
+  async function letter(r) {
+    setMsg(null);
+    try {
+      const [doc, emp] = await Promise.all([frappe.getDoc(dt, r.name), frappe.getDoc("Employee", r.employee)]);
+      downloadLetter(kind, doc, emp);
+    } catch (e) {
+      setMsg({ ok: false, text: errMsg(e, "Couldn't prepare the letter.") });
+    }
+  }
+
+  const act = "flex items-center gap-1 rounded px-1.5 py-1 text-[11.5px] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]";
   return (
-    <Panel action={<Button onClick={() => setOpen(true)}><Plus size={14} /> New {kind}</Button>}>
+    <Panel action={<div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={() => downloadTemplate(kind)}><FileDown size={14} /> Letter Template</Button><Button onClick={() => setModal({})}><Plus size={14} /> New {kind === "promotion" ? "Promotion" : "Transfer"}</Button></div>}>
       {msg && <div className="mb-3"><Notice tone={msg.ok ? "info" : "error"}>{msg.text}</Notice></div>}
       <Async state={list}>
         {(rows) => <Grid rows={rows} empty={`No ${kind}s yet.`} columns={[
-          { key: "employee_name", label: "Employee", render: (r) => <span>{r.employee_name}<span className="block text-[11px] text-[var(--color-text-faint)]">{r.name}</span></span> },
+          { key: "employee_name", label: "Employee", render: (r) => <span>{r.employee_name}<span className="block text-[11px] text-[var(--color-text-faint)]">{r.name}{r.amended_from ? ` · revises ${r.amended_from}` : ""}</span></span> },
           { key: date, label: "Effective", render: (r) => dmy(r[date]) },
           { key: "changes", label: "Changes", render: (r) => <span className="text-[12px]">{(details.data?.[r.name] || []).map((p) => `${p.property}: ${p.current || "—"} → ${p.new}`).join(" · ") || "—"}{kind === "transfer" && r.new_company && r.new_company !== r.company ? ` · Company → ${r.new_company}` : ""}{kind === "promotion" && Number(r.revised_ctc) ? ` · CTC → ${money(r.revised_ctc)}` : ""}</span> },
           { key: "status", label: "Status", render: (r) => <StatusPill status={statusOf(r)} /> },
-          { key: "_a", label: "", render: (r) => (r.docstatus === 0 ? (r[date] > isoDate() ? <span className="text-[11px] text-[var(--color-text-faint)]">Submit on {dmy(r[date])}</span> : <Button variant="secondary" className="!px-2 !py-1 text-[11px]" onClick={() => submit(r)}>Submit</Button>) : null) },
+          { key: "_a", label: "", render: (r) => (
+            <div className="flex flex-wrap items-center justify-end gap-1">
+              {r.docstatus === 0 && (r[date] > isoDate() ? <span className="mr-1 text-[11px] text-[var(--color-text-faint)]">Submit on {dmy(r[date])}</span> : <Button variant="secondary" className="!px-2 !py-1 text-[11px]" onClick={() => submit(r)}>Submit</Button>)}
+              {r.docstatus === 0 && <button type="button" className={act} onClick={() => setModal({ record: r })}><Pencil size={12} /> Edit</button>}
+              {r.docstatus === 1 && <button type="button" className={act} title="Cancel this one and save a corrected copy" onClick={() => setModal({ record: r, revise: true })}><Pencil size={12} /> Revise</button>}
+              {r.docstatus < 2 && <button type="button" className={act} onClick={() => letter(r)}><FileDown size={12} /> Letter</button>}
+              {r.docstatus < 2 && <button type="button" className={`${act} hover:!text-[var(--color-red-hover)]`} onClick={() => withdraw(r)}><Undo2 size={12} /> Withdraw</button>}
+            </div>
+          ) },
         ]} />}
       </Async>
-      {open && <MoveModal kind={kind} onClose={() => setOpen(false)} onSaved={() => { setOpen(false); list.reload(); }} />}
+      {modal && <MoveModal kind={kind} record={modal.record} revise={modal.revise} onClose={() => setModal(null)} onSaved={(text) => { setModal(null); done(text); }} />}
     </Panel>
   );
 }
 
-function MoveModal({ kind, onClose, onSaved }) {
-  const [employee, setEmployee] = useState("");
+/* --------------------------- promotion / transfer letters --------------------------- */
+
+const LETTER = {
+  promotion: { title: "Letter of Promotion", body: "We are pleased to inform you that, in recognition of your performance and contribution, you have been promoted with effect from {date}." },
+  transfer: { title: "Letter of Transfer", body: "This is to inform you that you are being transferred with effect from {date}, as detailed below." },
+};
+const escapeHtml = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+// A Word-compatible letter (HTML saved as .doc opens in Word for edits and printing on letterhead).
+function letterHtml(kind, v) {
+  const L = LETTER[kind];
+  const rows = v.changes.map((c) => `<tr><td style="padding:4px 12px 4px 0">${escapeHtml(c.property)}</td><td style="padding:4px 12px">${escapeHtml(c.current || "—")}</td><td style="padding:4px 12px"><b>${escapeHtml(c.new)}</b></td></tr>`).join("");
+  return `<html><head><meta charset="utf-8"><title>${L.title}</title></head><body style="font-family:Calibri,Arial,sans-serif;font-size:11pt;line-height:1.5">
+<p style="text-align:right">Date: ${escapeHtml(v.today)}</p>
+<p>To,<br><b>${escapeHtml(v.name)}</b><br>Employee ID: ${escapeHtml(v.id)}<br>${escapeHtml(v.designation)}${v.department ? `, ${escapeHtml(v.department)}` : ""}</p>
+<p style="text-align:center"><b><u>${L.title.toUpperCase()}</u></b></p>
+<p>Dear ${escapeHtml(v.first)},</p>
+<p>${escapeHtml(L.body.replace("{date}", v.date))}</p>
+${rows ? `<table style="border-collapse:collapse;margin:8px 0"><tr><th style="text-align:left;padding:4px 12px 4px 0">Detail</th><th style="text-align:left;padding:4px 12px">Current</th><th style="text-align:left;padding:4px 12px">New</th></tr>${rows}</table>` : ""}
+${v.ctc ? `<p>Your revised annual CTC will be <b>${escapeHtml(v.ctc)}</b>. All other terms of your employment remain unchanged.</p>` : "<p>All other terms of your employment remain unchanged.</p>"}
+${kind === "transfer" && v.newCompany ? `<p>You will now be part of <b>${escapeHtml(v.newCompany)}</b>.</p>` : ""}
+<p>We wish you continued success in your ${kind === "promotion" ? "new role" : "new assignment"}.</p>
+<p>Yours sincerely,<br><br><br>For <b>${escapeHtml(v.company)}</b><br>Authorised Signatory<br>Human Resources</p>
+</body></html>`;
+}
+
+function save(filename, html) {
+  const url = URL.createObjectURL(new Blob(["﻿", html], { type: "application/msword" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function downloadLetter(kind, doc, emp) {
+  const rows = (kind === "promotion" ? doc.promotion_details : doc.transfer_details) || [];
+  save(`${kind}-letter-${emp.employee_name || emp.name}.doc`.replace(/\s+/g, "-"), letterHtml(kind, {
+    today: dmy(isoDate()), name: emp.employee_name || emp.name, first: emp.first_name || String(emp.employee_name || "").split(" ")[0], id: emp.employee_number || emp.name,
+    designation: rows.find((r) => r.fieldname === "designation")?.current || emp.designation || "", department: emp.department || "",
+    date: dmy(doc.promotion_date || doc.transfer_date), changes: rows.map((r) => ({ property: r.property, current: r.current, new: r.new })),
+    ctc: Number(doc.revised_ctc) ? money(doc.revised_ctc) : "", company: doc.company || emp.company || "", newCompany: doc.new_company && doc.new_company !== doc.company ? doc.new_company : "",
+  }));
+}
+
+/** The letter with placeholders, for HR to adapt in Word. */
+function downloadTemplate(kind) {
+  save(`${kind}-letter-template.doc`, letterHtml(kind, {
+    today: "{Letter Date}", name: "{Employee Name}", first: "{First Name}", id: "{Employee ID}", designation: "{Current Designation}", department: "{Department}", date: "{Effective Date}",
+    changes: [{ property: "{Detail, e.g. Designation}", current: "{Current}", new: "{New}" }], ctc: kind === "promotion" ? "{Revised CTC}" : "", company: "{Company}", newCompany: kind === "transfer" ? "{New Company, if changing}" : "",
+  }));
+}
+
+// Grades are a short list HR manages; one that's missing can be added straight from the picker.
+const createGrade = async (text) => (await frappe.createDoc("Employee Grade", { __newname: text, name: text })).name || text;
+
+function MoveModal({ kind, record, revise, onClose, onSaved }) {
+  const dt = DT[kind];
+  const editing = Boolean(record);
+  const full = useAsync(() => (record ? frappe.getDoc(dt, record.name) : Promise.resolve(null)), [record?.name]);
+  const [employee, setEmployee] = useState(record?.employee || "");
   const emp = useAsync(() => (employee ? frappe.getDoc("Employee", employee) : Promise.resolve(null)), [employee]);
-  const [values, setValues] = useState({});
-  const [f, setF] = useState({ date: isoDate(), revised_ctc: "", new_company: "", submitNow: false });
+  const [values, setValues] = useState(null); // null until loaded from the record (editing) or first change
+  const [f, setF] = useState({ date: record ? record[kind === "promotion" ? "promotion_date" : "transfer_date"] : isoDate(), revised_ctc: "", new_company: "", submitNow: false });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const e = emp.data;
-  const changes = e ? PROPS.filter((p) => values[p.fieldname] && values[p.fieldname] !== (e[p.fieldname] || "")) : [];
+  // When editing, start from the record's own changes (and CTC / new company) once it has loaded.
+  const loaded = full.data;
+  const startValues = loaded ? Object.fromEntries(((kind === "promotion" ? loaded.promotion_details : loaded.transfer_details) || []).map((r) => [r.fieldname, r.new])) : {};
+  const vals = values ?? startValues;
+  const ctc = f.revised_ctc !== "" ? f.revised_ctc : loaded && Number(loaded.revised_ctc) ? String(loaded.revised_ctc) : "";
+  const newCompany = f.new_company || (loaded?.new_company && loaded.new_company !== loaded.company ? loaded.new_company : "");
+  // The "current" side: the record's own values when revising a submitted one (the employee already shows the new ones).
+  const currentOf = (p) => {
+    const row = ((kind === "promotion" ? loaded?.promotion_details : loaded?.transfer_details) || []).find((r) => r.fieldname === p.fieldname);
+    return revise && row ? row.current || "" : e?.[p.fieldname] || "";
+  };
+  const changes = e ? PROPS.filter((p) => vals[p.fieldname] && vals[p.fieldname] !== currentOf(p)) : [];
+  const setValue = (k, v) => setValues({ ...vals, [k]: v });
 
   async function submit(ev) {
     ev.preventDefault();
-    if (!changes.length && !(kind === "promotion" && f.revised_ctc) && !(kind === "transfer" && f.new_company && f.new_company !== e.company)) return setErr("Change at least one detail.");
+    if (!changes.length && !(kind === "promotion" && ctc) && !(kind === "transfer" && newCompany && newCompany !== e.company)) return setErr("Change at least one detail.");
     // ERPNext requires at least one property row on a transfer (e.g. the department in the new company)
     if (kind === "transfer" && !changes.length) return setErr("Also choose what changes with the transfer (for example the department or designation in the new company).");
     if (f.submitNow && f.date > isoDate()) return setErr(`A ${kind} can only be submitted on or after its effective date - save it now and submit it on ${dmy(f.date)}.`);
+    if (revise && !(await confirmDialog({ title: `Revise ${kind === "promotion" ? "Promotion" : "Transfer"}`, message: `${record.name} is cancelled (the employee record goes back first) and a corrected copy is saved${f.submitNow ? " and submitted" : " as a draft"}.`, confirmLabel: "Revise" }))) return;
     setBusy(true);
     setErr("");
     try {
-      const details = changes.map((p) => ({ property: p.label, fieldname: p.fieldname, current: e[p.fieldname] || "", new: values[p.fieldname] }));
+      const details = changes.map((p) => ({ property: p.label, fieldname: p.fieldname, current: currentOf(p), new: vals[p.fieldname] }));
       const doc = kind === "promotion"
-        ? { employee, promotion_date: f.date, company: e.company, promotion_details: details, ...(f.revised_ctc ? { revised_ctc: Number(f.revised_ctc), current_ctc: e.ctc || 0, salary_currency: e.salary_currency || undefined } : {}) }
-        : { employee, transfer_date: f.date, company: e.company, new_company: f.new_company || e.company, transfer_details: details };
-      const saved = await frappe.createDoc(DT[kind], doc);
-      if (f.submitNow) await frappe.submitDoc(await frappe.getDoc(DT[kind], saved.name));
-      onSaved();
+        ? { employee, promotion_date: f.date, company: e.company, promotion_details: details, revised_ctc: ctc ? Number(ctc) : 0, ...(ctc ? { current_ctc: loaded?.current_ctc || e.ctc || 0, salary_currency: e.salary_currency || undefined } : {}) }
+        : { employee, transfer_date: f.date, company: e.company, new_company: newCompany || e.company, transfer_details: details };
+      let name;
+      if (editing && !revise) {
+        await frappe.updateDoc(dt, record.name, doc);
+        name = record.name;
+      } else {
+        if (revise) await frappe.cancelDoc(dt, record.name);
+        name = (await frappe.createDoc(dt, { ...doc, ...(revise ? { amended_from: record.name } : {}) })).name;
+      }
+      if (f.submitNow) await frappe.submitDoc(await frappe.getDoc(dt, name));
+      const who = e.employee_name || employee;
+      onSaved(revise ? `${who}: ${record.name} cancelled and revised as ${name}${f.submitNow ? " (submitted)" : " (draft)"}.` : editing ? `${who}: ${kind} updated${f.submitNow ? " and submitted" : ""}.` : `${who}: ${kind} saved${f.submitNow ? " and submitted" : " as a draft"}.`);
     } catch (x) {
       setErr(errMsg(x, `Couldn't save the ${kind}.`));
       setBusy(false);
     }
   }
 
+  const title = `${revise ? "Revise" : editing ? "Edit" : "New"} ${kind === "promotion" ? "Promotion" : "Transfer"}${record ? ` · ${record.employee_name}` : ""}`;
   return (
-    <Modal title={kind === "promotion" ? "New Promotion" : "New Transfer"} onClose={onClose} wide>
+    <Modal title={title} onClose={onClose} wide>
       <form onSubmit={submit} className="space-y-3">
+        {revise && <Notice tone="info">This {kind} is already submitted. Revising cancels it (the employee record goes back) and saves a corrected copy.</Notice>}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <LinkField label="Employee" linkDoctype="Employee" value={employee} onChange={(v) => { setEmployee(v); setValues({}); }} required frappe={frappe} />
+          {editing ? <Field label="Employee"><input readOnly className={inputCls} value={record.employee_name || record.employee} /></Field> : <LinkField label="Employee" linkDoctype="Employee" value={employee} onChange={(v) => { setEmployee(v); setValues({}); }} required frappe={frappe} />}
           <DateField label={kind === "promotion" ? "Promotion Date" : "Transfer Date"} value={f.date} onChange={(v) => setF({ ...f, date: v })} required />
         </div>
-        {e && (
+        {e && (!editing || loaded) && (
           <>
             <table className="w-full text-left text-[12.5px]">
               <thead><tr className="text-[var(--color-text-muted)]"><th className="py-1.5 font-medium">Detail</th><th className="py-1.5 font-medium">Current</th><th className="py-1.5 font-medium">New (Leave Empty to Keep)</th></tr></thead>
@@ -126,19 +246,22 @@ function MoveModal({ kind, onClose, onSaved }) {
                 {PROPS.map((p) => (
                   <tr key={p.fieldname} className="border-t border-[var(--color-border)]">
                     <td className="py-1.5 pr-3 text-[var(--color-text)]">{p.label}</td>
-                    <td className="py-1.5 pr-3 text-[var(--color-text-muted)]">{e[p.fieldname] || "—"}</td>
-                    <td className="py-1.5"><LinkField label="" linkDoctype={p.link} titleField={p.title} value={values[p.fieldname] || ""} onChange={(v) => setValues({ ...values, [p.fieldname]: v })} frappe={frappe} /></td>
+                    <td className="py-1.5 pr-3 text-[var(--color-text-muted)]">{currentOf(p) || "—"}</td>
+                    <td className="py-1.5"><LinkField label="" linkDoctype={p.link} titleField={p.title} value={vals[p.fieldname] || ""} onChange={(v) => setValue(p.fieldname, v)} frappe={frappe} onCreate={p.fieldname === "grade" ? createGrade : undefined} /></td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            {kind === "promotion" && <Field label={`Revised CTC (₹/yr)${e.ctc ? ` - current ${money(e.ctc)}` : ""}`}><input type="number" min="0" className={inputCls} value={f.revised_ctc} onChange={(x) => setF({ ...f, revised_ctc: x.target.value })} /></Field>}
-            {kind === "transfer" && <LinkField label={`New company (current: ${e.company})`} linkDoctype="Company" value={f.new_company} onChange={(v) => setF({ ...f, new_company: v })} frappe={frappe} />}
+            <p className="text-[11px] text-[var(--color-text-faint)]">Grade not in the list? Type it and choose "+ Create" to add it.</p>
+            {kind === "promotion" && <Field label={`Revised CTC (₹/yr)${e.ctc ? ` - current ${money(e.ctc)}` : ""}`}><input type="number" min="0" className={inputCls} value={ctc} onChange={(x) => setF({ ...f, revised_ctc: x.target.value })} /></Field>}
+            {kind === "transfer" && <LinkField label={`New company (current: ${e.company})`} linkDoctype="Company" value={newCompany} onChange={(v) => setF({ ...f, new_company: v })} frappe={frappe} />}
           </>
         )}
+        {editing && !loaded && !full.error && <p className="text-[13px] text-[var(--color-text-muted)]">Loading…</p>}
+        {full.error && <Notice>{errMsg(full.error, `Couldn't open this ${kind}.`)}</Notice>}
         <label className="flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><input type="checkbox" checked={f.submitNow} onChange={(x) => setF({ ...f, submitNow: x.target.checked })} /> Submit now (otherwise saved as a draft to review)</label>
         {err && <Notice>{err}</Notice>}
-        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy || !e}>{busy ? "Saving…" : "Save"}</Button></div>
+        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy || !e || (editing && !loaded)}>{busy ? "Saving…" : revise ? "Revise" : editing ? "Save Changes" : "Save"}</Button></div>
       </form>
     </Modal>
   );

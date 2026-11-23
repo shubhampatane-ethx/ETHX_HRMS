@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle, Check, Loader2, Plus, RefreshCw, ShieldCheck, Wand2 } from "lucide-react";
+import { Check, Loader2, Plus, RefreshCw, ShieldCheck, Wand2 } from "lucide-react";
 import { frappe } from "../../lib/api/frappeClient";
+import { SharedAcrossClients } from "../../components/layout/ClientSwitcher";
 import { errMsg } from "../../lib/employeePortal";
 import { serverLoginsReady } from "../../lib/securitySetup";
 import { applyItem, getPerms, HR_PRESET, loadItems, loadRestrictions, loadStaffRestrictions, missingFlags, PM, PM_PRESET, PRESETS, restrict, ROLES, tightenHr } from "../../lib/rolePresets";
 import { AutoSetupStatus } from "../../components/AutoSetup";
+import { SetupIssues } from "../../components/SetupIssues";
 import { Button, Card } from "../../components/ui/primitives";
+import { Tabs } from "../../components/employee/EmployeeShell";
 import { confirmDialog } from "../../components/ui/dialogs";
 
 /**
@@ -53,7 +56,7 @@ function TightenHr() {
           <Button variant="secondary" onClick={run} disabled={busy}>{busy ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />} Remove HR's elevated rights</Button>
           {msg && <span className={`text-[12px] ${msg.ok ? "text-[var(--color-green)]" : "text-[var(--color-red-hover)]"}`}>{msg.text}</span>}
         </div>
-      ) : <p className="text-[12px] text-[var(--color-amber)]">The secure login method isn't installed yet - it's added by the automatic setup (System Setup › Apply Again).</p>}
+      ) : <p className="text-[12px] text-[var(--color-amber)]">The secure login method isn't installed yet - it's added by the automatic setup (Apply Again at the top of this page).</p>}
     </Section>
   );
 }
@@ -64,25 +67,34 @@ function useAsyncValue(fn) {
   return v;
 }
 
+const TABS = [
+  { id: "permissions", label: "Required Permissions" },
+  { id: "logins", label: "Logins & Restrictions" },
+  { id: "check", label: "Check an Account" },
+  { id: "editor", label: "Permission Editor" },
+];
+
 export default function Roles() {
+  const [tab, setTab] = useState("permissions");
+  const [setupRun, setSetupRun] = useState(0);
   return (
     <div className="space-y-5">
       <Card className="p-5">
         <div className="flex items-start gap-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--color-red-wash)] text-[var(--color-red-hover)]"><ShieldCheck size={18} /></span>
           <div>
-            <h2 className="text-[15px] font-semibold text-[var(--color-text)]">Roles & Permissions</h2>
-            <p className="mt-1 text-[13px] text-[var(--color-text-muted)]">What each role is allowed to do. Everything the workspaces need is applied automatically when the Administrator signs in (once, and again only when the app changes); the sections below are for checking or fine-tuning.</p>
-            <div className="mt-4"><AutoSetupStatus /></div>
+            <h2 className="flex flex-wrap items-center gap-2 text-[15px] font-semibold text-[var(--color-text)]">Roles & Permissions <SharedAcrossClients what="What each role may do" /></h2>
+            <p className="mt-1 text-[13px] text-[var(--color-text-muted)]">What each role is allowed to do, and the app's setup on this ERPNext site (fields, server rules, permissions). Everything is applied automatically when the Administrator signs in; the tabs below are for checking or fine-tuning.</p>
+            <div className="mt-4"><AutoSetupStatus onDone={() => setSetupRun((n) => n + 1)} /></div>
+            <div className="mt-3"><SetupIssues refreshKey={setupRun} /></div>
           </div>
         </div>
       </Card>
-      <RequiredPermissions />
-      <TightenHr />
-      <AccountCheck />
-      <EmployeeRestrictions />
-      <StaffRestrictions />
-      <PermissionEditor />
+      <Tabs tabs={TABS} value={tab} onChange={setTab} />
+      {tab === "permissions" && <RequiredPermissions />}
+      {tab === "logins" && <div className="space-y-5"><EmployeeRestrictions /><StaffRestrictions /><TightenHr /></div>}
+      {tab === "check" && <AccountCheck />}
+      {tab === "editor" && <PermissionEditor />}
     </div>
   );
 }
@@ -94,9 +106,11 @@ function RequiredPermissions() {
   const [items, setItems] = useState(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
+  const [showGranted, setShowGranted] = useState(false);
 
   const load = useCallback(async () => {
     setItems(null);
+    setShowGranted(false);
     const out = await loadItems(role);
     setItems(out);
   }, [role]);
@@ -104,6 +118,17 @@ function RequiredPermissions() {
   useEffect(() => { load(); }, [load]);
 
   const todo = (items || []).filter((i) => i.missing.length && !i.error);
+  // Only what needs attention is listed; everything already granted folds away.
+  const attention = (items || []).filter((i) => i.missing.length || i.error);
+  const granted = (items || []).filter((i) => !i.missing.length && !i.error);
+  const row = (i) => (
+    <li key={`${i.doctype}-${i.permlevel ?? 0}`} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 py-2" title={i.why}>
+      <p className="min-w-0 text-[12.5px] text-[var(--color-text)]"><span className="font-medium">{i.doctype}{i.permlevel ? ` (level ${i.permlevel})` : ""}</span> <span className="text-[var(--color-text-faint)]">{i.perms.join(", ")}</span></p>
+      {i.error ? <span className="text-[12px] text-[var(--color-amber)]">{i.error}</span> : i.missing.length === 0
+        ? <span className="flex items-center gap-1 text-[12px] text-[var(--color-green)]"><Check size={13} /> Granted</span>
+        : <span className="text-[12px] text-[var(--color-amber)]">Missing: {i.missing.join(", ")}</span>}
+    </li>
+  );
 
   async function applyAll() {
     if (!(await confirmDialog(`Add ${todo.length} missing permission(s) for ${role}?`))) return;
@@ -126,26 +151,14 @@ function RequiredPermissions() {
       <div className="mb-4 flex flex-wrap gap-2">{ROLES.map((r) => <button key={r} type="button" onClick={() => setRole(r)} className={chip(role === r)}>{r}</button>)}</div>
 
       {!items ? <p className="flex items-center gap-2 py-6 text-[13px] text-[var(--color-text-muted)]"><Loader2 size={14} className="animate-spin" /> Checking permissions…</p> : (
-        <ul className="divide-y divide-[var(--color-border)]">
-          {items.map((i) => (
-            <li key={`${i.doctype}-${i.permlevel ?? 0}`} className="flex flex-wrap items-center justify-between gap-3 py-3">
-              <div className="min-w-0">
-                <p className="text-[13px] font-medium text-[var(--color-text)]">{i.doctype}{i.permlevel ? ` (level ${i.permlevel})` : ""} <span className="ml-1 font-normal text-[var(--color-text-faint)]">{i.perms.join(", ")}</span></p>
-                <p className="text-[12px] text-[var(--color-text-muted)]">{i.why}</p>
-              </div>
-              {i.error ? <span className="text-[12px] text-[var(--color-amber)]">{i.error}</span> : i.missing.length === 0
-                ? <span className="flex items-center gap-1 text-[12px] text-[var(--color-green)]"><Check size={14} /> Granted</span>
-                : <span className="text-[12px] text-[var(--color-amber)]">Missing: {i.missing.join(", ")}</span>}
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {role !== "Employee" && (
-        <div className="mt-4 flex items-start gap-2 rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-4 py-3 text-[12px] text-[var(--color-text-muted)]">
-          <AlertTriangle size={15} className="mt-0.5 shrink-0 text-[var(--color-amber)]" />
-          <span>Letting HR create and edit <b className="text-[var(--color-text)]">User</b> records also lets them set any user's password, including administrators'. Letting HR create <b className="text-[var(--color-text)]">User Permissions</b> means they can also widen their own company access, which weakens the one-company-per-HR rule. Only give this to HR staff you trust. A safer option is a server-side method that can only create Employee logins - ask if you'd like me to write it.</span>
-        </div>
+        <>
+          {attention.length ? <ul className="divide-y divide-[var(--color-border)]">{attention.map(row)}</ul>
+            : <p className="flex items-center gap-2 rounded-lg bg-[var(--color-surface-2)] px-4 py-3 text-[13px] text-[var(--color-green)]"><Check size={15} /> All {granted.length} permissions {role} needs are granted.</p>}
+          {granted.length > 0 && (
+            <button type="button" onClick={() => setShowGranted((v) => !v)} className="mt-3 text-[12px] text-[var(--color-text-muted)] underline hover:text-[var(--color-text)]">{showGranted ? "Hide granted permissions" : `Show ${granted.length} granted permission(s)`}</button>
+          )}
+          {showGranted && <ul className="mt-2 max-h-96 divide-y divide-[var(--color-border)] overflow-y-auto rounded-lg border border-[var(--color-border)] px-3">{granted.map(row)}</ul>}
+        </>
       )}
       {msg && <p className={`mt-3 text-[12px] ${msg.ok ? "text-[var(--color-green)]" : "text-[var(--color-red-hover)]"}`}>{msg.text}</p>}
     </Section>
@@ -179,15 +192,27 @@ function StaffRestrictions() {
   );
 }
 
+// The server rule "Keep login restrictions" (System Setup) restricts new and changed logins by itself, hourly and
+// whenever an employee record is saved. Opening this page also puts any remaining gap right straight away.
 function EmployeeRestrictions() {
   const [rows, setRows] = useState(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [fixed, setFixed] = useState(0);
 
   const load = useCallback(async () => {
     setRows(null);
     setError("");
-    try { setRows(await loadRestrictions()); } catch (e) { setRows([]); setError(errMsg(e, "Couldn't load employee logins.")); }
+    try {
+      let list = await loadRestrictions();
+      const gaps = list.filter((r) => !r.hasEmployee || !r.hasCompany);
+      if (gaps.length) {
+        for (const e of gaps) await restrict(e);
+        setFixed(gaps.length);
+        list = await loadRestrictions();
+      }
+      setRows(list);
+    } catch (e) { setRows((r) => r || []); setError(errMsg(e, "Couldn't check or fix employee logins.")); }
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -203,7 +228,7 @@ function EmployeeRestrictions() {
   }
 
   return (
-    <Section title="Employee Record Restrictions" hint="Employee logins should only see their own record and company. These restrictions may need administrator access to create - fix any gaps here."
+    <Section title="Employee Record Restrictions" hint="Employee logins see only their own record and company. This is kept up to date automatically - every hour and whenever an employee record is saved - so there is nothing to do here day to day. HR and Project Manager logins aren't listed: they keep access to their team."
       action={<div className="flex gap-2"><Button variant="secondary" onClick={load}><RefreshCw size={14} /> Refresh</Button><Button onClick={() => fix(open)} disabled={busy || !open.length}>{busy ? "Working…" : `Restrict ${open.length || ""}`.trim()}</Button></div>}>
       {!rows ? <p className="flex items-center gap-2 py-4 text-[13px] text-[var(--color-text-muted)]"><Loader2 size={14} className="animate-spin" /> Checking…</p> : rows.length === 0 ? <p className="py-3 text-[13px] text-[var(--color-text-muted)]">No employee-only logins yet.</p> : (
         <ul className="divide-y divide-[var(--color-border)]">
@@ -216,6 +241,7 @@ function EmployeeRestrictions() {
           ))}
         </ul>
       )}
+      {fixed > 0 && !error && <p className="mt-3 text-[12px] text-[var(--color-green)]">{fixed} login(s) were just restricted automatically.</p>}
       {error && <p className="mt-3 text-[12px] text-[var(--color-red-hover)]">{error}</p>}
     </Section>
   );

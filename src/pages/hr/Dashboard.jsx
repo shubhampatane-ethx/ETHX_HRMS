@@ -1,16 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import {
-  ArrowRight, Building2, CalendarCheck, CalendarClock, ClipboardList, GraduationCap,
-  Bell, BellRing, Cake, Clock3, LifeBuoy, LineChart, Plus, Receipt, UserCheck, UserPlus, UserSearch, Users, Wallet,
-} from "lucide-react";
+import { Bell, BellRing, Cake, CalendarClock, CalendarX, Clock3, LifeBuoy, Receipt, UserCheck, UserX, Users } from "lucide-react";
 import { frappe } from "../../lib/api/frappeClient";
 import { getCheckinsBetween, getNotifications, getUpcomingBirthdays, listTry, summariseCheckins } from "../../lib/employeePortal";
 import { getWaitingForMe } from "../../lib/approvals";
 import { isStaffEmployee } from "../../permissions/roles";
+import { isPageBlocked } from "../../permissions/pageAccess";
 import { useAuth } from "../../context/AuthContext";
 import { Card } from "../../components/ui/primitives";
-import { greetingName } from "../../lib/names";
+import { StatusPill } from "../../components/employee/EmployeeShell";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -21,26 +19,8 @@ function dmy(isoStr = "") {
   return m ? `${String(d).padStart(2, "0")} ${MONTHS[m - 1]}` : "";
 }
 
-// Status groups used by the charts
 const ATTENDED = ["Present", "Work From Home", "Half Day"];
-const SEGMENTS = [
-  { key: "Present", color: "var(--color-green)" },
-  { key: "Work From Home", color: "#4f8cff" },
-  { key: "Half Day", color: "#e0b341" },
-  { key: "On Leave", color: "var(--color-amber)" },
-  { key: "Absent", color: "var(--color-red)" },
-];
 
-const QUICK_LINKS = [
-  { to: "/hr/employees", label: "Employees", hint: "Profiles & records", icon: Users },
-  { to: "/hr/attendance", label: "Attendance", hint: "Mark & review", icon: CalendarCheck },
-  { to: "/hr/leave", label: "Leave", hint: "Approve requests", icon: CalendarClock },
-  { to: "/hr/payroll", label: "Payroll", hint: "Salary runs", icon: Wallet },
-  { to: "/hr/recruitment", label: "Recruitment", hint: "Openings & hiring", icon: UserSearch },
-  { to: "/hr/onboarding", label: "Onboarding", hint: "New joiners", icon: ClipboardList },
-  { to: "/hr/performance", label: "Performance", hint: "Reviews & goals", icon: LineChart },
-  { to: "/hr/training", label: "Training", hint: "Programs", icon: GraduationCap },
-];
 
 const ago = (stamp) => {
   const mins = Math.max(0, Math.round((Date.now() - new Date(String(stamp).replace(" ", "T")).getTime()) / 60000));
@@ -77,7 +57,7 @@ function NeedsAttention({ user }) {
     { to: "/hr/setup/attendance-request", icon: Clock3, label: "Attendance Requests", n: d.attendance },
     { to: "/hr/requests", icon: LifeBuoy, label: "Employee Requests", n: d.requests },
     ...(staff ? [{ to: "/employee/approvals", icon: UserCheck, label: "Waiting for My Approval", n: d.mine }] : []),
-  ].filter((i) => i.n != null) : [];
+  ].filter((i) => i.n != null && !isPageBlocked(user, i.to)) : []; // nothing from modules this client doesn't have
   const total = items.reduce((s, i) => s + i.n, 0);
 
   return (
@@ -116,48 +96,77 @@ function NeedsAttention({ user }) {
   );
 }
 
-function greeting(hour) {
-  return hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
-}
-
 function Skeleton({ className = "" }) {
   return <div className={`animate-pulse rounded bg-[var(--color-surface-2)] ${className}`} />;
 }
 
-function Stat({ to, icon: Icon, label, value, sub, accent }) {
+const initials = (name = "") => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?";
+// A stable soft tint per person, from the app's own palette.
+const TINTS = ["var(--color-red)", "#4f8cff", "var(--color-green)", "var(--color-amber)", "#e0b341", "var(--color-text-muted)"];
+const tintOf = (name = "") => TINTS[[...name].reduce((n, c) => n + c.charCodeAt(0), 0) % TINTS.length];
+
+function Avatar({ name, image, size = 32 }) {
+  const tint = tintOf(name);
+  return image
+    ? <img src={image} alt="" className="shrink-0 rounded-full object-cover ring-2 ring-[var(--color-surface)]" style={{ width: size, height: size }} />
+    : <span className="flex shrink-0 items-center justify-center rounded-full font-semibold ring-2 ring-[var(--color-surface)]" style={{ width: size, height: size, fontSize: size * 0.36, background: `color-mix(in srgb, ${tint} 22%, var(--color-surface))`, color: tint }}>{initials(name)}</span>;
+}
+
+function AvatarStack({ people }) {
+  const shown = people.slice(0, 4);
+  const more = people.length - shown.length;
   return (
-    <Link to={to} className="group relative overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 transition-colors hover:border-[var(--color-border-strong)]">
-      <div className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full opacity-[0.12] blur-2xl" style={{ background: accent }} />
-      <div className="flex items-center justify-between">
-        <span className="text-[12px] font-medium text-[var(--color-text-muted)]">{label}</span>
-        <span className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ background: `color-mix(in srgb, ${accent} 16%, transparent)`, color: accent }}>
-          <Icon size={17} strokeWidth={1.9} />
-        </span>
+    <span className="flex items-center">
+      {shown.map((p, i) => <span key={p.name || i} className={i ? "-ml-2" : ""} title={p.employee_name}><Avatar name={p.employee_name} image={p.image} size={28} /></span>)}
+      {more > 0 && <span className="-ml-2 flex h-7 w-7 items-center justify-center rounded-full bg-[var(--color-surface-2)] text-[10px] font-semibold text-[var(--color-text-muted)] ring-2 ring-[var(--color-surface)]">+{more}</span>}
+    </span>
+  );
+}
+
+/** A headline number: title and icon on top, then a "People" panel with the count and who they are. */
+function Stat({ to, icon: Icon, label, people, accent, loading }) {
+  return (
+    <Link to={to} className="group rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 transition-colors hover:border-[var(--color-border-strong)]">
+      <div className="mb-3 flex items-center justify-between">
+        <span className="text-[14px] font-semibold text-[var(--color-text)]">{label}</span>
+        <span className="flex h-9 w-9 items-center justify-center rounded-full" style={{ background: `color-mix(in srgb, ${accent} 16%, transparent)`, color: accent }}><Icon size={17} strokeWidth={1.9} /></span>
       </div>
-      <div className="mt-3 text-3xl font-semibold tracking-tight text-[var(--color-text)]">{value ?? <Skeleton className="h-8 w-14" />}</div>
-      <div className="mt-1 flex items-center justify-between text-[12px] text-[var(--color-text-muted)]">
-        <span>{sub}</span>
-        <ArrowRight size={14} className="opacity-0 transition-opacity group-hover:opacity-100" />
+      <div className="flex items-end justify-between gap-2 rounded-xl bg-[var(--color-surface-2)] px-3.5 py-3">
+        <div>
+          <p className="text-[11px] text-[var(--color-text-muted)]">People</p>
+          <p className="mt-0.5 text-2xl font-semibold leading-none tracking-tight text-[var(--color-text)]">{loading ? <Skeleton className="h-6 w-10" /> : people ? people.length : "—"}</p>
+        </div>
+        {people && people.length > 0 && <AvatarStack people={people} />}
       </div>
     </Link>
   );
 }
 
-function SectionTitle({ title, hint, to }) {
+function CardTitle({ title, to, action }) {
   return (
-    <div className="mb-4 flex items-center justify-between">
-      <div>
-        <h2 className="text-[13px] font-semibold text-[var(--color-text)]">{title}</h2>
-        {hint && <p className="mt-0.5 text-[12px] text-[var(--color-text-muted)]">{hint}</p>}
-      </div>
-      {to && <Link to={to} className="flex items-center gap-1 text-[12px] text-[var(--color-red-hover)] hover:underline">View all <ArrowRight size={12} /></Link>}
+    <div className="mb-4 flex items-center justify-between gap-3">
+      <h2 className="text-[15px] font-semibold text-[var(--color-text)]">{title}</h2>
+      {action || (to && <Link to={to} className="rounded-md border border-[var(--color-border)] px-2.5 py-1 text-[11px] text-[var(--color-text-muted)] hover:text-[var(--color-text)]">See All</Link>)}
     </div>
   );
 }
 
+const SERIES = [
+  { key: "present", label: "Present", color: "var(--color-green)" },
+  { key: "absent", label: "Absent", color: "var(--color-red)" },
+  { key: "leave", label: "Leave", color: "var(--color-amber)" },
+];
+const DEPT_COLORS = ["#4f8cff", "var(--color-red)", "var(--color-green)", "var(--color-amber)", "#e0b341", "var(--color-text-faint)"];
+const shortDept = (d) => (d || "Unassigned").replace(/\s-\s[A-Z0-9]+$/i, ""); // "Sales - DPL" -> "Sales"
+
 export default function HRDashboard() {
   const { user } = useAuth();
   const [data, setData] = useState(null);
+  // Widgets follow the product modules: attendance and leave are Employee Lifecycle, candidates are Recruitment.
+  const hasEmployee = !isPageBlocked(user, "/hr/attendance");
+  const hasRecruitment = !isPageBlocked(user, "/hr/recruitment/candidates");
+  const [tabPick, setTab] = useState("leave");
+  const tab = !hasEmployee ? "recruit" : !hasRecruitment ? "leave" : tabPick;
 
   const now = useMemo(() => new Date(), []);
   const today = iso(now);
@@ -165,11 +174,13 @@ export default function HRDashboard() {
   useEffect(() => {
     async function load() {
       const from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
-      const [emp, att, leave, chk] = await Promise.allSettled([
-        frappe.getList("Employee", { filters: [["status", "=", "Active"]], fields: ["name", "employee_name", "department"], limit: 0 }),
+      const [emp, att, recentLeave, onLeave, chk, applicants] = await Promise.allSettled([
+        listTry("Employee", { filters: [["status", "=", "Active"]], fields: ["name", "employee_name", "department", "designation", "company_email", "user_id", "image"], orderBy: "employee_name asc" }, ["name", "employee_name", "department"]),
         frappe.getList("Attendance", { filters: [["attendance_date", ">=", iso(from)], ["docstatus", "<", 2]], fields: ["employee", "attendance_date", "status"], limit: 0 }),
-        frappe.getList("Leave Application", { filters: [["status", "=", "Open"], ["docstatus", "<", 2]], fields: ["name", "employee_name", "leave_type", "from_date", "to_date", "total_leave_days"], limit: 0, orderBy: "from_date asc" }),
+        frappe.getList("Leave Application", { filters: [["docstatus", "<", 2]], fields: ["name", "employee", "employee_name", "leave_type", "from_date", "to_date", "status"], orderBy: "creation desc", limit: 6 }),
+        frappe.getList("Leave Application", { filters: [["status", "=", "Approved"], ["docstatus", "=", 1], ["from_date", "<=", today], ["to_date", ">=", today]], fields: ["employee"], limit: 0 }),
         getCheckinsBetween(null, iso(from), iso(now)),
+        frappe.getList("Job Applicant", { fields: ["name", "applicant_name", "designation", "job_title", "status", "custom_ethx_stage"], orderBy: "creation desc", limit: 6 }).catch(() => frappe.getList("Job Applicant", { fields: ["name", "applicant_name", "designation", "status"], orderBy: "creation desc", limit: 6 })),
       ]);
       // Punch-ins without an attendance record yet count as present (only for employees this HR user can see)
       let attendance = att.status === "fulfilled" ? att.value : null;
@@ -182,215 +193,169 @@ export default function HRDashboard() {
       setData({
         employees: emp.status === "fulfilled" ? emp.value : null,
         attendance,
-        leave: leave.status === "fulfilled" ? leave.value : null,
+        recentLeave: recentLeave.status === "fulfilled" ? recentLeave.value : null,
+        onLeave: onLeave.status === "fulfilled" ? onLeave.value : [],
+        applicants: applicants.status === "fulfilled" ? applicants.value : null,
       });
     }
     load();
-  }, [now]);
+  }, [now, today]);
 
   const employees = data?.employees;
   const attendance = data?.attendance;
-  const leave = data?.leave;
-  const headcount = employees?.length;
 
-  // Today's breakdown
-  const todayCounts = useMemo(() => {
-    const c = {};
-    for (const r of attendance || []) if (r.attendance_date === today) c[r.status] = (c[r.status] || 0) + 1;
-    return c;
-  }, [attendance, today]);
-  const marked = Object.values(todayCounts).reduce((a, b) => a + b, 0);
-  const attendedToday = ATTENDED.reduce((a, k) => a + (todayCounts[k] || 0), 0);
-  const notMarked = headcount != null ? Math.max(headcount - marked, 0) : null;
+  // Each person's status today: Present / On Leave / Absent from attendance, approved leave covering today, else Not Marked.
+  const statusToday = useMemo(() => {
+    const m = {};
+    for (const r of attendance || []) if (r.attendance_date === today) m[r.employee] = ATTENDED.includes(r.status) ? "Present" : r.status;
+    for (const l of data?.onLeave || []) if (!m[l.employee] || m[l.employee] === "Absent") m[l.employee] = "On Leave";
+    return m;
+  }, [attendance, data, today]);
+  const peopleWith = (status) => (employees ? employees.filter((e) => statusToday[e.name] === status) : null);
 
-  // Last 7 days
-  const week = useMemo(() => {
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (6 - i));
-      const key = iso(d);
-      const rows = (attendance || []).filter((r) => r.attendance_date === key);
-      return {
-        key,
-        label: DAYS[d.getDay()].slice(0, 3),
-        date: `${String(d.getDate()).padStart(2, "0")} ${MONTHS[d.getMonth()]}`,
-        attended: rows.filter((r) => ATTENDED.includes(r.status)).length,
-        leave: rows.filter((r) => r.status === "On Leave").length,
-        absent: rows.filter((r) => r.status === "Absent").length,
-        isToday: key === today,
-      };
-    });
-  }, [attendance, now, today]);
-  const weekMax = Math.max(headcount || 0, ...week.map((w) => w.attended + w.leave + w.absent), 1);
+  // Last 7 days, as a share of headcount
+  const headcount = employees?.length || 0;
+  const week = useMemo(() => Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (6 - i));
+    const key = iso(d);
+    const rows = (attendance || []).filter((r) => r.attendance_date === key);
+    return {
+      key, label: DAYS[d.getDay()].slice(0, 3), date: `${String(d.getDate()).padStart(2, "0")} ${MONTHS[d.getMonth()]}`, isToday: key === today,
+      present: rows.filter((r) => ATTENDED.includes(r.status)).length,
+      absent: rows.filter((r) => r.status === "Absent").length,
+      leave: rows.filter((r) => r.status === "On Leave").length,
+    };
+  }), [attendance, now, today]);
+  const scale = Math.max(headcount, ...week.map((w) => w.present + w.absent + w.leave), 1);
 
-  // Headcount by department
+  // Headcount by department (top five, the rest together)
   const departments = useMemo(() => {
     const map = {};
-    for (const e of employees || []) {
-      const name = (e.department || "Unassigned").replace(/\s-\s[A-Z0-9]+$/i, ""); // "Sales - DPL" -> "Sales"
-      map[name] = (map[name] || 0) + 1;
-    }
-    return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 6);
+    for (const e of employees || []) map[shortDept(e.department)] = (map[shortDept(e.department)] || 0) + 1;
+    const all = Object.entries(map).sort((a, b) => b[1] - a[1]);
+    const top = all.slice(0, 5);
+    const rest = all.slice(5).reduce((n, [, c]) => n + c, 0);
+    return (rest ? [...top, ["Others", rest]] : top).map(([name, n], i) => ({ name, n, color: DEPT_COLORS[i % DEPT_COLORS.length] }));
   }, [employees]);
-
-  // Donut geometry
   const R = 52, C = 2 * Math.PI * R;
-  const donutTotal = Math.max(headcount || 0, marked, 1);
-  const present = SEGMENTS.filter((s) => todayCounts[s.key]);
-  const arcs = present.map((s, i) => ({
-    ...s,
-    len: (todayCounts[s.key] / donutTotal) * C,
-    offset: present.slice(0, i).reduce((sum, p) => sum + (todayCounts[p.key] / donutTotal) * C, 0),
-  }));
+  const arcs = departments.map((d, i) => ({ ...d, len: (d.n / Math.max(headcount, 1)) * C, offset: departments.slice(0, i).reduce((sum, p) => sum + (p.n / Math.max(headcount, 1)) * C, 0) }));
 
-  const firstName = greetingName(user?.fullName, user?.email) || "There";
-
-  const summary = (
-    <>
-      {headcount == null ? "Loading your workspace…" : notMarked > 0 ? `${notMarked} of ${headcount} employees have no attendance marked today.` : "Attendance is marked for everyone today."}
-      {leave?.length > 0 && ` ${leave.length} leave request${leave.length > 1 ? "s" : ""} waiting for review.`}
-    </>
-  );
-  const actions = (
-    <div className="flex flex-wrap gap-2.5">
-      <Link to="/hr/attendance" className="flex items-center gap-2 rounded-lg bg-[var(--color-red)] px-4 py-2.5 text-[13px] font-medium text-[var(--color-on-accent)] transition-colors hover:bg-[var(--color-red-hover)]"><Plus size={15} /> Mark Attendance</Link>
-      <Link to="/hr/leave" className="flex items-center gap-2 rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-4 py-2.5 text-[13px] font-medium text-[var(--color-text)] transition-colors hover:border-[var(--color-text-faint)]"><CalendarClock size={15} /> Review Leave</Link>
-      <Link to="/hr/employees" className="flex items-center gap-2 rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-4 py-2.5 text-[13px] font-medium text-[var(--color-text)] transition-colors hover:border-[var(--color-text-faint)]"><UserPlus size={15} /> Add Employee</Link>
-    </div>
-  );
+  const listRows = (employees || []).slice(0, 6);
 
   return (
-    <div className="space-y-6">
-      {/* Hero */}
-      <section className="relative overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-7 py-7">
-        <div className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(600px 220px at 100% 0%, color-mix(in srgb, var(--color-red) 22%, transparent), transparent 70%), radial-gradient(400px 200px at 0% 100%, color-mix(in srgb, var(--color-red) 8%, transparent), transparent 70%)" }} />
-        <div className="relative flex flex-wrap items-center justify-between gap-5">
-          <div>
-            <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-[var(--color-red-hover)]">{DAYS[now.getDay()]}, {String(now.getDate()).padStart(2, "0")} {MONTHS[now.getMonth()]} {now.getFullYear()}</p>
-            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-[var(--color-text)]">{greeting(now.getHours())}, {firstName}</h2>
-            <p className="mt-1.5 text-[13px] text-[var(--color-text-muted)]">{summary}</p>
-          </div>
-          {actions}
-        </div>
-      </section>
-
-      {user && <NeedsAttention user={user} />}
-
-      {/* Stats */}
+    <div className="space-y-5">
+      {/* Headline numbers */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat to="/hr/employees" icon={Users} label="Active Employees" value={headcount ?? (data ? "—" : undefined)} sub="Current headcount" accent="#4f8cff" />
-        <Stat to="/hr/attendance" icon={UserCheck} label="Present Today" value={attendance ? attendedToday : data ? "—" : undefined} sub={headcount != null && attendance ? `of ${headcount} employees` : "Marked today"} accent="var(--color-green)" />
-        <Stat to="/hr/attendance" icon={CalendarCheck} label="Not Marked Today" value={notMarked ?? (data ? "—" : undefined)} sub="Awaiting attendance" accent="var(--color-amber)" />
-        <Stat to="/hr/leave" icon={CalendarClock} label="Pending Leave Requests" value={leave ? leave.length : data ? "—" : undefined} sub="Need your review" accent="var(--color-red-hover)" />
+        <Stat to="/hr/employees" icon={Users} label="Total Employees" people={employees} accent="#4f8cff" loading={!data} />
+        {hasEmployee && <>
+          <Stat to="/hr/attendance" icon={UserCheck} label="Today Present" people={attendance ? peopleWith("Present") : null} accent="var(--color-green)" loading={!data} />
+          <Stat to="/hr/attendance" icon={UserX} label="Today Absent" people={attendance ? peopleWith("Absent") : null} accent="var(--color-red)" loading={!data} />
+          <Stat to="/hr/leave" icon={CalendarX} label="Today Leave" people={employees ? peopleWith("On Leave") : null} accent="var(--color-amber)" loading={!data} />
+        </>}
       </div>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Card className="rounded-xl p-5 lg:col-span-2">
-          <SectionTitle title="Attendance - Last 7 Days" hint="Employees attended, on leave and absent per day" to="/hr/attendance" />
-          {!attendance ? <Skeleton className="h-44 w-full" /> : (
-            <>
-              <div className="flex h-44 items-end gap-3">
-                {week.map((w) => {
-                  const total = w.attended + w.leave + w.absent;
-                  return (
-                    <div key={w.key} className="flex h-full flex-1 flex-col items-center justify-end gap-2" title={`${w.date}: ${w.attended} attended, ${w.leave} on leave, ${w.absent} absent`}>
-                      <span className="text-[11px] font-medium text-[var(--color-text-muted)]">{total || ""}</span>
-                      <div className="flex w-full max-w-[44px] flex-1 flex-col-reverse overflow-hidden rounded-md bg-[var(--color-surface-2)]">
-                        <div style={{ height: `${(w.attended / weekMax) * 100}%`, background: "var(--color-green)" }} />
-                        <div style={{ height: `${(w.leave / weekMax) * 100}%`, background: "var(--color-amber)" }} />
-                        <div style={{ height: `${(w.absent / weekMax) * 100}%`, background: "var(--color-red)" }} />
-                      </div>
-                      <div className={`text-center text-[11px] leading-tight ${w.isToday ? "font-semibold text-[var(--color-text)]" : "text-[var(--color-text-muted)]"}`}>{w.label}<br /><span className="text-[10px] text-[var(--color-text-faint)]">{w.date}</span></div>
-                    </div>
-                  );
-                })}
+      {/* Attendance chart + leave & recruitment */}
+      {(hasEmployee || hasRecruitment) && <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        {hasEmployee && <Card className="rounded-2xl p-5 xl:col-span-2">
+          <CardTitle title="Attendance Statistic" to="/hr/attendance" />
+          <div className="mb-3 flex gap-4 text-[11px] text-[var(--color-text-muted)]">{SERIES.map((s) => <span key={s.key} className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full" style={{ background: s.color }} />{s.label}</span>)}</div>
+          {!attendance ? <Skeleton className="h-56 w-full" /> : (
+            <div className="relative h-56 pl-9">
+              <div className="absolute inset-x-0 bottom-6 top-0">
+                {[100, 80, 60, 40, 20, 0].map((p) => (
+                  <div key={p} className="absolute left-0 right-0 flex translate-y-1/2 items-center gap-2" style={{ bottom: `${p}%` }}>
+                    <span className="w-7 text-right text-[10px] text-[var(--color-text-faint)]">{p}%</span>
+                    <span className="h-px flex-1 border-t border-dashed border-[var(--color-border)]" />
+                  </div>
+                ))}
               </div>
-              <div className="mt-4 flex gap-4 text-[11px] text-[var(--color-text-muted)]">
-                {[["Attended", "var(--color-green)"], ["On leave", "var(--color-amber)"], ["Absent", "var(--color-red)"]].map(([l, c]) => <span key={l} className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full" style={{ background: c }} />{l}</span>)}
+              <div className="absolute inset-y-0 left-9 right-0 flex items-end gap-3 px-1">
+                {week.map((w) => (
+                  <div key={w.key} className="flex h-full flex-1 flex-col items-center justify-end" title={`${w.date}: ${w.present} present, ${w.absent} absent, ${w.leave} on leave`}>
+                    <div className="flex w-full max-w-[46px] flex-col-reverse overflow-hidden rounded-t-lg" style={{ height: "calc(100% - 1.5rem)" }}>
+                      {SERIES.map((s) => <div key={s.key} style={{ height: `${(w[s.key] / scale) * 100}%`, background: s.color, opacity: s.key === "present" ? 1 : 0.75 }} />)}
+                    </div>
+                    <span className={`mt-1.5 h-4 text-[11px] ${w.isToday ? "font-semibold text-[var(--color-text)]" : "text-[var(--color-text-muted)]"}`}>{w.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </Card>}
+
+        <Card className={`rounded-2xl p-5 ${hasEmployee ? "" : "xl:col-span-3"}`}>
+          <CardTitle title={hasEmployee && hasRecruitment ? "Leave & Recruitment" : hasEmployee ? "Leave Applications" : "New Candidates"} to={tab === "leave" ? "/hr/leave" : "/hr/recruitment/candidates"} />
+          {hasEmployee && hasRecruitment && <div className="mb-3 grid grid-cols-2 gap-1 rounded-lg bg-[var(--color-surface-2)] p-1">
+            {[["leave", "Leave Applications"], ["recruit", "New Candidates"]].map(([id, label]) => (
+              <button key={id} type="button" onClick={() => setTab(id)} className={`rounded-md py-1.5 text-[12px] font-medium transition-colors ${tab === id ? "bg-[var(--color-surface)] text-[var(--color-red-hover)] shadow-sm" : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"}`}>{label}</button>
+            ))}
+          </div>}
+          {!data ? <Skeleton className="h-48 w-full" /> : (() => {
+            const rows = tab === "leave"
+              ? (data.recentLeave || []).map((l) => ({ key: l.name, name: l.employee_name, sub: `${l.leave_type} · ${dmy(l.from_date)}${l.to_date !== l.from_date ? ` - ${dmy(l.to_date)}` : ""}`, status: l.status }))
+              : (data.applicants || []).map((a) => ({ key: a.name, name: a.applicant_name, sub: a.designation || a.job_title || "Talent pool", status: a.custom_ethx_stage || a.status }));
+            return rows.length === 0 ? <p className="py-10 text-center text-[13px] text-[var(--color-text-muted)]">{tab === "leave" ? "No leave applications yet." : "No candidates yet."}</p> : (
+              <ul className="divide-y divide-[var(--color-border)]">
+                {rows.map((r) => (
+                  <li key={r.key} className="flex items-center justify-between gap-3 py-2.5">
+                    <span className="flex min-w-0 items-center gap-3"><Avatar name={r.name} size={36} /><span className="min-w-0"><span className="block truncate text-[13px] font-medium text-[var(--color-text)]">{r.name}</span><span className="block truncate text-[11px] text-[var(--color-text-muted)]">{r.sub}</span></span></span>
+                    <StatusPill status={r.status} />
+                  </li>
+                ))}
+              </ul>
+            );
+          })()}
+        </Card>
+      </div>}
+
+      {/* Departments + employee list */}
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <Card className="rounded-2xl p-5">
+          <CardTitle title="Employee Statistics" />
+          {!employees ? <Skeleton className="mx-auto h-44 w-44 rounded-full" /> : !headcount ? <p className="py-10 text-center text-[13px] text-[var(--color-text-muted)]">No employees yet.</p> : (
+            <>
+              <div className="relative mx-auto h-44 w-44">
+                <svg viewBox="0 0 130 130" className="h-full w-full -rotate-90">
+                  <circle cx="65" cy="65" r={R} fill="none" stroke="var(--color-surface-2)" strokeWidth="18" />
+                  {arcs.map((a) => <circle key={a.name} cx="65" cy="65" r={R} fill="none" stroke={a.color} strokeWidth="18" strokeDasharray={`${Math.max(a.len - 1.5, 0)} ${C}`} strokeDashoffset={-a.offset} />)}
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center"><span className="text-[15px] font-semibold text-[var(--color-text)]">Total</span><span className="text-[11px] text-[var(--color-text-muted)]">{departments.length} department{departments.length === 1 ? "" : "s"}</span></div>
+              </div>
+              <div className="mt-4 grid grid-cols-3 gap-x-3 gap-y-3">
+                {departments.map((d) => (
+                  <div key={d.name} className="min-w-0">
+                    <p className="flex items-center gap-1.5 truncate text-[11px] text-[var(--color-text-muted)]" title={d.name}><i className="h-2 w-2 shrink-0 rounded-sm" style={{ background: d.color }} />{d.name}</p>
+                    <p className="text-[17px] font-semibold text-[var(--color-text)]">{Math.round((d.n / headcount) * 100)}%</p>
+                  </div>
+                ))}
               </div>
             </>
           )}
         </Card>
 
-        <Card className="rounded-xl p-5">
-          <SectionTitle title="Today's Attendance" hint={`${marked} marked${notMarked != null ? `, ${notMarked} pending` : ""}`} />
-          {!attendance ? <Skeleton className="mx-auto h-36 w-36 rounded-full" /> : (
-            <div className="flex flex-col items-center gap-5">
-              <div className="relative h-36 w-36">
-                <svg viewBox="0 0 130 130" className="h-full w-full -rotate-90">
-                  <circle cx="65" cy="65" r={R} fill="none" stroke="var(--color-surface-2)" strokeWidth="14" />
-                  {arcs.map((a) => <circle key={a.key} cx="65" cy="65" r={R} fill="none" stroke={a.color} strokeWidth="14" strokeDasharray={`${Math.max(a.len - 2, 0)} ${C}`} strokeDashoffset={-a.offset} />)}
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-2xl font-semibold text-[var(--color-text)]">{attendedToday}</span>
-                  <span className="text-[11px] text-[var(--color-text-muted)]">attended</span>
-                </div>
-              </div>
-              <ul className="w-full space-y-1.5 text-[12px]">
-                {SEGMENTS.filter((s) => todayCounts[s.key]).map((s) => <li key={s.key} className="flex items-center justify-between"><span className="flex items-center gap-2 text-[var(--color-text-muted)]"><i className="h-2 w-2 rounded-full" style={{ background: s.color }} />{s.key}</span><span className="font-medium text-[var(--color-text)]">{todayCounts[s.key]}</span></li>)}
-                {notMarked > 0 && <li className="flex items-center justify-between"><span className="flex items-center gap-2 text-[var(--color-text-muted)]"><i className="h-2 w-2 rounded-full bg-[var(--color-border-strong)]" />Not marked</span><span className="font-medium text-[var(--color-text)]">{notMarked}</span></li>}
-              </ul>
+        <Card className="rounded-2xl p-5 xl:col-span-2">
+          <CardTitle title="Employee List" to="/hr/employees" />
+          {!employees ? <Skeleton className="h-56 w-full" /> : listRows.length === 0 ? <p className="py-10 text-center text-[13px] text-[var(--color-text-muted)]">No employees yet.</p> : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-[13px]">
+                <thead><tr className="text-[12px] text-[var(--color-text-muted)]"><th className="px-3 pb-2 font-medium">Name</th><th className="px-3 pb-2 font-medium">Department</th><th className="px-3 pb-2 font-medium">Email</th><th className="px-3 pb-2 font-medium">Status</th></tr></thead>
+                <tbody>
+                  {listRows.map((e, i) => (
+                    <tr key={e.name} className={i % 2 === 0 ? "bg-[var(--color-surface-2)]" : ""}>
+                      <td className="rounded-l-lg px-3 py-2.5"><span className="flex items-center gap-2.5"><Avatar name={e.employee_name} image={e.image} size={30} /><span className="truncate text-[var(--color-text)]">{e.employee_name}</span></span></td>
+                      <td className="px-3 py-2.5 text-[var(--color-text-muted)]">{shortDept(e.department)}</td>
+                      <td className="px-3 py-2.5 text-[var(--color-text-muted)]">{e.company_email || e.user_id || "—"}</td>
+                      <td className="rounded-r-lg px-3 py-2.5"><StatusPill status={hasEmployee ? statusToday[e.name] || "Not Marked" : "Active"} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </Card>
       </div>
 
-      {/* Leave + departments */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Card className="rounded-xl p-5 lg:col-span-2">
-          <SectionTitle title="Pending Leave Requests" hint="Oldest start dates first" to="/hr/leave" />
-          {!leave ? <Skeleton className="h-28 w-full" /> : leave.length === 0 ? (
-            <div className="flex h-28 items-center justify-center text-[13px] text-[var(--color-text-muted)]">You're all caught up - no requests waiting.</div>
-          ) : (
-            <ul className="divide-y divide-[var(--color-border)]">
-              {leave.slice(0, 5).map((l) => (
-                <li key={l.name} className="flex items-center justify-between gap-4 py-3">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--color-red-wash)] text-[12px] font-semibold text-[var(--color-red-hover)]">{(l.employee_name || "?")[0]}</span>
-                    <div className="min-w-0">
-                      <p className="truncate text-[13px] font-medium text-[var(--color-text)]">{l.employee_name}</p>
-                      <p className="truncate text-[12px] text-[var(--color-text-muted)]">{l.leave_type}</p>
-                    </div>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <p className="text-[13px] text-[var(--color-text)]">{dmy(l.from_date)}{l.to_date !== l.from_date && ` - ${dmy(l.to_date)}`}</p>
-                    <p className="text-[12px] text-[var(--color-text-muted)]">{l.total_leave_days} day{l.total_leave_days === 1 ? "" : "s"}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-
-        <Card className="rounded-xl p-5">
-          <SectionTitle title="Headcount by Department" hint="Active employees" />
-          {!employees ? <Skeleton className="h-28 w-full" /> : departments.length === 0 ? (
-            <div className="flex h-28 items-center justify-center text-[13px] text-[var(--color-text-muted)]">No employees yet.</div>
-          ) : (
-            <ul className="space-y-3.5">
-              {departments.map(([name, n]) => (
-                <li key={name}>
-                  <div className="mb-1.5 flex items-center justify-between text-[12px]"><span className="flex items-center gap-1.5 text-[var(--color-text-muted)]"><Building2 size={12} />{name}</span><span className="font-medium text-[var(--color-text)]">{n}</span></div>
-                  <div className="h-1.5 overflow-hidden rounded-full bg-[var(--color-surface-2)]"><div className="h-full rounded-full" style={{ width: `${(n / departments[0][1]) * 100}%`, background: "linear-gradient(90deg, var(--color-red-deep), var(--color-red-hover))" }} /></div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-      </div>
-
-      {/* Quick access */}
-      <section>
-        <h2 className="mb-3 text-[13px] font-semibold text-[var(--color-text)]">Quick Access</h2>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-          {QUICK_LINKS.map(({ to, label, hint, icon: Icon }) => (
-            <Link key={to} to={to} className="group flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3.5 transition-colors hover:border-[var(--color-red-deep)] hover:bg-[var(--color-surface-2)]">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--color-surface-2)] text-[var(--color-text-muted)] transition-colors group-hover:bg-[var(--color-red-wash)] group-hover:text-[var(--color-red-hover)]"><Icon size={17} strokeWidth={1.8} /></span>
-              <span className="min-w-0"><span className="block truncate text-[13px] font-medium text-[var(--color-text)]">{label}</span><span className="block truncate text-[11px] text-[var(--color-text-muted)]">{hint}</span></span>
-            </Link>
-          ))}
-        </div>
-      </section>
+      {user && <NeedsAttention user={user} />}
     </div>
   );
 }

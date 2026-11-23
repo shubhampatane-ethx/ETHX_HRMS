@@ -1,6 +1,8 @@
 // Manager self-service: employee logins are restricted to their own Employee record, so a line manager can't read
 // their team directly. These server methods return only the manager's own team (employees whose Reports To is the
 // manager, or whose Leave Approver is the manager). Only a leave application's assigned approver can decide it.
+import { DEFAULT_BIRTHDAY_SUBJECT, DEFAULT_BIRTHDAY_TEMPLATE, SETTINGS } from "./comms";
+
 const TEAM_API = `
 user = frappe.session.user
 me = frappe.db.get_value("Employee", {"user_id": user, "status": "Active"}, ["name", "employee_name"], as_dict=True)
@@ -123,15 +125,21 @@ frappe.response["message"] = out
 `;
 
 // Every morning: colleagues in the company get a notification on someone's birthday and the person gets a birthday
-// email; HR is told the day before, so a card or wishes can be ready. Emails need an outgoing email account in ERPNext.
+// email (subject and message from Admin › Communication, sent from the internal Outlook account); HR is told the day
+// before, so a card or wishes can be ready. Emails need an outgoing email account in ERPNext.
 const BIRTHDAY_WISHES = `
+has_settings = frappe.db.exists("DocType", "${SETTINGS}")
+send_mail = frappe.db.get_single_value("${SETTINGS}", "birthday_emails") if has_settings else 1
+subject_t = (frappe.db.get_single_value("${SETTINGS}", "birthday_subject") if has_settings else None) or ${JSON.stringify(DEFAULT_BIRTHDAY_SUBJECT)}
+body_t = (frappe.db.get_single_value("${SETTINGS}", "birthday_template") if has_settings else None) or ${JSON.stringify(DEFAULT_BIRTHDAY_TEMPLATE)}
+sender = frappe.db.get_single_value("${SETTINGS}", "internal_sender") if has_settings else None
 today = frappe.utils.getdate(frappe.utils.nowdate())
 day = str(today)[5:10]
 tomorrow = str(frappe.utils.add_days(today, 1))[5:10]
 filters = {"status": "Active", "date_of_birth": ["is", "set"]}
 if frappe.get_meta("Employee").has_field("custom_is_contractor"):
     filters["custom_is_contractor"] = 0
-people = frappe.get_all("Employee", filters=filters, fields=["name", "employee_name", "company", "user_id", "company_email", "personal_email", "date_of_birth"])
+people = frappe.get_all("Employee", filters=filters, fields=["name", "employee_name", "first_name", "company", "user_id", "company_email", "personal_email", "date_of_birth"])
 hr_users = []
 for r in frappe.get_all("Has Role", filters={"role": ["in", ["HR Manager", "HR User"]], "parenttype": "User"}, fields=["parent"]):
     if r.parent not in hr_users and r.parent not in ("Administrator", "Guest"):
@@ -143,9 +151,16 @@ for p in people:
         for c in people:
             if c.user_id and c.name != p.name and c.company == p.company and not frappe.db.exists("Notification Log", {"for_user": c.user_id, "subject": subject, "creation": [">=", str(today) + " 00:00:00"]}):
                 frappe.get_doc({"doctype": "Notification Log", "for_user": c.user_id, "type": "Alert", "subject": subject}).insert(ignore_permissions=True)
-        to = p.user_id or p.company_email or p.personal_email
-        if to and "@" in to:
-            frappe.sendmail(recipients=[to], subject="Happy Birthday, " + p.employee_name + "!", message="<p>Dear " + p.employee_name + ",</p><p>Wishing you a very happy birthday and a wonderful year ahead, from all of us at " + p.company + ".</p>")
+        to = p.company_email or p.user_id or p.personal_email
+        if send_mail and to and "@" in to:
+            first = p.first_name or (p.employee_name or "").split(" ")[0]
+            subject_line = subject_t.replace("{employee_name}", p.employee_name or "").replace("{first_name}", first or "").replace("{company}", p.company or "")
+            body = body_t.replace("{employee_name}", p.employee_name or "").replace("{first_name}", first or "").replace("{company}", p.company or "")
+            html = "<p>" + body.replace("\\n\\n", "</p><p>").replace("\\n", "<br>") + "</p>"
+            if sender:
+                frappe.sendmail(recipients=[to], sender=sender, subject=subject_line, message=html, reference_doctype="Employee", reference_name=p.name)
+            else:
+                frappe.sendmail(recipients=[to], subject=subject_line, message=html, reference_doctype="Employee", reference_name=p.name)
     if born == tomorrow:
         subject = "Tomorrow is " + p.employee_name + "'s birthday."
         for u in hr_users:

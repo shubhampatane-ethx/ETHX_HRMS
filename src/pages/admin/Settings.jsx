@@ -1,9 +1,10 @@
 import { Link } from "react-router-dom";
-import { Briefcase, Building2, CalendarCheck, Receipt, ClipboardList, ScrollText, ShieldCheck, SlidersHorizontal, UserCog, Wrench } from "lucide-react";
+import { Boxes, Briefcase, Building2, CalendarCheck, Mail, Receipt, ClipboardList, ScrollText, ShieldCheck, SlidersHorizontal, UserCog, Plug } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { HR_SETUP_SECTIONS, slugify } from "../../lib/hrSetupConfig";
 import { Card } from "../../components/ui/primitives";
 import BrandStudio from "./BrandStudio";
+import { isPageBlocked } from "../../permissions/pageAccess";
 
 const PLATFORM = [
   { to: "/admin/users", label: "HR Users", hint: "Create and manage HR accounts", icon: UserCog },
@@ -11,8 +12,10 @@ const PLATFORM = [
   { to: "/admin/organization", label: "Organization & Approvers", hint: "Companies, leave and expense approvers", icon: Building2 },
   { to: "/admin/organization?tab=expense", label: "Expense Approvers", hint: "Who approves each expense type", icon: Receipt },
   { to: "/admin/organization?tab=leave", label: "Leave Approvers", hint: "Approvers per business unit", icon: CalendarCheck },
-  { to: "/admin/roles", label: "Roles & Permissions", hint: "What HR, Project Managers and employees may do", icon: ShieldCheck },
-  { to: "/admin/setup", label: "System Setup", hint: "Custom fields and server rules", icon: Wrench },
+  { to: "/admin/roles", label: "Roles & Permissions", hint: "What each role may do, and the app setup", icon: ShieldCheck },
+  { to: "/admin/integrations", label: "Integrations", hint: "API users, webhooks, biometric devices, bank file", icon: Plug },
+  { to: "/admin/modules", label: "Modules & People", hint: "The client's modules and who runs it", icon: Boxes },
+  { to: "/admin/communication", label: "Communication", hint: "Mail accounts, birthday and event emails, AI job descriptions", icon: Mail },
   { to: "/admin/audit-logs", label: "Audit Logs", hint: "Who changed what", icon: ScrollText },
 ];
 
@@ -44,7 +47,7 @@ export default function Settings() {
 
       <section>
         <h3 className="mb-3 text-[13px] font-semibold text-[var(--color-text)]">Platform</h3>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">{PLATFORM.map((t) => <Tile key={t.to} {...t} />)}</div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">{PLATFORM.filter((t) => !isPageBlocked(user, t.to)).map((t) => <Tile key={t.to} {...t} />)}</div>
       </section>
 
       <BrandStudio />

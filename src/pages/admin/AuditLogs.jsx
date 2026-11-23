@@ -7,6 +7,7 @@ import { Download, ScrollText } from "lucide-react";
 import { frappe } from "../../lib/api/frappeClient";
 import { Button, DateField } from "../../components/ui/primitives";
 import { Async, Field, Grid, inputCls, Modal, PageHeader, Panel, Tabs } from "../../components/employee/EmployeeShell";
+import { clientUsers } from "../../lib/clientPeople";
 import { addDays, dmyHm, isoDate, stripHtml, useAsync } from "../../lib/employeePortal";
 import { downloadCsv } from "../../lib/recruitment";
 
@@ -37,21 +38,25 @@ export default function AuditLogs() {
   const [limit, setLimit] = useState(PAGE);
   const [open, setOpen] = useState(null);
   const range = [[`creation`, ">=", `${from} 00:00:00`], ["creation", "<=", `${to} 23:59:59`]];
+  // Viewing one client: only what that client's people did. Nothing is fetched until their accounts are known.
+  const scope = useAsync(async () => { const s = await clientUsers(); return s ? [...s] : "all"; }, []);
+  const who = scope.data;
+  const byClient = (field) => (Array.isArray(who) ? [[field, "in", who.length ? who : ["-"]]] : []);
 
-  const changes = useAsync(() => (tab !== "changes" ? Promise.resolve([]) : frappe.getList("Version", {
-    filters: [...range, ...(doctype ? [["ref_doctype", "=", doctype]] : [["ref_doctype", "in", DOCTYPES]]), ...(user ? [["owner", "like", `%${user}%`]] : []), ...(search ? [["docname", "like", `%${search}%`]] : [])],
+  const changes = useAsync(() => (tab !== "changes" || !who ? Promise.resolve([]) : frappe.getList("Version", {
+    filters: [...range, ...(doctype ? [["ref_doctype", "=", doctype]] : [["ref_doctype", "in", DOCTYPES]]), ...(user ? [["owner", "like", `%${user}%`]] : []), ...byClient("owner"), ...(search ? [["docname", "like", `%${search}%`]] : [])],
     fields: ["name", "ref_doctype", "docname", "data", "owner", "creation"], orderBy: "creation desc", limit,
-  }).then((rows) => rows.map((r) => ({ ...r, parsed: parseVersion(r) })))), [tab, from, to, doctype, user, search, limit]);
+  }).then((rows) => rows.map((r) => ({ ...r, parsed: parseVersion(r) })))), [tab, from, to, doctype, user, search, limit, who]);
 
-  const actions = useAsync(() => (tab !== "actions" ? Promise.resolve([]) : frappe.getList("Comment", {
-    filters: [...range, ["comment_type", "=", "Info"], ...(doctype ? [["reference_doctype", "=", doctype]] : []), ...(user ? [["owner", "like", `%${user}%`]] : []), ...(search ? [["content", "like", `%${search}%`]] : [])],
+  const actions = useAsync(() => (tab !== "actions" || !who ? Promise.resolve([]) : frappe.getList("Comment", {
+    filters: [...range, ["comment_type", "=", "Info"], ...(doctype ? [["reference_doctype", "=", doctype]] : []), ...(user ? [["owner", "like", `%${user}%`]] : []), ...byClient("owner"), ...(search ? [["content", "like", `%${search}%`]] : [])],
     fields: ["name", "reference_doctype", "reference_name", "content", "owner", "creation"], orderBy: "creation desc", limit,
-  })), [tab, from, to, doctype, user, search, limit]);
+  })), [tab, from, to, doctype, user, search, limit, who]);
 
-  const signins = useAsync(() => (tab !== "signins" ? Promise.resolve([]) : frappe.getList("Activity Log", {
-    filters: [...range, ["operation", "in", ["Login", "Logout"]], ...(user ? [["user", "like", `%${user}%`]] : [])],
+  const signins = useAsync(() => (tab !== "signins" || !who ? Promise.resolve([]) : frappe.getList("Activity Log", {
+    filters: [...range, ["operation", "in", ["Login", "Logout"]], ...(user ? [["user", "like", `%${user}%`]] : []), ...byClient("user")],
     fields: ["name", "user", "full_name", "operation", "status", "ip_address", "subject", "creation"], orderBy: "creation desc", limit,
-  })), [tab, from, to, user, limit]);
+  })), [tab, from, to, user, limit, who]);
 
   const failed = useMemo(() => (signins.data || []).filter((s) => s.status === "Failed").length, [signins.data]);
 
@@ -101,7 +106,7 @@ export default function AuditLogs() {
             </>
           )}
         </Async>
-        <p className="mt-3 text-[11px] text-[var(--color-text-faint)]">Change history is recorded for the record types switched on by Admin › System Setup. Older changes, before it was switched on, aren't available.</p>
+        <p className="mt-3 text-[11px] text-[var(--color-text-faint)]">Change history is recorded for the record types switched on by the automatic setup (Admin › Roles &amp; Permissions). Older changes, before it was switched on, aren't available.</p>
       </Panel>
       {open && (
         <Modal title={`${open.ref_doctype} · ${open.docname}`} onClose={() => setOpen(null)} wide>

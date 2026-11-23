@@ -27,7 +27,7 @@ export default function ProjectRoles() {
   return (
     <div className="space-y-5">
       <PageHeader icon={ShieldCheck} title="Project Roles" subtitle="Roles employees can hold on a project. Give them to people per project under Assignments." actions={<Button type="button" disabled={!installed} onClick={() => setModal({})}><Plus size={14} /> Add Role</Button>} />
-      {data.data && !installed && <Notice tone="info">Run <b>System Setup</b> once to create this list. Until then the assignment form offers the default roles shown here.</Notice>}
+      {data.data && !installed && <Notice tone="info">Use <b>Apply Again</b> on Admin › Roles &amp; Permissions once to create this list. Until then the assignment form offers the default roles shown here.</Notice>}
       {error && <Notice>{error}</Notice>}
       <Panel>
         <Async state={data}>

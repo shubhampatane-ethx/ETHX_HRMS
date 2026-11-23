@@ -30,8 +30,12 @@ const AdminUsers = lazy(() => import("./pages/admin/UsersHub"));
 const Organization = lazy(() => import("./pages/admin/Organization"));
 const Roles = lazy(() => import("./pages/admin/Roles"));
 const Settings = lazy(() => import("./pages/admin/Settings"));
+const Communication = lazy(() => import("./pages/admin/Communication"));
+const Integrations = lazy(() => import("./pages/admin/Integrations"));
+const Analytics = lazy(() => import("./pages/hr/Analytics"));
+const HrReports = lazy(() => import("./pages/hr/Reports"));
+const Companies = lazy(() => import("./pages/admin/Companies"));
 const AuditLogs = lazy(() => import("./pages/admin/AuditLogs"));
-const ErpSetup = lazy(() => import("./pages/admin/ErpSetup"));
 
 import { ContractorLayout, EmployeeLayout } from "./components/employee/EmployeeShell";
 const ContractorProjects = lazy(() => import("./pages/contractor/ContractorProjects"));
@@ -87,6 +91,7 @@ const Offices = lazy(() => import("./pages/hr/Offices"));
 const EmployeeGroups = lazy(() => import("./pages/hr/EmployeeGroups"));
 const LeaveTypes = lazy(() => import("./pages/hr/LeaveTypes"));
 const EmployeeRequests = lazy(() => import("./pages/hr/EmployeeRequests"));
+const Announcements = lazy(() => import("./pages/hr/Announcements"));
 
 export default function App() {
   return (
@@ -114,8 +119,12 @@ export default function App() {
               <Route path="organization" element={<Organization />} />
               <Route path="roles" element={<Roles />} />
               <Route path="settings" element={<Settings />} />
+              <Route path="communication" element={<Communication />} />
+              <Route path="integrations" element={<Integrations />} />
+              <Route path="modules" element={<Companies />} />
+              <Route path="companies" element={<Navigate to="/admin/modules" replace />} />
               <Route path="audit-logs" element={<AuditLogs />} />
-              <Route path="setup" element={<ErpSetup />} />
+              <Route path="setup" element={<Navigate to="/admin/roles" replace />} />
             </Route>
           </Route>
 
@@ -178,6 +187,7 @@ export default function App() {
               <Route path="policies" element={<Policies />} />
               <Route path="assets" element={<Assets />} />
               <Route path="requests" element={<EmployeeRequests />} />
+              <Route path="announcements" element={<Announcements />} />
               <Route path="offices" element={<Offices />} />
               <Route path="employee-groups" element={<EmployeeGroups />} />
               <Route path="leave-types" element={<LeaveTypes />} />
@@ -200,6 +210,8 @@ export default function App() {
               <Route path="recruitment/setup" element={<RecruitmentSetup />} />
               <Route path="onboarding" element={<Onboarding />} />
               <Route path="performance" element={<Performance />} />
+              <Route path="analytics" element={<Analytics />} />
+              <Route path="reports" element={<HrReports />} />
               <Route path="training" element={<Training />} />
               <Route path="setup/:doctype" element={<DoctypeView />} />
             </Route>

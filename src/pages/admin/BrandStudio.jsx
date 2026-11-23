@@ -4,6 +4,7 @@ import { useBranding, brandName, cacheBranding, getSelectedBrandCompany } from "
 import { Button, Card } from "../../components/ui/primitives";
 import { errMsg, useAsync } from "../../lib/employeePortal";
 import { frappe } from "../../lib/api/frappeClient";
+import { useClientScope } from "../../lib/clientScope";
 import { getSavedTheme, isLightTheme, saveTheme, THEME_OPTIONS } from "../../lib/theme";
 import { Brand } from "../../components/Brand";
 import { confirmDialog } from "../../components/ui/dialogs";
@@ -85,7 +86,9 @@ export default function BrandStudio() {
 
   const companies = companiesQuery.data || [];
   const validSelectedCompany = !companies.length || companies.some((item) => item.name === selectedCompany) ? selectedCompany : "";
-  const companyName = validSelectedCompany || activeCompany?.name || companies[0]?.name || "";
+  // The super admin edits the client chosen in the sidebar - the one place a company is picked.
+  const client = useClientScope();
+  const companyName = client || validSelectedCompany || activeCompany?.name || companies[0]?.name || "";
   const companyQuery = useAsync(() => companyName ? frappe.getDoc("Company", companyName) : Promise.resolve(null), [companyName]);
   const currentCompany = companyQuery.data?.name === companyName ? companyQuery.data : activeCompany?.name === companyName ? activeCompany : null;
   const savedTheme = currentCompany?.custom_hrms_theme || getSavedTheme(companyName);
@@ -235,37 +238,44 @@ export default function BrandStudio() {
           <div className="max-w-xl">
             <p className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--color-red-hover)]"><Palette size={14} /> Tenant identity</p>
             <h1 className="text-xl font-semibold text-[var(--color-text)]">Brand Studio</h1>
-            <p className="mt-1.5 text-[13px] leading-5 text-[var(--color-text-muted)]">Give every company its own logo and color system. Changes are shared with that company’s users.</p>
+            <p className="mt-1.5 text-[13px] leading-5 text-[var(--color-text-muted)]">{client ? "This client's logo, name and colours. Changes are shared with everyone in the company." : "Give every company its own logo and color system. Changes are shared with that company’s users."}</p>
           </div>
-          <label className="min-w-60">
-            <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">Company Workspace</span>
-            <span className="relative block">
-              <Building2 size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-faint)]" />
-              <select value={companyName} onChange={(event) => changeCompany(event.target.value)} disabled={companiesQuery.loading || !companies.length} className="w-full appearance-none rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] py-2 pl-9 pr-3 text-[13px] text-[var(--color-text)] outline-none focus:border-[var(--color-red)]">
-                {!companyName && <option value="">No company available</option>}
-                {companies.map((item) => <option key={item.name} value={item.name}>{brandName(item) || item.name}</option>)}
-              </select>
-            </span>
-          </label>
+          {client ? (
+            <div className="min-w-60">
+              <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">Branding For</span>
+              <span className="flex items-center gap-2 rounded-md border border-[var(--color-border)] px-3 py-2 text-[13px] text-[var(--color-text)]" title="The client you're viewing - switch it in the sidebar"><Building2 size={14} className="text-[var(--color-red-hover)]" />{shownName}</span>
+            </div>
+          ) : companies.length > 1 && (
+            <label className="min-w-60">
+              <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">Company Workspace</span>
+              <span className="relative block">
+                <Building2 size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-faint)]" />
+                <select value={companyName} onChange={(event) => changeCompany(event.target.value)} disabled={companiesQuery.loading} className="w-full appearance-none rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] py-2 pl-9 pr-3 text-[13px] text-[var(--color-text)] outline-none focus:border-[var(--color-red)]">
+                  {companies.map((item) => <option key={item.name} value={item.name}>{brandName(item) || item.name}</option>)}
+                </select>
+              </span>
+            </label>
+          )}
         </div>
       </section>
 
       {(error || companiesQuery.error || companyQuery.error) && <p role="alert" className="rounded-md border border-[var(--color-red-deep)] bg-[var(--color-red-wash)] px-4 py-3 text-[12px] text-[var(--color-red-hover)]">{error || errMsg(companiesQuery.error || companyQuery.error, "Unable to load company branding.")}</p>}
       {message && <p role="status" className="rounded-md border border-[var(--color-green)]/30 bg-[color-mix(in_srgb,var(--color-green)_10%,transparent)] px-4 py-3 text-[12px] text-[var(--color-green)]">{message}</p>}
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.75fr)]">
+      <div className="space-y-6">
         <section className="space-y-3">
           <div className="flex items-end justify-between gap-3">
             <div><h2 className="text-[14px] font-semibold text-[var(--color-text)]">Theme System</h2><p className="mt-0.5 text-[12px] text-[var(--color-text-muted)]">Choose a complete color palette for this company.</p></div>
             {busy === "theme" && <span className="flex items-center gap-1.5 text-[11px] text-[var(--color-text-muted)]"><Loader2 size={13} className="animate-spin" />Saving</span>}
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {THEME_OPTIONS.map((theme) => <ThemePreview key={theme.id} theme={theme} selected={selectedTheme === theme.id} disabled={!companyName || Boolean(busy)} onClick={() => chooseTheme(theme)} />)}
           </div>
         </section>
 
         <section className="space-y-3">
           <div><h2 className="text-[14px] font-semibold text-[var(--color-text)]">Company Logos</h2><p className="mt-0.5 text-[12px] text-[var(--color-text-muted)]">Upload one logo for light themes and one for dark themes. With only one uploaded, it is adjusted to fit the other themes.</p></div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {LOGO_SLOTS.map((slot) => {
             const uploaded = currentCompany?.[slot.field] || "";
             const loading = companyQuery.loading && !currentCompany;
@@ -290,7 +300,13 @@ export default function BrandStudio() {
               </Card>
             );
           })}
-          <Card className="space-y-3 p-4">
+          </div>
+        </section>
+
+        <section className="space-y-3">
+          <div><h2 className="text-[14px] font-semibold text-[var(--color-text)]">Name & Sign-In Help</h2><p className="mt-0.5 text-[12px] text-[var(--color-text-muted)]">What people see next to the logo and on the sign-in page.</p></div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <Card className="order-2 space-y-3 p-4">
             <div>
               <p className="flex items-center gap-1.5 text-[13px] font-semibold text-[var(--color-text)]"><Headset size={14} /> Sign-In Help</p>
               <p className="mt-0.5 text-[11px] text-[var(--color-text-muted)]">Shown on the sign-in page under Contact IT Support, for people who can't sign in.</p>
@@ -303,7 +319,7 @@ export default function BrandStudio() {
             </div>
           </Card>
           {/* The company name is separate text from the Company record - never part of the logo image. */}
-          <Card className="space-y-3 p-4">
+          <Card className="order-1 space-y-3 p-4">
             <div>
               <p className="text-[13px] font-semibold text-[var(--color-text)]">Company Name</p>
               <p className="mt-0.5 text-[11px] text-[var(--color-text-muted)]">Shown under the logo, on the sign-in page and in the browser tab.{legalName && ` Legal name: ${legalName} (not changed).`}</p>
@@ -326,6 +342,7 @@ export default function BrandStudio() {
               </div>
             </div>
           </Card>
+          </div>
         </section>
       </div>
 

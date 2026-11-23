@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
 import { ListChecks, Lock, Search, ShieldCheck } from "lucide-react";
-import { Async, chipCls, CONTRACTOR_NAV, Empty, EMPLOYEE_NAV, inputCls, Notice, PageHeader, Panel } from "../../components/employee/EmployeeShell";
+import { Async, CONTRACTOR_NAV, Empty, EMPLOYEE_NAV, inputCls, Notice, PageHeader, Panel, Tabs } from "../../components/employee/EmployeeShell";
 import { Button } from "../../components/ui/primitives";
 import { hrNav } from "../../components/layout/HRLayout";
 import { pmNav } from "../../components/layout/PMLayout";
 import { frappe } from "../../lib/api/frappeClient";
+import { clientUsers } from "../../lib/clientPeople";
 import { errMsg, useAsync } from "../../lib/employeePortal";
 import { confirmDialog } from "../../components/ui/dialogs";
 import { ALWAYS_ALLOWED } from "../../permissions/pageAccess";
@@ -14,7 +15,9 @@ const SETUP_MISSING = /Failed to get method|not whitelisted|has no attribute|No 
 
 async function loadPeople() {
   try {
-    return { people: await frappe.callMethod("ethx_page_access_list"), ready: true };
+    const [people, scope] = await Promise.all([frappe.callMethod("ethx_page_access_list"), clientUsers()]);
+    // Viewing one client: only that client's people (the Administrator is never listed here).
+    return { people: scope ? (people || []).filter((p) => scope.has(p.email)) : people, ready: true };
   } catch (e) {
     const d = e?.response?.data || {};
     if (e?.response?.status === 404 || SETUP_MISSING.test(String(d.exception || d.exc || d._server_messages || ""))) return { people: [], ready: false };
@@ -60,10 +63,9 @@ export default function PageAccess() {
 
   return (
     <div className="space-y-5">
-      <PageHeader icon={ListChecks} title="Access Control" subtitle="Choose what each person can open" />
-      <Notice tone="info">A new login starts with the pages of the role it was created with. After that you can give anyone any role or page: ticking a page outside their roles also gives them that workspace's role. Changes apply the next time they sign in.</Notice>
+      <PageHeader icon={ListChecks} title="Access Control" subtitle="Choose each person's roles and the pages they can open. Ticking a page in another workspace also gives them that workspace's role. Changes apply at their next sign-in." />
       <Async state={data}>
-        {({ ready }) => (!ready ? <Notice>Access Control is being set up. It's applied automatically for the Administrator - reload this page in a minute, or use <b>System Setup › Apply Again</b>.</Notice> : (
+        {({ ready }) => (!ready ? <Notice>Access Control is being set up. It's applied automatically for the Administrator - reload this page in a minute, or use <b>Apply Again</b> on Roles &amp; Permissions.</Notice> : (
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
             <Panel title="People">
               <label className="relative mb-3 block">
@@ -102,6 +104,10 @@ function AccessEditor({ person, onSaved }) {
   const appRoles = appRolesFor([...roles]);
   const hasWorkspace = (w) => appRoles.includes(w.appRole);
   const dirty = !sameSet(denied, person.denied) || !sameSet(roles, heldRoles);
+  // One workspace at a time: the first one they have, else the first.
+  const [ws, setWs] = useState(() => (workspaces.find((w) => appRolesFor(heldRoles).includes(w.appRole)) || workspaces[0]).title);
+  const current = workspaces.find((w) => w.title === ws) || workspaces[0];
+  const openCount = (w) => pagesOf(w).filter((p) => !ALWAYS_ALLOWED.has(p.to) && !denied.has(p.to)).length;
 
   /** Tick or untick pages. A page in a workspace they don't have gives them its role, with only the ticked pages open. */
   const change = (workspace, pages, allow) => {
@@ -139,7 +145,7 @@ function AccessEditor({ person, onSaved }) {
     setError("");
     try {
       const result = await frappe.callMethod("ethx_set_page_access", { user: person.email, denied: JSON.stringify([...denied]), roles: JSON.stringify([...roles]) });
-      if (!result?.roles) setError("Access Control needs updating. Use System Setup › Apply Again, then save again.");
+      if (!result?.roles) setError("Access Control needs updating. Use Apply Again on Admin › Roles & Permissions, then save again.");
       else {
         const dropped = [...roles].filter((r) => !result.roles.includes(r));
         if (dropped.length) setError(`ERPNext didn't keep ${dropped.join(", ")} for ${person.name}. The Employee role needs a linked employee profile, so create one first.`);
@@ -156,9 +162,9 @@ function AccessEditor({ person, onSaved }) {
     <Panel title={person.name} hint={`${person.email} · ${roleLabel(person.roles)}`} action={<Button type="button" onClick={save} disabled={busy || !dirty}>{busy ? "Saving…" : "Save Access"}</Button>}>
       {error && <div className="mb-3"><Notice>{error}</Notice></div>}
       {saved && !dirty && <div className="mb-3"><Notice tone="info">Saved. It applies the next time {person.name} signs in.</Notice></div>}
-      <div className="space-y-6">
+      <div className="space-y-5">
         <section>
-          <h3 className="mb-3 text-[13px] font-semibold text-[var(--color-text)]">Roles</h3>
+          <h3 className="mb-2 text-[13px] font-semibold text-[var(--color-text)]">Roles</h3>
           <div className="grid grid-cols-1 gap-x-4 gap-y-1.5 rounded-lg border border-[var(--color-border)] p-3 sm:grid-cols-2 xl:grid-cols-4">
             {ROLES.map((r) => (
               <label key={r} className="flex items-center gap-2 text-[12.5px] text-[var(--color-text)]">
@@ -168,18 +174,20 @@ function AccessEditor({ person, onSaved }) {
             ))}
           </div>
         </section>
-        {workspaces.map((w) => { const on = hasWorkspace(w); return (
+        <section className="space-y-3">
+          <Tabs value={current.title} onChange={setWs} tabs={workspaces.map((w) => ({ id: w.title, label: w.title.replace(" Workspace", "").replace(" Pages", ""), count: hasWorkspace(w) ? openCount(w) : undefined }))} />
+        {[current].map((w) => { const on = hasWorkspace(w); return (
           <section key={w.title}>
-            <h3 className="mb-3 text-[13px] font-semibold text-[var(--color-text)]">{w.title}{!on && <span className="ml-2 text-[11px] font-normal text-[var(--color-text-faint)]">Not Assigned</span>}</h3>
-            <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+            {!on && <p className="mb-3 text-[12px] text-[var(--color-text-muted)]">Not assigned. Ticking a page here gives {person.name} the {w.grant} role with only the ticked pages open.</p>}
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
               {w.groups.map((g) => {
                 const open = g.pages.filter((p) => !ALWAYS_ALLOWED.has(p.to));
                 const allOn = on && open.every((p) => !denied.has(p.to));
                 return (
-                  <fieldset key={g.label} className="rounded-lg border border-[var(--color-border)] p-3">
+                  <fieldset key={g.label} className="rounded-lg border border-[var(--color-border)] px-3 pb-3 pt-1">
                     <legend className="px-1 text-[12px] font-medium text-[var(--color-text-muted)]">{g.label}</legend>
-                    {open.length > 1 && <button type="button" onClick={() => change(w, open, !allOn)} className={`${chipCls(false)} mb-2`}>{allOn ? "Untick All" : "Tick All"}</button>}
-                    <div className="space-y-1.5">
+                    {open.length > 1 && <button type="button" onClick={() => change(w, open, !allOn)} className="mb-1.5 text-[11px] text-[var(--color-red-hover)] hover:underline">{allOn ? "Untick All" : "Tick All"}</button>}
+                    <div className="space-y-1">
                       {g.pages.map((p) => (ALWAYS_ALLOWED.has(p.to) ? (
                         <p key={p.to} className="flex items-center gap-2 text-[12.5px] text-[var(--color-text-muted)]"><Lock size={12} /> {p.label} ({on ? "always on" : "comes with this workspace"})</p>
                       ) : (
@@ -195,6 +203,7 @@ function AccessEditor({ person, onSaved }) {
             </div>
           </section>
         ); })}
+        </section>
       </div>
     </Panel>
   );

@@ -2,9 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, Building2, Check, Circle, Layers, Plus, ScrollText, ShieldCheck, SlidersHorizontal, UserCog, Users } from "lucide-react";
 import { frappe } from "../../lib/api/frappeClient";
+import { clientUsers } from "../../lib/clientPeople";
+import { SUPER_ADMIN } from "../../lib/modules";
 import { useAuth } from "../../context/AuthContext";
 import { greetingName } from "../../lib/names";
 import { Card } from "../../components/ui/primitives";
+import SuperAdminDashboard from "./SuperAdminDashboard";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -59,7 +62,13 @@ function SectionTitle({ title, hint, to, linkLabel = "View all" }) {
   );
 }
 
+// The Administrator (super admin) looks across every client; other admins see their company.
 export default function AdminDashboard() {
+  const { user } = useAuth();
+  return user?.email === SUPER_ADMIN ? <SuperAdminDashboard /> : <CompanyAdminDashboard />;
+}
+
+function CompanyAdminDashboard() {
   const { user } = useAuth();
   const [data, setData] = useState(null);
   const now = useMemo(() => new Date(), []);
@@ -72,8 +81,11 @@ export default function AdminDashboard() {
         .then(async (rows) => {
           const names = [...new Set(rows.map((r) => r.parent))];
           if (!names.length) return [];
-          const users = await frappe.getList("User", { filters: [["name", "in", names]], fields: ["name", "full_name", "enabled", "creation"], limit: 0, orderBy: "creation desc" });
-          return users.map((u) => ({ ...u, role: rows.find((r) => r.parent === u.name)?.role }));
+          const [users, scope] = await Promise.all([
+            frappe.getList("User", { filters: [["name", "in", names]], fields: ["name", "full_name", "enabled", "creation"], limit: 0, orderBy: "creation desc" }),
+            clientUsers(), // viewing one client: only its HR users
+          ]);
+          return users.filter((u) => u.name !== SUPER_ADMIN && (!scope || scope.has(u.name))).map((u) => ({ ...u, role: rows.find((r) => r.parent === u.name)?.role }));
         });
       const [users, employees, companies, departments] = await Promise.allSettled([
         hrUsers,

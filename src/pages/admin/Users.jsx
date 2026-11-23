@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { Building2, KeyRound, Pencil, Plus, Power, Trash2, X } from "lucide-react";
 import { frappe } from "../../lib/api/frappeClient";
+import { CompanyField } from "../../components/layout/ClientSwitcher";
+import { getClientScope } from "../../lib/clientScope";
+import { SUPER_ADMIN } from "../../lib/modules";
 import { dmyHm, errMsg as portalErr, useAsync } from "../../lib/employeePortal";
 import { Button, Card, Input, LinkField, Table } from "../../components/ui/primitives";
 import { confirmDialog } from "../../components/ui/dialogs";
@@ -36,6 +39,8 @@ export default function AdminUsers() {
   const [editing, setEditing] = useState(null);
   const [detail, setDetail] = useState(null);
 
+  const client = getClientScope();
+
   async function load() {
     setLoading(true);
     try {
@@ -64,6 +69,8 @@ export default function AdminUsers() {
             role: hasRole.find((r) => r.parent === u.name)?.role,
             company: permissions.find((p) => p.user === u.name)?.for_value || "",
           }))
+          // The Administrator is the super admin, not an HR user; and only the client being viewed is listed.
+          .filter((u) => u.name !== SUPER_ADMIN && (!client || u.company === client))
       );
     } catch {
       setUsers([]);
@@ -80,7 +87,7 @@ export default function AdminUsers() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-[13px] text-[var(--color-text-muted)]">
-          HR users are tied to one company and can only see that company's employees and records.
+          {client ? <>HR users of <b className="text-[var(--color-text)]">{client}</b>. Each HR user is tied to one company and only sees its employees and records.</> : "HR users are tied to one company and can only see that company's employees and records."}
         </p>
         <Button onClick={() => setShowForm(true)}>
           <Plus size={14} strokeWidth={2} />
@@ -217,7 +224,7 @@ function AssignCompanyModal({ user, onClose, onSaved }) {
 }
 
 function CreateHRModal({ onClose, onCreated }) {
-  const [form, setForm] = useState({ first_name: "", last_name: "", email: "", role: "HR User", company: "" });
+  const [form, setForm] = useState({ first_name: "", last_name: "", email: "", role: "HR User", company: getClientScope() || "" });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -284,14 +291,7 @@ function CreateHRModal({ onClose, onCreated }) {
           </select>
         </label>
 
-        <LinkField
-          label="Company"
-          linkDoctype="Company"
-          value={form.company}
-          onChange={(v) => setForm((f) => ({ ...f, company: v }))}
-          required
-          frappe={frappe}
-        />
+        <CompanyField value={form.company} onChange={(v) => setForm((f) => ({ ...f, company: v }))} required />
         <p className="-mt-1 text-[12px] text-[var(--color-text-muted)]">
           This HR user will only see this company's employees and records.
         </p>

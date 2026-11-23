@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { Check, Copy, Edit3, HardHat, KeyRound, Plus, RefreshCw, Trash2, UserCheck, Users, UserX, X } from "lucide-react";
 import { frappe } from "../../lib/api/frappeClient";
 import { dmy, dmyHm, errMsg, getMyDocuments, isoDate, useAsync } from "../../lib/employeePortal";
@@ -182,6 +182,16 @@ export default function Employees({ contractorsOnly = false }) {
 
   useEffect(() => { load(); }, [contractorsOnly]);
 
+  // ?open=EMP-0001 (from the app-wide search) opens that person's details once the list has loaded.
+  const [params, setParams] = useSearchParams();
+  const openId = params.get("open");
+  useEffect(() => {
+    if (!openId || !employees.length) return;
+    const row = employees.find((e) => e.name === openId);
+    if (row) setDetail(row);
+    setParams((p) => { const next = new URLSearchParams(p); next.delete("open"); return next; }, { replace: true });
+  }, [openId, employees, setParams]);
+
   async function removeEmployee(employee) {
     if (!(await confirmDialog(`Delete ${employee.employee_name || employee.name}? This cannot be undone.`))) return;
     try {
@@ -208,7 +218,6 @@ export default function Employees({ contractorsOnly = false }) {
           </div>
           <div className="flex gap-2">
             <Button variant="secondary" onClick={load} disabled={state === "loading"}><RefreshCw size={14} className={state === "loading" ? "animate-spin" : ""} /> Refresh</Button>
-            {!contractorsOnly && <Link to="/hr/employee-groups"><Button variant="secondary"><Users size={14} /> Employee Groups</Button></Link>}
             {!contractorsOnly && <Button onClick={() => { setEditing(null); setFormOpen(true); }}><Plus size={14} /> Add Employee</Button>}
             <Button variant={contractorsOnly ? "primary" : "secondary"} onClick={() => setAddingContractor(true)}><HardHat size={14} /> Add Contractor</Button>
           </div>
@@ -490,7 +499,7 @@ function LoginModal({ employee, onClose, onDone }) {
               {reset && <Button type="button" variant="ghost" className="mr-auto" disabled={busy} onClick={async () => {
                 if (!(await confirmDialog(`Disable ${employee.employee_name}'s portal login? They won't be able to sign in until it's enabled again.`))) return;
                 setBusy(true); setError("");
-                try { await setLoginEnabled(employee, false); onDone(); onClose(); } catch (err) { setError(methodMissing(err) ? "Disabling logins needs Admin › System Setup to be run first." : loginError(err)); setBusy(false); }
+                try { await setLoginEnabled(employee, false); onDone(); onClose(); } catch (err) { setError(methodMissing(err) ? "Disabling logins needs the automatic setup first (Admin › Roles & Permissions › Apply Again)." : loginError(err)); setBusy(false); }
               }}>Disable login</Button>}
               <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
               <Button type="submit" disabled={busy}>{busy ? "Working…" : reset ? "Reset Password" : "Create Login"}</Button>
