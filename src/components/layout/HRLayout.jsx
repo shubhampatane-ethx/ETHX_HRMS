@@ -158,7 +158,8 @@ export function hrSetupGroups(isAdmin = false) {
   ].filter((i) => i && (isAdmin || !i.adminOnly));
   const clean = (list) => list.filter(Boolean).map(({ to, label }) => ({ to, label }));
   return [
-    { label: "Reports", icon: FileBarChart2, children: clean(reports) },
+    // Analytics & MIS and the HR Reports page first, then ERPNext's report pages.
+    { label: "Reports", icon: FileBarChart2, children: [{ to: "/hr/analytics", label: "Analytics & MIS" }, { to: "/hr/reports", label: "HR Reports" }, ...clean(reports)] },
     { label: "Setup", icon: Settings2, children: clean(setup) },
   ];
 }

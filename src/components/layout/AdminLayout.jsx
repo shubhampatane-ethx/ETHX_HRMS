@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { PageLoading } from "../PageLoading";
 import { Outlet, useLocation } from "react-router-dom";
-import { LayoutDashboard, Users, Building2, ListChecks, ShieldCheck, ScrollText, Briefcase, ClipboardList, SlidersHorizontal, Mail, Boxes } from "lucide-react";
+import { LayoutDashboard, Users, Building2, ListChecks, ShieldCheck, ScrollText, Briefcase, ClipboardList, SlidersHorizontal, Mail, Boxes, Plug } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { useClientScope } from "../../lib/clientScope";
@@ -41,6 +41,7 @@ export const ADMIN_NAV = [
   { to: "/admin/roles", label: "Roles & Permissions", icon: ShieldCheck },
   { to: "/admin/access-control", label: "Access Control", icon: ListChecks },
   { to: "/admin/communication", label: "Communication", icon: Mail },
+  { to: "/admin/integrations", label: "Integrations", icon: Plug },
   { to: "/admin/settings", label: "Settings", icon: SlidersHorizontal },
   { to: "/admin/audit-logs", label: "Audit Logs", icon: ScrollText },
   HR_WORKSPACE,
@@ -55,6 +56,7 @@ const TITLES = {
   "/admin/access-control": "Access Control",
   "/admin/settings": "Settings",
   "/admin/communication": "Communication",
+  "/admin/integrations": "Integrations",
   "/admin/modules": "Modules & People",
   "/admin/audit-logs": "Audit Logs",
   "/admin/employees": "All Employees",

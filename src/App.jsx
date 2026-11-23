@@ -31,6 +31,9 @@ const Organization = lazy(() => import("./pages/admin/Organization"));
 const Roles = lazy(() => import("./pages/admin/Roles"));
 const Settings = lazy(() => import("./pages/admin/Settings"));
 const Communication = lazy(() => import("./pages/admin/Communication"));
+const Integrations = lazy(() => import("./pages/admin/Integrations"));
+const Analytics = lazy(() => import("./pages/hr/Analytics"));
+const HrReports = lazy(() => import("./pages/hr/Reports"));
 const Companies = lazy(() => import("./pages/admin/Companies"));
 const AuditLogs = lazy(() => import("./pages/admin/AuditLogs"));
 
@@ -115,6 +118,7 @@ export default function App() {
               <Route path="roles" element={<Roles />} />
               <Route path="settings" element={<Settings />} />
               <Route path="communication" element={<Communication />} />
+              <Route path="integrations" element={<Integrations />} />
               <Route path="modules" element={<Companies />} />
               <Route path="companies" element={<Navigate to="/admin/modules" replace />} />
               <Route path="audit-logs" element={<AuditLogs />} />
@@ -202,6 +206,8 @@ export default function App() {
               <Route path="recruitment/setup" element={<RecruitmentSetup />} />
               <Route path="onboarding" element={<Onboarding />} />
               <Route path="performance" element={<Performance />} />
+              <Route path="analytics" element={<Analytics />} />
+              <Route path="reports" element={<HrReports />} />
               <Route path="training" element={<Training />} />
               <Route path="setup/:doctype" element={<DoctypeView />} />
             </Route>

@@ -35,6 +35,9 @@ const KEYWORDS = {
   "/admin/roles": "permissions setup",
   "/admin/access-control": "page access restrictions",
   "/admin/audit-logs": "history changes sign-ins",
+  "/admin/integrations": "api key webhook biometric device bank salary transfer file connect",
+  "/hr/analytics": "mis analytics attrition headcount dashboard report builder charts",
+  "/hr/reports": "headcount joiners leavers utilisation",
 };
 
 const WORKSPACES = [

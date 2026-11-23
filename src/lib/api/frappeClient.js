@@ -192,7 +192,7 @@ async function getListFields(doctype, opts = {}) {
   }
 }
 
-async function getListOnce(doctype, { filters = [], fields = ["name"], limit = 20, orderBy, parent }) {
+async function getListOnce(doctype, { filters = [], fields = ["name"], limit = 20, orderBy, parent, groupBy }) {
   const res = await client.get("/method/frappe.client.get_list", {
     params: {
       doctype,
@@ -200,6 +200,8 @@ async function getListOnce(doctype, { filters = [], fields = ["name"], limit = 2
       fields: JSON.stringify(fields),
       limit_page_length: limit,
       order_by: orderBy,
+      // totals per value, e.g. fields ["status as k", "count(name) as n"] with groupBy "status" (analytics)
+      ...(groupBy ? { group_by: groupBy } : {}),
       // child tables (e.g. Training Event Employee) need their parent doctype for non-admin users
       ...(parent ? { parent } : {}),
     },

@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Boxes, Briefcase, Building2, CalendarCheck, Mail, Receipt, ClipboardList, ScrollText, ShieldCheck, SlidersHorizontal, UserCog } from "lucide-react";
+import { Boxes, Briefcase, Building2, CalendarCheck, Mail, Receipt, ClipboardList, ScrollText, ShieldCheck, SlidersHorizontal, UserCog, Plug } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { HR_SETUP_SECTIONS, slugify } from "../../lib/hrSetupConfig";
 import { Card } from "../../components/ui/primitives";
@@ -13,6 +13,7 @@ const PLATFORM = [
   { to: "/admin/organization?tab=expense", label: "Expense Approvers", hint: "Who approves each expense type", icon: Receipt },
   { to: "/admin/organization?tab=leave", label: "Leave Approvers", hint: "Approvers per business unit", icon: CalendarCheck },
   { to: "/admin/roles", label: "Roles & Permissions", hint: "What each role may do, and the app setup", icon: ShieldCheck },
+  { to: "/admin/integrations", label: "Integrations", hint: "API users, webhooks, biometric devices, bank file", icon: Plug },
   { to: "/admin/modules", label: "Modules & People", hint: "The client's modules and who runs it", icon: Boxes },
   { to: "/admin/communication", label: "Communication", hint: "Mail accounts, birthday and event emails, AI job descriptions", icon: Mail },
   { to: "/admin/audit-logs", label: "Audit Logs", hint: "Who changed what", icon: ScrollText },
