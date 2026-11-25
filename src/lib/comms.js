@@ -83,6 +83,13 @@ roles = frappe.get_all("Has Role", filters={"parent": user, "parenttype": "User"
 if not (user == "Administrator" or "HR Manager" in roles or "HR User" in roles or "System Manager" in roles):
     frappe.throw("Only HR or the Administrator can do this.")
 `;
+// Job descriptions are written by HR on job openings and by Project Managers on the hiring requests they raise.
+const JD_CHECK = `
+user = frappe.session.user
+roles = frappe.get_all("Has Role", filters={"parent": user, "parenttype": "User"}, pluck="role")
+if not (user == "Administrator" or "HR Manager" in roles or "HR User" in roles or "System Manager" in roles or "Projects Manager" in roles):
+    frappe.throw("Only HR, Project Managers or the Administrator can generate job descriptions.")
+`;
 const SETTINGS_EXIST = `has_settings = frappe.db.exists("DocType", "${SETTINGS}")`;
 
 // Everyone active (not contractors), with the address mail should go to: company email, else login, else personal.
@@ -192,7 +199,7 @@ frappe.response["message"] = {"sent": to, "from": sender}
 
 // Claude writes the JD (raw HTTPS: the server-script sandbox can't load the Anthropic SDK). The key never leaves the
 // server. Effort "low": a JD is short, routine writing, and the HR user is waiting on the page.
-const GENERATE_JD_API = `${HR_CHECK}
+const GENERATE_JD_API = `${JD_CHECK}
 ${SETTINGS_EXIST}
 if not has_settings or not frappe.db.get_single_value("${SETTINGS}", "ai_enabled"):
     frappe.throw("AI job descriptions aren't switched on. The Administrator can turn them on in Admin > Communication.")
@@ -267,7 +274,7 @@ export const COMMS_SCRIPTS = [
   { name: "ETHX - Announce", script_type: "API", api_method: "ethx_announce", script: ANNOUNCE_API, what: "HR and the Administrator email announcements to all employees (or one company, department or office) and post them on the portal" },
   { name: "ETHX - Event reminders", script_type: "Scheduler Event", event_frequency: "Daily", script: EVENT_REMINDERS, what: "Every morning, upcoming public events are emailed to employees using the event template" },
   { name: "ETHX - Test mail account", script_type: "API", api_method: "ethx_test_email", script: TEST_EMAIL_API, what: "The Administrator sends a test email through a mail account" },
-  { name: "ETHX - Generate JD", script_type: "API", api_method: "ethx_generate_jd", script: GENERATE_JD_API, what: "HR generates a job description from keywords with Claude (key kept on the server)" },
+  { name: "ETHX - Generate JD", script_type: "API", api_method: "ethx_generate_jd", script: GENERATE_JD_API, what: "HR and Project Managers generate a job description from keywords with Claude (key kept on the server)" },
 ];
 
 /* ------------------------------- in the app ------------------------------- */
@@ -292,9 +299,21 @@ export const MAIL_PRESETS = {
   candidate: { account: CANDIDATE_ACCOUNT, title: "Candidate Mail (Gmail)", hint: "Offer letters, interview and regret emails to external candidates", smtp_server: "smtp.gmail.com", smtp_port: 587, settingsField: "candidate_email_account", senderField: "candidate_sender", defaultOutgoing: false },
 };
 
-/** Create or update one of the two mail accounts and point the settings at it. ERPNext signs in to SMTP on save. */
+/**
+ * Create or update one of the two password mail accounts and point the settings at it. ERPNext signs in to SMTP on
+ * save. Never touches an OAuth account (same record or same address): that would replace working Microsoft sign-in
+ * with a password Microsoft 365 refuses.
+ */
 export async function saveMailAccount(kind, { email, senderName, password, smtpServer, smtpPort }) {
   const p = MAIL_PRESETS[kind];
+  const clash = await frappe.getList("Email Account", { filters: [["auth_method", "=", "OAuth"]], fields: ["name", "email_id"], limit: 0 })
+    .then((rows) => rows.find((r) => r.name === p.account || String(r.email_id || "").toLowerCase() === email.trim().toLowerCase()))
+    .catch(() => null);
+  if (clash) {
+    const err = new Error("OAuth account");
+    err.userMessage = `${clash.email_id || clash.name} signs in with Microsoft (OAuth) in the "${clash.name}" mail account. It isn't changed here - a password would break it.`;
+    throw err;
+  }
   const exists = (await frappe.getList("Email Account", { filters: [["name", "=", p.account]], fields: ["name"], limit: 1 })).length > 0;
   const doc = {
     email_account_name: p.account, email_id: email.trim(), service: "", auth_method: "Basic",
@@ -307,6 +326,57 @@ export async function saveMailAccount(kind, { email, senderName, password, smtpS
   if (exists) await frappe.updateDoc("Email Account", p.account, doc);
   else await frappe.createDoc("Email Account", doc);
   await frappe.updateDoc(SETTINGS, SETTINGS, { [p.settingsField]: p.account, [p.senderField]: email.trim() });
+}
+
+/* ------------------------- Microsoft 365 (OAuth) mail ------------------------- */
+
+const OAUTH_FIELDS = ["name", "email_id", "enable_outgoing", "default_outgoing", "smtp_server", "smtp_port", "auth_method", "connected_app", "connected_user"];
+
+/**
+ * The internal mail account when it signs in with Microsoft (OAuth): the one the settings point at, else the default
+ * outgoing one, else any OAuth account that sends. Null when there's none.
+ */
+export async function findOAuthMailAccount(settings) {
+  const rows = await frappe.getList("Email Account", { filters: [["auth_method", "=", "OAuth"], ["enable_outgoing", "=", 1]], fields: OAUTH_FIELDS, limit: 0 }).catch(() => []);
+  return rows.find((r) => r.name === settings?.internal_email_account) || rows.find((r) => Number(r.default_outgoing)) || rows[0] || null;
+}
+
+/** The ERPNext address the Connected App calls back to (from its redirect URI), for links into ERPNext. */
+export async function connectedAppInfo(name) {
+  if (!name) return null;
+  const app = await frappe.getDoc("Connected App", name).catch(() => null);
+  if (!app) return null;
+  let origin = "";
+  try { origin = new URL(app.redirect_uri).origin; } catch { /* no redirect URI yet */ }
+  return { name, provider: app.provider_name || name, origin };
+}
+
+/** Internal emails (announcements, birthdays, events) go out from this account. */
+export const setInternalMailAccount = (account) => frappe.updateDoc(SETTINGS, SETTINGS, { internal_email_account: account.name, internal_sender: account.email_id });
+
+/**
+ * Starts Microsoft sign-in for the account's Connected App and returns the Microsoft URL to open. The token is saved
+ * for the person signed in, so it must be the account's Connected User; Microsoft returns to ERPNext, then here.
+ */
+export function startMicrosoftSignIn(account, returnTo) {
+  return frappe.callMethod("run_doc_method", { dt: "Connected App", dn: account.connected_app, method: "initiate_web_application_flow", args: JSON.stringify({ success_uri: returnTo }) });
+}
+
+/** Is mail actually leaving? Emails waiting in the queue, failures, and when ERPNext last ran its send job. */
+export async function mailDelivery() {
+  const [queue, lastRun] = await Promise.all([
+    frappe.getList("Email Queue", { filters: [["status", "in", ["Not Sent", "Sending", "Error"]]], fields: ["name", "status", "creation", "error"], orderBy: "creation asc", limit: 200 }).catch(() => null),
+    frappe.getList("Scheduled Job Log", { filters: [["scheduled_job_type", "like", "%email.queue.flush%"]], fields: ["status", "creation"], orderBy: "creation desc", limit: 1 }).then((r) => r[0] || null).catch(() => null),
+  ]);
+  if (!queue) return null;
+  const stuckBefore = Date.now() - 15 * 60 * 1000;
+  const at = (s) => new Date(String(s).replace(" ", "T")).getTime();
+  return {
+    waiting: queue.filter((q) => q.status !== "Error").length,
+    stuck: queue.filter((q) => q.status !== "Error" && at(q.creation) < stuckBefore).length,
+    failed: queue.filter((q) => q.status === "Error"),
+    lastRun,
+  };
 }
 
 export const sendTestEmail = (account, to) => frappe.callMethod("ethx_test_email", { account, to });
