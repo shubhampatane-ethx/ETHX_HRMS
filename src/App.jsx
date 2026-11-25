@@ -31,6 +31,7 @@ const Organization = lazy(() => import("./pages/admin/Organization"));
 const Roles = lazy(() => import("./pages/admin/Roles"));
 const Settings = lazy(() => import("./pages/admin/Settings"));
 const Communication = lazy(() => import("./pages/admin/Communication"));
+const HrCommunication = lazy(() => import("./pages/admin/Communication").then((m) => ({ default: m.HrCommunication })));
 const Integrations = lazy(() => import("./pages/admin/Integrations"));
 const Analytics = lazy(() => import("./pages/hr/Analytics"));
 const HrReports = lazy(() => import("./pages/hr/Reports"));
@@ -186,6 +187,7 @@ export default function App() {
               <Route path="assets" element={<Assets />} />
               <Route path="requests" element={<EmployeeRequests />} />
               <Route path="announcements" element={<Announcements />} />
+              <Route path="communication" element={<HrCommunication />} />
               <Route path="offices" element={<Offices />} />
               <Route path="setup/expense-claim" element={<ExpenseClaims />} />
               <Route path="setup/attendance-request" element={<AttendanceRequests />} />

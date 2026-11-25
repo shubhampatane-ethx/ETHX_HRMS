@@ -1,13 +1,14 @@
 // Admin › Communication: the two mail accounts (internal Outlook / Microsoft 365, candidate Gmail), the automatic
 // birthday and event emails with their templates, and AI job descriptions (Claude). See lib/comms.js.
 import { useState } from "react";
-import { CheckCircle2, Mail, Send, Sparkles } from "lucide-react";
+import { CalendarDays, Cake, CheckCircle2, Mail, Pencil, Plus, Send, Sparkles, Trash2 } from "lucide-react";
 import { frappe } from "../../lib/api/frappeClient";
 import { SharedAcrossClients } from "../../components/layout/ClientSwitcher";
 import { useAuth } from "../../context/AuthContext";
 import { Button } from "../../components/ui/primitives";
-import { Async, Field, inputCls, Notice, PageHeader, Panel, Tabs } from "../../components/employee/EmployeeShell";
-import { errMsg, useAsync } from "../../lib/employeePortal";
+import { Async, Field, Grid, inputCls, Modal, Notice, PageHeader, Panel, Tabs } from "../../components/employee/EmployeeShell";
+import { dmy, dmyHm, errMsg, isoDate, useAsync } from "../../lib/employeePortal";
+import { confirmDialog } from "../../components/ui/dialogs";
 import {
   AI_MODELS, commsError, DEFAULT_BIRTHDAY_SUBJECT, DEFAULT_BIRTHDAY_TEMPLATE, DEFAULT_EVENT_SUBJECT, DEFAULT_EVENT_TEMPLATE, fillTemplate, generateJdWithAi,
   getCommsSettings, MAIL_PRESETS, PLACEHOLDERS, saveMailAccount, sendTestEmail, SETTINGS,
@@ -38,6 +39,106 @@ export default function Communication() {
         )}
       </Async>
     </div>
+  );
+}
+
+/**
+ * HR › Birthday & Event Emails: the same templates as Admin › Communication, plus the company events the reminders
+ * are sent for. Mail accounts and the AI key stay with the Administrator.
+ */
+export function HrCommunication() {
+  const settings = useAsync(getCommsSettings, []);
+  const [tab, setTab] = useState("templates");
+  return (
+    <div className="space-y-5">
+      <PageHeader icon={Cake} title="Birthday & Event Emails" subtitle="Write the birthday wishes and event reminders, and keep the company events up to date" />
+      <Tabs value={tab} onChange={setTab} tabs={[{ id: "templates", label: "Email Templates" }, { id: "events", label: "Company Events" }]} />
+      {tab === "templates" && (
+        <Async state={settings}>
+          {(s) => !s ? <Notice>Birthday and event emails aren't set up on this site yet. They're set up automatically the next time the Administrator signs in.</Notice> : <AutoEmails settings={s} onSaved={settings.reload} />}
+        </Async>
+      )}
+      {tab === "events" && <CompanyEvents />}
+    </div>
+  );
+}
+
+const toInput = (v) => (v ? String(v).replace(" ", "T").slice(0, 16) : "");
+const toStamp = (v) => (v ? `${v.replace("T", " ")}:00` : null);
+
+/** Public events on the company calendar: every employee sees them and gets the reminder email. */
+function CompanyEvents() {
+  const since = isoDate(new Date(Date.now() - 30 * 86400000));
+  const events = useAsync(() => frappe.getList("Event", { filters: [["event_type", "=", "Public"], ["starts_on", ">=", `${since} 00:00:00`]], fields: ["name", "subject", "starts_on", "ends_on", "all_day", "description"], orderBy: "starts_on asc", limit: 0 }), [since]);
+  const [editing, setEditing] = useState(null); // null | {} (new) | event row
+  const [err, setErr] = useState("");
+
+  async function remove(ev) {
+    if (!(await confirmDialog({ title: "Delete Event", message: `Delete "${ev.subject}" on ${dmy(ev.starts_on)}? No reminder is sent for it.`, danger: true, confirmLabel: "Delete" }))) return;
+    setErr("");
+    try {
+      await frappe.deleteDoc("Event", ev.name);
+      events.reload();
+    } catch (x) {
+      setErr(errMsg(x, "Couldn't delete the event."));
+    }
+  }
+
+  return (
+    <Panel title="Company Events" hint="Public events from the last 30 days onwards. Reminders go to every employee before the event and on the day." action={<Button onClick={() => setEditing({})}><Plus size={14} /> Add Event</Button>}>
+      {err && <div className="mb-3"><Notice>{err}</Notice></div>}
+      <Async state={events}>
+        {(rows) => <Grid rows={rows} empty="No company events yet." columns={[
+          { key: "subject", label: "Event", render: (e) => <span className="font-medium">{e.subject}</span> },
+          { key: "starts_on", label: "When", render: (e) => (Number(e.all_day) ? dmy(e.starts_on) : dmyHm(e.starts_on)) },
+          { key: "description", label: "Details", render: (e) => <span className="text-[12px] text-[var(--color-text-muted)]">{String(e.description || "").replace(/<[^>]*>/g, " ").trim() || "—"}</span> },
+          { key: "_a", label: "", render: (e) => (
+            <div className="flex justify-end gap-1">
+              <button type="button" title="Edit" onClick={() => setEditing(e)} className="rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]"><Pencil size={14} /></button>
+              <button type="button" title="Delete" onClick={() => remove(e)} className="rounded p-1 text-[var(--color-text-muted)] hover:text-[var(--color-red-hover)]"><Trash2 size={14} /></button>
+            </div>
+          ) },
+        ]} />}
+      </Async>
+      {editing && <EventForm event={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); events.reload(); }} />}
+    </Panel>
+  );
+}
+
+function EventForm({ event, onClose, onSaved }) {
+  const edit = Boolean(event.name);
+  const [f, setF] = useState({ subject: event.subject || "", starts: toInput(event.starts_on), ends: toInput(event.ends_on), allDay: Boolean(Number(event.all_day)), details: String(event.description || "").replace(/<[^>]*>/g, "").trim() });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  async function submit(e) {
+    e.preventDefault();
+    if (f.ends && f.ends < f.starts) return setErr("The end can't be before the start.");
+    setBusy(true);
+    setErr("");
+    try {
+      const body = { subject: f.subject.trim(), event_type: "Public", event_category: "Event", all_day: f.allDay ? 1 : 0, starts_on: toStamp(f.starts), ends_on: toStamp(f.ends), description: f.details.trim() };
+      if (edit) await frappe.updateDoc("Event", event.name, body);
+      else await frappe.createDoc("Event", body);
+      onSaved();
+    } catch (x) {
+      setErr(errMsg(x, "Couldn't save the event."));
+      setBusy(false);
+    }
+  }
+  return (
+    <Modal title={edit ? `Edit ${event.subject}` : "Add Company Event"} onClose={onClose}>
+      <form onSubmit={submit} className="space-y-3">
+        <Field label="Event"><input required className={inputCls} value={f.subject} onChange={(e) => setF({ ...f, subject: e.target.value })} placeholder="e.g. Annual Day" /></Field>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Field label="Starts"><input required type="datetime-local" className={inputCls} value={f.starts} onChange={(e) => setF({ ...f, starts: e.target.value })} /></Field>
+          <Field label="Ends (Optional)"><input type="datetime-local" className={inputCls} value={f.ends} onChange={(e) => setF({ ...f, ends: e.target.value })} /></Field>
+        </div>
+        <label className="flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><input type="checkbox" checked={f.allDay} onChange={(e) => setF({ ...f, allDay: e.target.checked })} /> All day</label>
+        <Field label="Details (Optional)" hint="Shown as {details} in the reminder email: venue, dress code, agenda…"><textarea rows={3} className={inputCls} value={f.details} onChange={(e) => setF({ ...f, details: e.target.value })} /></Field>
+        {err && <Notice>{err}</Notice>}
+        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}><CalendarDays size={14} /> {busy ? "Saving…" : edit ? "Save Changes" : "Add Event"}</Button></div>
+      </form>
+    </Modal>
   );
 }
 

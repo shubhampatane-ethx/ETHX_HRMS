@@ -29,6 +29,7 @@ export const TOP_NAV = [
       { to: "/hr/assets", label: "Asset Management" },
       { to: "/hr/requests", label: "Employee Requests" },
       { to: "/hr/announcements", label: "Announcements" },
+      { to: "/hr/communication", label: "Birthday & Event Emails" },
       { to: "/hr/policies", label: "Policies & Documents" },
     ],
   },
