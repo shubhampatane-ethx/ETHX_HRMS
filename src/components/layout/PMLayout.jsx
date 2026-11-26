@@ -9,6 +9,7 @@ import { useAuth } from "../../context/AuthContext";
 import { hasPermission, isStaffEmployee } from "../../permissions/roles";
 import { dashboardLink, SELF_SERVICE, SELF_SERVICE_PAGES } from "./HRLayout";
 import { ForcedPasswordScreen } from "../employee/EmployeeShell";
+import { moduleSection } from "./navSections";
 
 const TITLES = {
   "/employee": "Dashboard",
@@ -40,15 +41,22 @@ export function pmNav(user) {
     ...(hasPermission(user, "dashboard.admin") ? [{ to: "/admin", label: "Back to Admin", icon: ArrowLeft }] : []),
     dashboardLink(user, "/pm"),
     ...(isStaffEmployee(user) ? [selfService] : []),
-    { to: "/pm/projects", label: "Projects", icon: Briefcase },
-    { to: "/pm/assignments", label: "Assignments", icon: ClipboardList },
-    { to: "/pm/approvals", label: "Timesheet Approvals", icon: CheckCheck },
-    { to: "/pm/leave-approvals", label: "Leave Approvals", icon: CalendarCheck },
-    { to: "/pm/resources", label: "Resources", icon: Gauge },
-    { to: "/pm/team", label: "My Team", icon: Users },
-    { to: "/pm/timesheets", label: "Team Timesheets", icon: Timer },
-    { to: "/pm/requisitions", label: "Hiring Requests", icon: UserPlus },
-    { to: "/pm/interviews", label: "My Interviews", icon: ClipboardCheck },
+    // One section per HRMS 360 module, so the client sees only what they have.
+    moduleSection("projects", [
+      { to: "/pm/projects", label: "Projects", icon: Briefcase },
+      { to: "/pm/assignments", label: "Assignments", icon: ClipboardList },
+      { to: "/pm/approvals", label: "Timesheet Approvals", icon: CheckCheck },
+      { to: "/pm/timesheets", label: "Team Timesheets", icon: Timer },
+      { to: "/pm/resources", label: "Resources", icon: Gauge },
+      { to: "/pm/team", label: "My Team", icon: Users },
+    ]),
+    moduleSection("employee", [
+      { to: "/pm/leave-approvals", label: "Leave Approvals", icon: CalendarCheck },
+    ]),
+    moduleSection("recruitment", [
+      { to: "/pm/requisitions", label: "Hiring Requests", icon: UserPlus },
+      { to: "/pm/interviews", label: "My Interviews", icon: ClipboardCheck },
+    ]),
   ];
 }
 

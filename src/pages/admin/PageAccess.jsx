@@ -4,6 +4,7 @@ import { Async, CONTRACTOR_NAV, Empty, EMPLOYEE_NAV, inputCls, Notice, PageHeade
 import { Button } from "../../components/ui/primitives";
 import { hrNav } from "../../components/layout/HRLayout";
 import { pmNav } from "../../components/layout/PMLayout";
+import { flattenNav } from "../../components/layout/navSections";
 import { frappe } from "../../lib/api/frappeClient";
 import { clientUsers } from "../../lib/clientPeople";
 import { errMsg, useAsync } from "../../lib/employeePortal";
@@ -25,12 +26,12 @@ async function loadPeople() {
   }
 }
 
-/** Menu items -> groups of pages. Top-level links go in one "General" group. */
+/** Menu items -> groups of pages (module sections and groups, flattened). Top-level links go in one "General" group. */
 function toGroups(items) {
   const general = [];
   const groups = [];
   for (const item of items) {
-    if (item.children) groups.push({ label: item.label, pages: item.children.flatMap((c) => (c.children ? c.children : [c])) });
+    if (item.children) groups.push({ label: item.label, pages: flattenNav(item.children) });
     else general.push(item);
   }
   return [...(general.length ? [{ label: "General", pages: general }] : []), ...groups];

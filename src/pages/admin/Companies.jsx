@@ -3,7 +3,8 @@
 // (admins, HR and Project Managers are tied to their company with an ERPNext "Company" user permission). Only the
 // Administrator account can open it (permissions/pageAccess.js).
 import { useMemo, useState } from "react";
-import { Boxes, Building2, BriefcaseBusiness, ClipboardList, GraduationCap, KeyRound, ShieldCheck, UserCog, UserPlus, UserSearch, Users } from "lucide-react";
+import { Boxes, Building2, ClipboardList, KeyRound, ShieldCheck, UserCog, UserPlus, Users } from "lucide-react";
+import { MODULE_ICONS } from "../../components/layout/navSections";
 import { frappe } from "../../lib/api/frappeClient";
 import { Button } from "../../components/ui/primitives";
 import { Async, Empty, Field, inputCls, Modal, Notice, PageHeader, Panel } from "../../components/employee/EmployeeShell";
@@ -13,7 +14,6 @@ import { MODULE_SETTINGS, MODULES, PRODUCT_NAME, SUPER_ADMIN } from "../../lib/m
 import { useClientScope } from "../../lib/clientScope";
 import { setUserCompany } from "./Users";
 
-const ICONS = { employee: Users, recruitment: UserSearch, projects: BriefcaseBusiness, learning: GraduationCap };
 const ROLE_LABELS = [["System Manager", "Admin"], ["HR Manager", "HR Manager"], ["HR User", "HR User"], ["Projects Manager", "Project Manager"]];
 const STAFF_ROLES = ROLE_LABELS.map(([r]) => r);
 const parse = (raw) => String(raw || "").split(",").map((x) => x.trim()).filter((id) => MODULES.some((m) => m.id === id));
@@ -145,7 +145,7 @@ function CompanyView({ d, reload, onAssign }) {
           ) : (
             <div className="space-y-2">
               {MODULES.map((m) => {
-                const Icon = ICONS[m.id] || Boxes;
+                const Icon = MODULE_ICONS[m.id] || Boxes;
                 const on = !off.has(m.id);
                 return (
                   <button key={m.id} type="button" onClick={() => toggle(m.id)} aria-pressed={on} title={m.hint}

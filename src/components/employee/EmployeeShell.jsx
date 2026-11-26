@@ -2,7 +2,7 @@
 import { PageLoading } from "../PageLoading";
 import { createContext, useContext, useEffect, useState, Suspense } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
-import { AlertCircle, ArrowRight, Briefcase, CalendarCheck, ClipboardCheck, FileText, Inbox, LayoutDashboard, LifeBuoy, Loader2, Target, Timer, Wallet, X } from "lucide-react";
+import { AlertCircle, ArrowRight, Bell, Briefcase, CalendarCheck, ClipboardCheck, FileText, GraduationCap, Inbox, LayoutDashboard, LifeBuoy, Loader2, Search, Target, Timer, Wallet, X } from "lucide-react";
 import { errMsg, friendlyError, getMyEmployee, isoDate, useAsync } from "../../lib/employeePortal";
 import { frappe } from "../../lib/api/frappeClient";
 import { Brand } from "../Brand";
@@ -13,6 +13,7 @@ import { Topbar } from "../layout/Topbar";
 import { hrNav, hrTitleFor } from "../layout/HRLayout";
 import { hasPermission } from "../../permissions/roles";
 import { pmNav, pmTitleFor } from "../layout/PMLayout";
+import { coreSection, flattenNav, moduleSection } from "../layout/navSections";
 
 /* ===== ui.jsx ===== */
 export const inputCls =
@@ -298,74 +299,70 @@ export function ForcedPasswordScreen() {
 }
 
 /* ===== EmployeeLayout.jsx ===== */
+// One section per HRMS 360 module (lib/modules.js), so an employee sees only what their company has.
 export const EMPLOYEE_NAV = [
   { to: "/employee", label: "Dashboard", icon: LayoutDashboard },
-  {
-    label: "Time & Attendance",
-    icon: CalendarCheck,
-    children: [
-      { to: "/employee/attendance", label: "Attendance" },
-      { to: "/employee/leave", label: "Leave" },
-      { to: "/employee/timesheet", label: "Timesheet" },
-      { to: "/employee/calendar", label: "Calendar & Holidays" },
-    ],
-  },
-  {
-    label: "Approvals & Team",
-    icon: ClipboardCheck,
-    children: [
-      { to: "/employee/approvals", label: "My Approvals" },
-      { to: "/employee/team", label: "My Team" },
-    ],
-  },
-  {
-    label: "Pay & Expenses",
-    icon: Wallet,
-    children: [
-      { to: "/employee/payslips", label: "Payslips" },
-      { to: "/employee/expenses", label: "Expense Claims" },
-      { to: "/employee/benefits", label: "Benefits & Insurance" },
-    ],
-  },
-  {
-    label: "Growth",
-    icon: Target,
-    children: [
-      { to: "/employee/goals", label: "Goals & Feedback" },
-      { to: "/employee/training", label: "Training & Learning" },
-    ],
-  },
-  {
-    label: "Documents & Assets",
-    icon: FileText,
-    children: [
-      { to: "/employee/documents", label: "Policies & Documents" },
-      { to: "/employee/assets", label: "My Assets" },
-    ],
-  },
-  {
-    label: "Help & Support",
-    icon: LifeBuoy,
-    children: [
-      { to: "/employee/help", label: "Help & Requests" },
-      { to: "/employee/notifications", label: "Notifications" },
-      { to: "/employee/search", label: "Search" },
-    ],
-  },
+  moduleSection("employee", [
+    {
+      label: "Time & Attendance",
+      icon: CalendarCheck,
+      children: [
+        { to: "/employee/attendance", label: "Attendance" },
+        { to: "/employee/leave", label: "Leave" },
+        { to: "/employee/calendar", label: "Calendar & Holidays" },
+      ],
+    },
+    {
+      label: "Approvals & Team",
+      icon: ClipboardCheck,
+      children: [
+        { to: "/employee/approvals", label: "My Approvals" },
+        { to: "/employee/team", label: "My Team" },
+      ],
+    },
+    {
+      label: "Pay & Expenses",
+      icon: Wallet,
+      children: [
+        { to: "/employee/payslips", label: "Payslips" },
+        { to: "/employee/expenses", label: "Expense Claims" },
+        { to: "/employee/benefits", label: "Benefits & Insurance" },
+      ],
+    },
+    {
+      label: "Documents & Assets",
+      icon: FileText,
+      children: [
+        { to: "/employee/documents", label: "Policies & Documents" },
+        { to: "/employee/assets", label: "My Assets" },
+      ],
+    },
+    { to: "/employee/help", label: "Help & Requests", icon: LifeBuoy },
+  ]),
+  moduleSection("projects", [{ to: "/employee/timesheet", label: "Timesheet", icon: Timer }]),
+  moduleSection("recruitment", []),
+  moduleSection("learning", [
+    { to: "/employee/goals", label: "Goals & Feedback", icon: Target },
+    { to: "/employee/training", label: "Training & Learning", icon: GraduationCap },
+  ]),
+  coreSection("General", [
+    { to: "/employee/notifications", label: "Notifications", icon: Bell },
+    { to: "/employee/search", label: "Search", icon: Search },
+  ], LayoutDashboard),
 ];
 
-// Shown only to people on interview panels (ERPNext "Interviewer" role), inside "Approvals & Team".
-const INTERVIEWS_NAV = { to: "/employee/interviews", label: "My Interviews" };
+// Shown only to people on interview panels (ERPNext "Interviewer" role), in the Recruitment Cycle section.
+const INTERVIEWS_NAV = { to: "/employee/interviews", label: "My Interviews", icon: ClipboardCheck };
 
 // Reached from the account menu ("Profile & password"), so it is not repeated in the sidebar; kept here for the page title.
 const PROFILE_NAV = { to: "/employee/profile", label: "My Profile" };
 
 function navFor(user) {
   if (!(user?.erpRoles || []).includes("Interviewer")) return EMPLOYEE_NAV;
-  return EMPLOYEE_NAV.map((n) => (n.label === "Approvals & Team" ? { ...n, children: [...n.children, INTERVIEWS_NAV] } : n));
+  return EMPLOYEE_NAV.map((n) => (n.module === "recruitment" ? { ...n, children: [...n.children, INTERVIEWS_NAV] } : n));
 }
 
-const flat = [...EMPLOYEE_NAV, INTERVIEWS_NAV, PROFILE_NAV].flatMap((n) => (n.children ? n.children : [n]));
+const flat = flattenNav([...EMPLOYEE_NAV, INTERVIEWS_NAV, PROFILE_NAV]);
 function titleFor(pathname) {
   const match = [...flat].sort((a, b) => b.to.length - a.to.length).find((n) => pathname === n.to || pathname.startsWith(`${n.to}/`));
   return match?.label ?? "Employee Portal";
