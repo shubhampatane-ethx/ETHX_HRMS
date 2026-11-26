@@ -440,14 +440,19 @@ export function EmpDashboard() {
   const [params, setParams] = useSearchParams();
   const work = hasPermission(user, "dashboard.hr") ? { id: "hr", label: "HR Dashboard", Page: HRDashboard }
     : hasPermission(user, "dashboard.pm") ? { id: "pm", label: "Projects Dashboard", Page: PMDashboard } : null;
+  const asked = params.get("view");
+  // A view opened from a link (the sidebar switch) is remembered like a tab click, so the sidebar stays on that side.
+  useEffect(() => {
+    if (asked) try { localStorage.setItem(VIEW_KEY, asked); } catch { /* not critical */ }
+  }, [asked]);
   if (!work) return <SelfDashboard />;
 
   let saved = null;
   try { saved = localStorage.getItem(VIEW_KEY); } catch { /* storage blocked: default to self */ }
-  const view = params.get("view") || (saved === work.id ? work.id : "self");
+  const view = asked || (saved === work.id ? work.id : "self");
   const choose = (id) => {
     try { localStorage.setItem(VIEW_KEY, id); } catch { /* not critical */ }
-    setParams(id === "self" ? {} : { view: id }, { replace: true });
+    setParams({ view: id }, { replace: true });
   };
 
   return (

@@ -72,7 +72,7 @@ export function AdminLayout() {
     <div className="flex h-screen overflow-hidden bg-[var(--color-bg)]">
       <Sidebar title="Platform Admin" items={ADMIN_NAV} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar roleLabel="Admin" pageTitle={TITLES[pathname] ?? "Admin"} />
+        <Topbar search roleLabel="Admin" pageTitle={TITLES[pathname] ?? "Admin"} />
         <main className="flex-1 overflow-y-auto p-6">
           <Suspense key={client || "all"} fallback={<PageLoading />}><Outlet /></Suspense>
         </main>

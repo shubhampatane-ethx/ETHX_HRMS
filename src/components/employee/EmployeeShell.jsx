@@ -11,9 +11,9 @@ import { useAuth } from "../../context/AuthContext";
 import { Sidebar } from "../layout/Sidebar";
 import { Topbar } from "../layout/Topbar";
 import { hrNav, hrTitleFor } from "../layout/HRLayout";
-import { hasPermission } from "../../permissions/roles";
+import { hasPermission, isStaffEmployee } from "../../permissions/roles";
 import { pmNav, pmTitleFor } from "../layout/PMLayout";
-import { coreSection, flattenNav, moduleSection } from "../layout/navSections";
+import { coreSection, flattenNav, moduleSection, staffView, switchLink } from "../layout/navSections";
 
 /* ===== ui.jsx ===== */
 export const inputCls =
@@ -228,6 +228,11 @@ export function EmployeeProvider({ children }) {
   );
 }
 
+/** The signed-in person's employee record when inside the employee pages, else null (top bar search). */
+export function useMaybeEmployee() {
+  return useContext(EmployeeContext)?.employee || null;
+}
+
 export function useEmployee() {
   const ctx = useContext(EmployeeContext);
   if (!ctx) throw new Error("useEmployee must be used within EmployeeProvider");
@@ -357,6 +362,16 @@ const INTERVIEWS_NAV = { to: "/employee/interviews", label: "My Interviews", ico
 // Reached from the account menu ("Profile & password"), so it is not repeated in the sidebar; kept here for the page title.
 const PROFILE_NAV = { to: "/employee/profile", label: "My Profile" };
 
+/**
+ * HR staff and Project Managers on their own pages: only their employee menu, with the Dashboard opening My Dashboard
+ * and a switch back to their HR / Projects workspace.
+ */
+function staffSelfNav(user, workView, workLabel) {
+  return navFor(user).flatMap((n) => (n.to === "/employee"
+    ? [{ ...n, to: "/employee?view=self", end: true }, switchLink(`/employee?view=${workView}`, `Switch to ${workLabel}`)]
+    : [n]));
+}
+
 function navFor(user) {
   if (!(user?.erpRoles || []).includes("Interviewer")) return EMPLOYEE_NAV;
   return EMPLOYEE_NAV.map((n) => (n.module === "recruitment" ? { ...n, children: [...n.children, INTERVIEWS_NAV] } : n));
@@ -411,19 +426,25 @@ export function ContractorLayout() {
 }
 
 export function EmployeeLayout() {
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const { user } = useAuth();
   if (user?.mustChangePassword) return <ForcedPasswordScreen />;
-  // HR staff and Project Managers see their own pages inside their workspace (same sidebar), so it is one place, not two.
-  const asHr = hasPermission(user, "dashboard.hr");
-  const asPm = !asHr && hasPermission(user, "dashboard.pm");
-  const nav = asHr ? hrNav(user) : asPm ? pmNav(user) : navFor(user);
+  // HR staff and Project Managers who are employees see one side at a time: their own pages (employee menu) or their
+  // HR / Projects work (workspace menu), following the dashboard tab and the page they are on.
+  const hr = hasPermission(user, "dashboard.hr");
+  const pm = !hr && hasPermission(user, "dashboard.pm");
+  const staff = isStaffEmployee(user);
+  const self = staff && staffView(pathname, search) === "self";
+  const asHr = hr && !self;
+  const asPm = pm && !self;
+  const nav = self ? staffSelfNav(user, hr ? "hr" : "pm", hr ? "HR Workspace" : "Projects Workspace")
+    : asHr ? hrNav(user, staff ? "work" : undefined) : asPm ? pmNav(user, staff ? "work" : undefined) : navFor(user);
   return (
     <EmployeeProvider>
       <div className="flex h-screen overflow-hidden bg-[var(--color-bg)]">
-        <Sidebar title={asHr ? "HR Workspace" : asPm ? "Project Manager" : "Employee Portal"} items={nav} />
+        <Sidebar title={asHr ? "HR Workspace" : asPm ? "Project Manager" : self ? "My Self-Service" : "Employee Portal"} items={nav} />
         <div className="flex min-w-0 flex-1 flex-col">
-          <Topbar roleLabel={asHr ? (hasPermission(user, "dashboard.admin") ? "Admin" : "HR") : asPm ? "Project Manager" : "Employee"} pageTitle={asHr ? hrTitleFor(pathname) : asPm ? pmTitleFor(pathname) : titleFor(pathname)} />
+          <Topbar search={hr || pm} roleLabel={asHr ? (hasPermission(user, "dashboard.admin") ? "Admin" : "HR") : asPm ? "Project Manager" : "Employee"} pageTitle={asHr ? hrTitleFor(pathname) : asPm ? pmTitleFor(pathname) : titleFor(pathname)} />
           <main className="flex-1 overflow-y-auto p-6">
             <div className="mx-auto max-w-6xl space-y-5">
               <Gate />

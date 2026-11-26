@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { PageLoading } from "../PageLoading";
 import { Outlet, useLocation } from "react-router-dom";
-import { ArrowLeft, Briefcase, CalendarCheck, CheckCheck, Gauge, Users, ClipboardCheck, ClipboardList, Timer, UserPlus } from "lucide-react";
+import { ArrowLeft, Briefcase, CalendarCheck, CheckCheck, Gauge, LayoutDashboard, Users, ClipboardCheck, ClipboardList, Timer, UserPlus } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { useClientScope } from "../../lib/clientScope";
@@ -9,7 +9,7 @@ import { useAuth } from "../../context/AuthContext";
 import { hasPermission, isStaffEmployee } from "../../permissions/roles";
 import { dashboardLink, SELF_SERVICE, SELF_SERVICE_PAGES } from "./HRLayout";
 import { ForcedPasswordScreen } from "../employee/EmployeeShell";
-import { moduleSection } from "./navSections";
+import { moduleSection, switchLink } from "./navSections";
 
 const TITLES = {
   "/employee": "Dashboard",
@@ -34,13 +34,15 @@ export function pmTitleFor(pathname) {
 }
 
 /** PM sidebar: the one Dashboard, the person's own self-service (when they are an employee too), then PM work. */
-export function pmNav(user) {
+export function pmNav(user, view) {
   // "My Team" is already a PM page, so it is not repeated in the self-service group.
+  // With view "work" (on work pages) their own pages are behind a switch instead, like the HR workspace.
   const selfService = { ...SELF_SERVICE, children: SELF_SERVICE.children.filter((c) => c.to !== "/employee/team") };
+  const split = view === "work" && isStaffEmployee(user);
   return [
     ...(hasPermission(user, "dashboard.admin") ? [{ to: "/admin", label: "Back to Admin", icon: ArrowLeft }] : []),
-    dashboardLink(user, "/pm"),
-    ...(isStaffEmployee(user) ? [selfService] : []),
+    split ? { to: "/employee?view=pm", label: "Dashboard", icon: LayoutDashboard, end: true } : dashboardLink(user, "/pm"),
+    ...(split ? [switchLink("/employee?view=self", "Switch to My Self-Service")] : isStaffEmployee(user) ? [selfService] : []),
     // One section per HRMS 360 module, so the client sees only what they have.
     moduleSection("projects", [
       { to: "/pm/projects", label: "Projects", icon: Briefcase },
@@ -66,13 +68,13 @@ export function PMLayout() {
   const { pathname } = useLocation();
   const { user } = useAuth();
   if (user?.mustChangePassword) return <ForcedPasswordScreen />;
-  const items = pmNav(user);
+  const items = pmNav(user, "work");
 
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--color-bg)]">
       <Sidebar title="Project Manager" items={items} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar roleLabel="Project Manager" pageTitle={pmTitleFor(pathname)} />
+        <Topbar search roleLabel="Project Manager" pageTitle={pmTitleFor(pathname)} />
         <main className="flex-1 overflow-y-auto p-6">
           <div className="mx-auto max-w-6xl space-y-5">
             <Suspense key={client || "all"} fallback={<PageLoading />}><Outlet /></Suspense>

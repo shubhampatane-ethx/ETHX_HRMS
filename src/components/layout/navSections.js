@@ -20,3 +20,29 @@ export function coreSection(label, children, icon = Building2) {
 export function flattenNav(items) {
   return (items || []).flatMap((i) => (i.children ? flattenNav(i.children) : i.to ? [i] : []));
 }
+
+/* ---------------------- staff: "My" view vs workspace view ---------------------- */
+
+// HR staff and Project Managers are employees too. Their sidebar shows one side at a time: their own self-service
+// ("self") on their own pages and My Dashboard, or their HR / Projects work ("work") on work pages and the HR or
+// Projects Dashboard. The dashboard tab they picked last is remembered for shared pages (search, notifications, profile).
+export const VIEW_KEY = "ethx.dashboard.view";
+const SHARED_PAGES = ["/employee/search", "/employee/notifications", "/employee/profile"];
+
+export function savedView() {
+  try { return localStorage.getItem(VIEW_KEY); } catch { return null; }
+}
+
+/** "self" or "work" for a staff member on this page. */
+export function staffView(pathname, search = "") {
+  if (pathname !== "/employee" && !pathname.startsWith("/employee/")) return "work";
+  const saved = savedView();
+  if (pathname === "/employee") return (new URLSearchParams(search).get("view") || saved || "self") === "self" ? "self" : "work";
+  if (SHARED_PAGES.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return saved && saved !== "self" ? "work" : "self";
+  return "self";
+}
+
+/** The sidebar link that flips a staff member between their own pages and their workspace. */
+export function switchLink(to, label) {
+  return { to, label, switch: true };
+}

@@ -7,6 +7,8 @@ import { hasPermission } from "../../permissions/roles";
 import { isPageBlocked } from "../../permissions/pageAccess";
 import { getSavedTheme, hasSavedTheme, saveTheme, THEME_OPTIONS } from "../../lib/theme";
 import { displayName, initials, ProfileAvatar } from "../ProfilePhoto";
+import { GlobalSearch } from "../search/GlobalSearch";
+import { useMaybeEmployee } from "../employee/EmployeeShell";
 
 function ThemeTile({ option, selected, onChoose }) {
   const [background, accent, foreground] = option.swatches;
@@ -121,8 +123,10 @@ function accountMenu(user, roleLabel) {
   return items;
 }
 
-export function Topbar({ roleLabel, pageTitle }) {
+/** @param {{ roleLabel: string, pageTitle: string, search?: boolean }} props  search: the app-wide search box. */
+export function Topbar({ roleLabel, pageTitle, search = false }) {
   const { user, logout } = useAuth();
+  const employee = useMaybeEmployee();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const box = useRef(null);
@@ -135,9 +139,10 @@ export function Topbar({ roleLabel, pageTitle }) {
 
   return (
     <header className="flex h-16 shrink-0 items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-bg)] px-6">
-      <h1 className="text-[15px] font-semibold text-[var(--color-text)]">{pageTitle}</h1>
+      <h1 className="shrink-0 text-[15px] font-semibold text-[var(--color-text)]">{pageTitle}</h1>
 
-      <div className="flex items-center gap-3">
+      <div className="flex min-w-0 flex-1 items-center justify-end gap-3 pl-6">
+        {search && <GlobalSearch employee={employee} className="w-full max-w-md" placeholder="Search anything - pages, people, candidates, policies…" />}
         <div ref={box} className="relative">
           <button
             type="button"

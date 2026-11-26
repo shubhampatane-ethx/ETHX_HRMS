@@ -8,7 +8,7 @@ import { hasPermission, isStaffEmployee } from "../../permissions/roles";
 import { Topbar } from "./Topbar";
 import { useClientScope } from "../../lib/clientScope";
 import { HR_SETUP_SECTIONS, slugify } from "../../lib/hrSetupConfig";
-import { coreSection, flattenNav, moduleSection } from "./navSections";
+import { coreSection, flattenNav, moduleSection, switchLink } from "./navSections";
 
 // A setup page or report from the HR setup config, by its doctype (its own page if it has one).
 const SETUP_ITEMS = HR_SETUP_SECTIONS.flatMap((s) => s.items);
@@ -132,13 +132,18 @@ export function dashboardLink(user, workspaceHome) {
   return { to: isStaffEmployee(user) ? "/employee" : workspaceHome, label: "Dashboard", icon: LayoutDashboard };
 }
 
-/** HR sidebar: Dashboard first, then the person's own self-service (when they have an employee login), then HR work. */
-export function hrNav(user) {
+/**
+ * HR sidebar: Dashboard first, then HR work by module. With view "work" (HR staff who are employees, on HR pages) the
+ * Dashboard opens the HR Dashboard and a switch leads to their own pages; without a view (search, Access Control) the
+ * person's own self-service is listed too, so every page is in one menu.
+ */
+export function hrNav(user, view) {
   const isAdmin = hasPermission(user, "dashboard.admin");
+  const split = view === "work" && isStaffEmployee(user);
   return [
     ...(isAdmin ? [{ to: "/admin", label: "Back to Admin", icon: ArrowLeft }] : []),
-    dashboardLink(user, "/hr"),
-    ...(isStaffEmployee(user) ? [SELF_SERVICE] : []),
+    split ? { to: "/employee?view=hr", label: "Dashboard", icon: LayoutDashboard, end: true } : dashboardLink(user, "/hr"),
+    ...(split ? [switchLink("/employee?view=self", "Switch to My Self-Service")] : isStaffEmployee(user) ? [SELF_SERVICE] : []),
     // HR staff made manager of a project (project-based role) get their projects in the Project Lifecycle section.
     ...hrSections({ myProjects: !isAdmin && hasPermission(user, "dashboard.pm") }),
     coreSection("Reports & Setup", hrSetupGroups(isAdmin), SlidersHorizontal),
@@ -193,12 +198,12 @@ export function HRLayout() {
   const { user } = useAuth();
   const isAdmin = hasPermission(user, "dashboard.admin");
   // Administrator can open every HR page too, with a way back to the admin workspace
-  const nav = useMemo(() => hrNav(user), [user]);
+  const nav = useMemo(() => hrNav(user, "work"), [user]);
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--color-bg)]">
       <Sidebar title={isAdmin ? "HR Workspace (Admin)" : "HR Workspace"} items={nav} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar roleLabel={isAdmin ? "Admin" : "HR"} pageTitle={hrTitleFor(pathname)} />
+        <Topbar search roleLabel={isAdmin ? "Admin" : "HR"} pageTitle={hrTitleFor(pathname)} />
         <main className="flex-1 overflow-y-auto p-6">
           <Suspense key={client || "all"} fallback={<PageLoading />}><Outlet /></Suspense>
         </main>
