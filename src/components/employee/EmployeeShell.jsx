@@ -2,7 +2,7 @@
 import { PageLoading } from "../PageLoading";
 import { createContext, useContext, useEffect, useState, Suspense } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
-import { AlertCircle, ArrowRight, Briefcase, CalendarCheck, ClipboardCheck, FileText, Inbox, LayoutDashboard, LifeBuoy, Loader2, Target, Timer, Wallet, X } from "lucide-react";
+import { AlertCircle, ArrowRight, Bell, Briefcase, CalendarCheck, ClipboardCheck, FileText, GraduationCap, Inbox, LayoutDashboard, LifeBuoy, Loader2, Search, Target, Timer, Wallet, X } from "lucide-react";
 import { errMsg, friendlyError, getMyEmployee, isoDate, useAsync } from "../../lib/employeePortal";
 import { frappe } from "../../lib/api/frappeClient";
 import { Brand } from "../Brand";
@@ -11,8 +11,9 @@ import { useAuth } from "../../context/AuthContext";
 import { Sidebar } from "../layout/Sidebar";
 import { Topbar } from "../layout/Topbar";
 import { hrNav, hrTitleFor } from "../layout/HRLayout";
-import { hasPermission } from "../../permissions/roles";
+import { hasPermission, isStaffEmployee } from "../../permissions/roles";
 import { pmNav, pmTitleFor } from "../layout/PMLayout";
+import { coreSection, flattenNav, moduleSection, staffView } from "../layout/navSections";
 
 /* ===== ui.jsx ===== */
 export const inputCls =
@@ -227,6 +228,11 @@ export function EmployeeProvider({ children }) {
   );
 }
 
+/** The signed-in person's employee record when inside the employee pages, else null (top bar search). */
+export function useMaybeEmployee() {
+  return useContext(EmployeeContext)?.employee || null;
+}
+
 export function useEmployee() {
   const ctx = useContext(EmployeeContext);
   if (!ctx) throw new Error("useEmployee must be used within EmployeeProvider");
@@ -298,74 +304,75 @@ export function ForcedPasswordScreen() {
 }
 
 /* ===== EmployeeLayout.jsx ===== */
+// One section per HRMS 360 module (lib/modules.js), so an employee sees only what their company has.
 export const EMPLOYEE_NAV = [
   { to: "/employee", label: "Dashboard", icon: LayoutDashboard },
-  {
-    label: "Time & Attendance",
-    icon: CalendarCheck,
-    children: [
-      { to: "/employee/attendance", label: "Attendance" },
-      { to: "/employee/leave", label: "Leave" },
-      { to: "/employee/timesheet", label: "Timesheet" },
-      { to: "/employee/calendar", label: "Calendar & Holidays" },
-    ],
-  },
-  {
-    label: "Approvals & Team",
-    icon: ClipboardCheck,
-    children: [
-      { to: "/employee/approvals", label: "My Approvals" },
-      { to: "/employee/team", label: "My Team" },
-    ],
-  },
-  {
-    label: "Pay & Expenses",
-    icon: Wallet,
-    children: [
-      { to: "/employee/payslips", label: "Payslips" },
-      { to: "/employee/expenses", label: "Expense Claims" },
-      { to: "/employee/benefits", label: "Benefits & Insurance" },
-    ],
-  },
-  {
-    label: "Growth",
-    icon: Target,
-    children: [
-      { to: "/employee/goals", label: "Goals & Feedback" },
-      { to: "/employee/training", label: "Training & Learning" },
-    ],
-  },
-  {
-    label: "Documents & Assets",
-    icon: FileText,
-    children: [
-      { to: "/employee/documents", label: "Policies & Documents" },
-      { to: "/employee/assets", label: "My Assets" },
-    ],
-  },
-  {
-    label: "Help & Support",
-    icon: LifeBuoy,
-    children: [
-      { to: "/employee/help", label: "Help & Requests" },
-      { to: "/employee/notifications", label: "Notifications" },
-      { to: "/employee/search", label: "Search" },
-    ],
-  },
+  moduleSection("employee", [
+    {
+      label: "Time & Attendance",
+      icon: CalendarCheck,
+      children: [
+        { to: "/employee/attendance", label: "Attendance" },
+        { to: "/employee/leave", label: "Leave" },
+        { to: "/employee/calendar", label: "Calendar & Holidays" },
+      ],
+    },
+    {
+      label: "Approvals & Team",
+      icon: ClipboardCheck,
+      children: [
+        { to: "/employee/approvals", label: "My Approvals" },
+        { to: "/employee/team", label: "My Team" },
+      ],
+    },
+    {
+      label: "Pay & Expenses",
+      icon: Wallet,
+      children: [
+        { to: "/employee/payslips", label: "Payslips" },
+        { to: "/employee/expenses", label: "Expense Claims" },
+        { to: "/employee/benefits", label: "Benefits & Insurance" },
+      ],
+    },
+    {
+      label: "Documents & Assets",
+      icon: FileText,
+      children: [
+        { to: "/employee/documents", label: "Policies & Documents" },
+        { to: "/employee/assets", label: "My Assets" },
+      ],
+    },
+    { to: "/employee/help", label: "Help & Requests", icon: LifeBuoy },
+  ]),
+  moduleSection("projects", [{ to: "/employee/timesheet", label: "Timesheet", icon: Timer }]),
+  moduleSection("recruitment", []),
+  moduleSection("learning", [
+    { to: "/employee/goals", label: "Goals & Feedback", icon: Target },
+    { to: "/employee/training", label: "Training & Learning", icon: GraduationCap },
+  ]),
+  coreSection("General", [
+    { to: "/employee/notifications", label: "Notifications", icon: Bell },
+    { to: "/employee/search", label: "Search", icon: Search },
+  ], LayoutDashboard),
 ];
 
-// Shown only to people on interview panels (ERPNext "Interviewer" role), inside "Approvals & Team".
-const INTERVIEWS_NAV = { to: "/employee/interviews", label: "My Interviews" };
+// Shown only to people on interview panels (ERPNext "Interviewer" role), in the Recruitment Cycle section.
+const INTERVIEWS_NAV = { to: "/employee/interviews", label: "My Interviews", icon: ClipboardCheck };
 
 // Reached from the account menu ("Profile & password"), so it is not repeated in the sidebar; kept here for the page title.
 const PROFILE_NAV = { to: "/employee/profile", label: "My Profile" };
 
-function navFor(user) {
-  if (!(user?.erpRoles || []).includes("Interviewer")) return EMPLOYEE_NAV;
-  return EMPLOYEE_NAV.map((n) => (n.label === "Approvals & Team" ? { ...n, children: [...n.children, INTERVIEWS_NAV] } : n));
+/** HR staff and Project Managers on their own pages: only their employee menu, with the Dashboard opening My Dashboard. */
+function staffSelfNav(user) {
+  return navFor(user).map((n) => (n.to === "/employee" ? { ...n, to: "/employee?view=self", end: true } : n));
 }
 
-const flat = [...EMPLOYEE_NAV, INTERVIEWS_NAV, PROFILE_NAV].flatMap((n) => (n.children ? n.children : [n]));
+function navFor(user) {
+  if (!(user?.erpRoles || []).includes("Interviewer")) return EMPLOYEE_NAV;
+  return EMPLOYEE_NAV.map((n) => (n.module === "recruitment" ? { ...n, children: [...n.children, INTERVIEWS_NAV] } : n));
+}
+
+const flat = flattenNav([...EMPLOYEE_NAV, INTERVIEWS_NAV, PROFILE_NAV]);
 function titleFor(pathname) {
   const match = [...flat].sort((a, b) => b.to.length - a.to.length).find((n) => pathname === n.to || pathname.startsWith(`${n.to}/`));
   return match?.label ?? "Employee Portal";
@@ -414,19 +421,25 @@ export function ContractorLayout() {
 }
 
 export function EmployeeLayout() {
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const { user } = useAuth();
   if (user?.mustChangePassword) return <ForcedPasswordScreen />;
-  // HR staff and Project Managers see their own pages inside their workspace (same sidebar), so it is one place, not two.
-  const asHr = hasPermission(user, "dashboard.hr");
-  const asPm = !asHr && hasPermission(user, "dashboard.pm");
-  const nav = asHr ? hrNav(user) : asPm ? pmNav(user) : navFor(user);
+  // HR staff and Project Managers who are employees see one side at a time: their own pages (employee menu) or their
+  // HR / Projects work (workspace menu), following the dashboard tab and the page they are on.
+  const hr = hasPermission(user, "dashboard.hr");
+  const pm = !hr && hasPermission(user, "dashboard.pm");
+  const staff = isStaffEmployee(user);
+  const self = staff && staffView(pathname, search) === "self";
+  const asHr = hr && !self;
+  const asPm = pm && !self;
+  const nav = self ? staffSelfNav(user)
+    : asHr ? hrNav(user, staff ? "work" : undefined) : asPm ? pmNav(user, staff ? "work" : undefined) : navFor(user);
   return (
     <EmployeeProvider>
       <div className="flex h-screen overflow-hidden bg-[var(--color-bg)]">
-        <Sidebar title={asHr ? "HR Workspace" : asPm ? "Project Manager" : "Employee Portal"} items={nav} />
+        <Sidebar title={asHr ? "HR Workspace" : asPm ? "Project Manager" : self ? "My Self-Service" : "Employee Portal"} items={nav} />
         <div className="flex min-w-0 flex-1 flex-col">
-          <Topbar roleLabel={asHr ? (hasPermission(user, "dashboard.admin") ? "Admin" : "HR") : asPm ? "Project Manager" : "Employee"} pageTitle={asHr ? hrTitleFor(pathname) : asPm ? pmTitleFor(pathname) : titleFor(pathname)} />
+          <Topbar search roleLabel={asHr ? (hasPermission(user, "dashboard.admin") ? "Admin" : "HR") : asPm ? "Project Manager" : "Employee"} pageTitle={asHr ? hrTitleFor(pathname) : asPm ? pmTitleFor(pathname) : titleFor(pathname)} />
           <main className="flex-1 overflow-y-auto p-6">
             <div className="mx-auto max-w-6xl space-y-5">
               <Gate />

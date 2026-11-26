@@ -29,18 +29,35 @@ export function Sidebar({ title, items }) {
 
       <nav aria-label={title} className="flex-1 overflow-y-auto px-3 py-4">
         <ul className="space-y-0.5">
-          {shown.map((item) =>
-            item.children ? (
-              <GroupItem key={item.label} group={item} pathname={pathname} />
-            ) : (
-              <li key={item.to}>
-                <NavLeaf to={item.to} label={item.label} icon={item.icon} end={item.to.split("/").length <= 2} />
-              </li>
-            )
-          )}
+          {shown.map((item) => (item.section ? <Section key={item.label} section={item} pathname={pathname} /> : <TopItem key={item.to || item.label} item={item} pathname={pathname} />))}
         </ul>
       </nav>
     </aside>
+  );
+}
+
+function TopItem({ item, pathname }) {
+  if (item.children) return <GroupItem group={item} pathname={pathname} />;
+  return (
+    <li>
+      <NavLeaf to={item.to} label={item.label} icon={item.icon} end={item.end ?? item.to.split("/").length <= 2} />
+    </li>
+  );
+}
+
+/** A product module (or the always-included core) as its own headed block, so a client sees exactly what they have. */
+function Section({ section, pathname }) {
+  const Icon = section.icon;
+  return (
+    <li className="pt-3">
+      <div className="mb-1 flex items-center gap-2 border-t border-[var(--color-border)] px-3 pb-1 pt-3 text-[10.5px] font-bold uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
+        {Icon && <Icon size={12} strokeWidth={2} className="text-[var(--color-red-hover)]" />}
+        <span className="truncate">{section.label}</span>
+      </div>
+      <ul className="space-y-0.5">
+        {section.children.map((item) => <TopItem key={item.to || item.label} item={item} pathname={pathname} />)}
+      </ul>
+    </li>
   );
 }
 

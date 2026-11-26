@@ -11,6 +11,8 @@ export const ROLES = ["HR Manager", "HR User", "Projects Manager", "Employee", "
 // Everything HR needs to add an employee AND give them a login in one go. Each line below was a
 // real permission check ERPNext performs along that path, so granting them all avoids one error at a time.
 export const HR_PRESET = [
+  { doctype: "ETHX Communication Settings", perms: ["read", "write"], why: "Birthday and event email templates (HR › Birthday & Event Emails)" },
+  { doctype: "Event", perms: ["read", "write", "create", "delete"], why: "Company events that event reminder emails are sent for" },
   { doctype: "User", perms: ["read", "write", "create"], why: "Create the employee's login and reset passwords", elevated: true },
   { doctype: "User", permlevel: 1, perms: ["read", "write"], why: "Set the login's role and type (protected fields on User)", elevated: true },
   { doctype: "User Permission", perms: ["read", "write", "create"], why: "Linking a login to an employee restricts it to that employee and company", elevated: true },

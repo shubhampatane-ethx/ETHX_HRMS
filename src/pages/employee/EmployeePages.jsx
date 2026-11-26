@@ -8,7 +8,7 @@ import { useAuth } from "../../context/AuthContext";
 import { hasPermission } from "../../permissions/roles";
 import { greetingName } from "../../lib/names";
 import { searchPages, searchRecords } from "../../lib/appSearch";
-import { GlobalSearch, GROUP_ICONS } from "../../components/search/GlobalSearch";
+import { GROUP_ICONS } from "../../components/search/GlobalSearch";
 
 // Workspace dashboards that HR staff / Project Managers who are also employees switch to from their one Dashboard.
 const HRDashboard = lazy(() => import("../hr/Dashboard"));
@@ -440,14 +440,19 @@ export function EmpDashboard() {
   const [params, setParams] = useSearchParams();
   const work = hasPermission(user, "dashboard.hr") ? { id: "hr", label: "HR Dashboard", Page: HRDashboard }
     : hasPermission(user, "dashboard.pm") ? { id: "pm", label: "Projects Dashboard", Page: PMDashboard } : null;
+  const asked = params.get("view");
+  // A view opened from a link (the sidebar switch) is remembered like a tab click, so the sidebar stays on that side.
+  useEffect(() => {
+    if (asked) try { localStorage.setItem(VIEW_KEY, asked); } catch { /* not critical */ }
+  }, [asked]);
   if (!work) return <SelfDashboard />;
 
   let saved = null;
   try { saved = localStorage.getItem(VIEW_KEY); } catch { /* storage blocked: default to self */ }
-  const view = params.get("view") || (saved === work.id ? work.id : "self");
+  const view = asked || (saved === work.id ? work.id : "self");
   const choose = (id) => {
     try { localStorage.setItem(VIEW_KEY, id); } catch { /* not critical */ }
-    setParams(id === "self" ? {} : { view: id }, { replace: true });
+    setParams({ view: id }, { replace: true });
   };
 
   return (
@@ -505,7 +510,6 @@ function SelfDashboard() {
             <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-[var(--color-red-hover)]">{WEEKDAYS[now.getDay()]}, {String(now.getDate()).padStart(2, "0")} {MONTHS[now.getMonth()]} {now.getFullYear()}</p>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-[var(--color-text)]">{greeting(now.getHours())}, {greetingName(employee.first_name || employee.employee_name, employee.user_id)}</h2>
           </div>
-          <GlobalSearch employee={employee} className="w-full max-w-sm" placeholder="Search anything - pages, people, policies…" />
         </div>
       </section>
 

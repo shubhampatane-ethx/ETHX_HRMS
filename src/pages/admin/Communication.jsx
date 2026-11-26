@@ -1,22 +1,26 @@
 // Admin › Communication: the two mail accounts (internal Outlook / Microsoft 365, candidate Gmail), the automatic
 // birthday and event emails with their templates, and AI job descriptions (Claude). See lib/comms.js.
 import { useState } from "react";
-import { CheckCircle2, Mail, Send, Sparkles } from "lucide-react";
+import { AlertTriangle, CalendarDays, Cake, CheckCircle2, ExternalLink, LogIn, Mail, Pencil, Plus, Send, Sparkles, Trash2 } from "lucide-react";
 import { frappe } from "../../lib/api/frappeClient";
 import { SharedAcrossClients } from "../../components/layout/ClientSwitcher";
 import { useAuth } from "../../context/AuthContext";
 import { Button } from "../../components/ui/primitives";
-import { Async, Field, inputCls, Notice, PageHeader, Panel, Tabs } from "../../components/employee/EmployeeShell";
-import { errMsg, useAsync } from "../../lib/employeePortal";
+import { Async, Field, Grid, inputCls, Modal, Notice, PageHeader, Panel, Tabs } from "../../components/employee/EmployeeShell";
+import { dmy, dmyHm, errMsg, isoDate, useAsync } from "../../lib/employeePortal";
+import { confirmDialog } from "../../components/ui/dialogs";
 import {
   AI_MODELS, commsError, DEFAULT_BIRTHDAY_SUBJECT, DEFAULT_BIRTHDAY_TEMPLATE, DEFAULT_EVENT_SUBJECT, DEFAULT_EVENT_TEMPLATE, fillTemplate, generateJdWithAi,
-  getCommsSettings, MAIL_PRESETS, PLACEHOLDERS, saveMailAccount, sendTestEmail, SETTINGS,
+  connectedAppInfo, findOAuthMailAccount, getCommsSettings, MAIL_PRESETS, mailDelivery, PLACEHOLDERS, saveMailAccount, sendTestEmail, SETTINGS, startMicrosoftSignIn,
+  setInternalMailAccount,
 } from "../../lib/comms";
 
 async function load() {
   const settings = await getCommsSettings();
   const accounts = await frappe.getList("Email Account", { filters: [["name", "in", Object.values(MAIL_PRESETS).map((p) => p.account)]], fields: ["name", "email_id", "enable_outgoing", "default_outgoing", "smtp_server", "smtp_port"], limit: 0 }).catch(() => []);
-  return { settings, accounts: Object.fromEntries(accounts.map((a) => [a.name, a])) };
+  const oauth = await findOAuthMailAccount(settings);
+  const [app, delivery] = await Promise.all([connectedAppInfo(oauth?.connected_app), mailDelivery()]);
+  return { settings, accounts: Object.fromEntries(accounts.map((a) => [a.name, a])), oauth: oauth && { ...oauth, app }, delivery };
 }
 
 export default function Communication() {
@@ -31,7 +35,7 @@ export default function Communication() {
         ) : (
           <>
             <Tabs value={tab} onChange={setTab} tabs={[{ id: "mail", label: "Mail Accounts" }, { id: "auto", label: "Birthday & Event Emails" }, { id: "ai", label: "AI Job Descriptions" }]} />
-            {tab === "mail" && <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">{Object.keys(MAIL_PRESETS).map((k) => <MailAccount key={k} kind={k} account={d.accounts[MAIL_PRESETS[k].account]} onSaved={data.reload} />)}</div>}
+            {tab === "mail" && <div className="grid grid-cols-1 gap-5 xl:grid-cols-2"><OutlookAccount account={d.oauth} settings={d.settings} delivery={d.delivery} onSaved={data.reload} /><MailAccount kind="candidate" account={d.accounts[MAIL_PRESETS.candidate.account]} onSaved={data.reload} /></div>}
             {tab === "auto" && <AutoEmails settings={d.settings} onSaved={data.reload} />}
             {tab === "ai" && <AiSettings settings={d.settings} onSaved={data.reload} />}
           </>
@@ -41,7 +45,232 @@ export default function Communication() {
   );
 }
 
+/**
+ * HR › Birthday & Event Emails: the same templates as Admin › Communication, plus the company events the reminders
+ * are sent for. Mail accounts and the AI key stay with the Administrator.
+ */
+export function HrCommunication() {
+  const settings = useAsync(getCommsSettings, []);
+  const [tab, setTab] = useState("templates");
+  return (
+    <div className="space-y-5">
+      <PageHeader icon={Cake} title="Birthday & Event Emails" subtitle="Write the birthday wishes and event reminders, and keep the company events up to date" />
+      <Tabs value={tab} onChange={setTab} tabs={[{ id: "templates", label: "Email Templates" }, { id: "events", label: "Company Events" }]} />
+      {tab === "templates" && (
+        <Async state={settings}>
+          {(s) => !s ? <Notice>Birthday and event emails aren't set up on this site yet. They're set up automatically the next time the Administrator signs in.</Notice> : <AutoEmails settings={s} onSaved={settings.reload} />}
+        </Async>
+      )}
+      {tab === "events" && <CompanyEvents />}
+    </div>
+  );
+}
+
+const toInput = (v) => (v ? String(v).replace(" ", "T").slice(0, 16) : "");
+const toStamp = (v) => (v ? `${v.replace("T", " ")}:00` : null);
+
+/** Public events on the company calendar: every employee sees them and gets the reminder email. */
+function CompanyEvents() {
+  const [since] = useState(() => isoDate(new Date(Date.now() - 30 * 86400000)));
+  const events = useAsync(() => frappe.getList("Event", { filters: [["event_type", "=", "Public"], ["starts_on", ">=", `${since} 00:00:00`]], fields: ["name", "subject", "starts_on", "ends_on", "all_day", "description"], orderBy: "starts_on asc", limit: 0 }), [since]);
+  const [editing, setEditing] = useState(null); // null | {} (new) | event row
+  const [err, setErr] = useState("");
+
+  async function remove(ev) {
+    if (!(await confirmDialog({ title: "Delete Event", message: `Delete "${ev.subject}" on ${dmy(ev.starts_on)}? No reminder is sent for it.`, danger: true, confirmLabel: "Delete" }))) return;
+    setErr("");
+    try {
+      await frappe.deleteDoc("Event", ev.name);
+      events.reload();
+    } catch (x) {
+      setErr(errMsg(x, "Couldn't delete the event."));
+    }
+  }
+
+  return (
+    <Panel title="Company Events" hint="Public events from the last 30 days onwards. Reminders go to every employee before the event and on the day." action={<Button onClick={() => setEditing({})}><Plus size={14} /> Add Event</Button>}>
+      {err && <div className="mb-3"><Notice>{err}</Notice></div>}
+      <Async state={events}>
+        {(rows) => <Grid rows={rows} empty="No company events yet." columns={[
+          { key: "subject", label: "Event", render: (e) => <span className="font-medium">{e.subject}</span> },
+          { key: "starts_on", label: "When", render: (e) => (Number(e.all_day) ? dmy(e.starts_on) : dmyHm(e.starts_on)) },
+          { key: "description", label: "Details", render: (e) => <span className="text-[12px] text-[var(--color-text-muted)]">{String(e.description || "").replace(/<[^>]*>/g, " ").trim() || "—"}</span> },
+          { key: "_a", label: "", render: (e) => (
+            <div className="flex justify-end gap-1">
+              <button type="button" title="Edit" onClick={() => setEditing(e)} className="rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]"><Pencil size={14} /></button>
+              <button type="button" title="Delete" onClick={() => remove(e)} className="rounded p-1 text-[var(--color-text-muted)] hover:text-[var(--color-red-hover)]"><Trash2 size={14} /></button>
+            </div>
+          ) },
+        ]} />}
+      </Async>
+      {editing && <EventForm event={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); events.reload(); }} />}
+    </Panel>
+  );
+}
+
+function EventForm({ event, onClose, onSaved }) {
+  const edit = Boolean(event.name);
+  const [f, setF] = useState({ subject: event.subject || "", starts: toInput(event.starts_on), ends: toInput(event.ends_on), allDay: Boolean(Number(event.all_day)), details: String(event.description || "").replace(/<[^>]*>/g, "").trim() });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  async function submit(e) {
+    e.preventDefault();
+    if (f.ends && f.ends < f.starts) return setErr("The end can't be before the start.");
+    setBusy(true);
+    setErr("");
+    try {
+      const body = { subject: f.subject.trim(), event_type: "Public", event_category: "Event", all_day: f.allDay ? 1 : 0, starts_on: toStamp(f.starts), ends_on: toStamp(f.ends), description: f.details.trim() };
+      if (edit) await frappe.updateDoc("Event", event.name, body);
+      else await frappe.createDoc("Event", body);
+      onSaved();
+    } catch (x) {
+      setErr(errMsg(x, "Couldn't save the event."));
+      setBusy(false);
+    }
+  }
+  return (
+    <Modal title={edit ? `Edit ${event.subject}` : "Add Company Event"} onClose={onClose}>
+      <form onSubmit={submit} className="space-y-3">
+        <Field label="Event"><input required className={inputCls} value={f.subject} onChange={(e) => setF({ ...f, subject: e.target.value })} placeholder="e.g. Annual Day" /></Field>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Field label="Starts"><input required type="datetime-local" className={inputCls} value={f.starts} onChange={(e) => setF({ ...f, starts: e.target.value })} /></Field>
+          <Field label="Ends (Optional)"><input type="datetime-local" className={inputCls} value={f.ends} onChange={(e) => setF({ ...f, ends: e.target.value })} /></Field>
+        </div>
+        <label className="flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><input type="checkbox" checked={f.allDay} onChange={(e) => setF({ ...f, allDay: e.target.checked })} /> All day</label>
+        <Field label="Details (Optional)" hint="Shown as {details} in the reminder email: venue, dress code, agenda…"><textarea rows={3} className={inputCls} value={f.details} onChange={(e) => setF({ ...f, details: e.target.value })} /></Field>
+        {err && <Notice>{err}</Notice>}
+        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}><CalendarDays size={14} /> {busy ? "Saving…" : edit ? "Save Changes" : "Add Event"}</Button></div>
+      </form>
+    </Modal>
+  );
+}
+
 /* ------------------------------- mail accounts ------------------------------- */
+
+/**
+ * Internal mail through Microsoft 365. Microsoft blocks password sign-in (Security Defaults, and basic SMTP auth ends
+ * for all tenants), so this account signs in with OAuth: an ERPNext Email Account with Method OAuth and a Connected App.
+ * This card finds it, uses it for internal mail, can renew the Microsoft sign-in, and never sets a password on it.
+ */
+function OutlookAccount({ account, settings, delivery, onSaved }) {
+  const { user } = useAuth();
+  const p = MAIL_PRESETS.internal;
+  const [testTo, setTestTo] = useState(user?.email && user.email.includes("@") ? user.email : "");
+  const [busy, setBusy] = useState("");
+  const [msg, setMsg] = useState(null);
+  const origin = account?.app?.origin || "";
+  const deskLink = origin && account ? `${origin}/app/email-account/${encodeURIComponent(account.name)}` : "";
+  const linked = account && settings?.internal_email_account === account.name && settings?.internal_sender === account.email_id;
+  const mine = account && (account.connected_user || "Administrator") === user?.email;
+
+  async function link() {
+    setMsg(null);
+    setBusy("link");
+    try {
+      await setInternalMailAccount(account);
+      setMsg({ ok: true, text: `Announcements, birthday wishes and event reminders now go out from ${account.email_id}.` });
+      onSaved();
+    } catch (x) {
+      setMsg({ ok: false, text: errMsg(x, "Couldn't update the communication settings.") });
+    }
+    setBusy("");
+  }
+
+  async function signIn() {
+    if (!(await confirmDialog({ title: "Connect with Microsoft", message: `Sign in to Microsoft as ${account.email_id} to renew this account's access? A new tab opens; after Microsoft, ERPNext saves the access and brings you back.`, confirmLabel: "Continue" }))) return;
+    setMsg(null);
+    setBusy("auth");
+    // Open the tab first (browsers block pop-ups opened after a wait), then send it to Microsoft.
+    const tab = window.open("", "_blank");
+    try {
+      const url = await startMicrosoftSignIn(account, `${window.location.origin}/admin/communication`);
+      if (!url) throw new Error("ERPNext didn't return a Microsoft sign-in address.");
+      if (tab) tab.location.href = url;
+      else window.location.href = url;
+      setMsg({ ok: true, text: "Finish signing in to Microsoft in the new tab, then send a test email here." });
+    } catch (x) {
+      tab?.close();
+      setMsg({ ok: false, text: `${errMsg(x, "Couldn't start the Microsoft sign-in.").replace(/[.\s]*$/, ".")}${deskLink ? " Use Open in ERPNext and click Authorize API Access there instead." : ""}` });
+    }
+    setBusy("");
+  }
+
+  async function test() {
+    setMsg(null);
+    setBusy("test");
+    try {
+      const r = await sendTestEmail(account.name, testTo);
+      setMsg({ ok: true, text: `Test email sent from ${r.from} to ${r.sent}. Check that inbox (and spam).` });
+    } catch (x) {
+      setMsg({ ok: false, text: commsError(x, errMsg, "The test email couldn't be sent.") });
+    }
+    setBusy("");
+  }
+
+  return (
+    <Panel title={p.title} hint={p.hint}>
+      {account ? (
+        <div className="space-y-3 text-[13px]">
+          <p className="flex flex-wrap items-center gap-1.5 text-[12.5px] text-[var(--color-green)]"><CheckCircle2 size={14} /> <b>Connected</b> · {account.email_id}</p>
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-[12px]">
+            <dt className="text-[var(--color-text-faint)]">Sign-in</dt><dd className="text-[var(--color-text)]">Microsoft (OAuth){account.app?.provider ? ` · ${account.app.provider}` : ""}</dd>
+            <dt className="text-[var(--color-text-faint)]">ERPNext Mail Account</dt><dd className="text-[var(--color-text)]">{account.name}{Number(account.default_outgoing) ? " · default for system emails" : ""}</dd>
+            <dt className="text-[var(--color-text-faint)]">Authorized By</dt><dd className="text-[var(--color-text)]">{account.connected_user || "—"}</dd>
+            <dt className="text-[var(--color-text-faint)]">Server</dt><dd className="text-[var(--color-text)]">{account.smtp_server || "smtp.office365.com"}:{account.smtp_port || 587}</dd>
+          </dl>
+          {!linked && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-2">
+              <span className="text-[12px] text-[var(--color-text-muted)]">Internal emails aren't using this account yet.</span>
+              <Button type="button" disabled={Boolean(busy)} onClick={link}>{busy === "link" ? "Saving…" : "Use for Internal Mail"}</Button>
+            </div>
+          )}
+          <div className="flex flex-wrap gap-2">
+            {mine && account.connected_app && <Button type="button" variant="secondary" disabled={Boolean(busy)} onClick={signIn}><LogIn size={14} /> {busy === "auth" ? "Opening…" : "Connect with Microsoft"}</Button>}
+            {deskLink && <a href={deskLink} target="_blank" rel="noreferrer"><Button type="button" variant="ghost"><ExternalLink size={14} /> Open in ERPNext</Button></a>}
+          </div>
+          <p className="text-[11px] text-[var(--color-text-faint)]">
+            {mine ? "Use Connect with Microsoft only if sending starts failing (for example after a password change or revoked consent). Your ERPNext sign-in on the ERPNext site is needed when Microsoft sends you back." : `Only ${account.connected_user || "the connected user"} can renew the Microsoft sign-in (in ERPNext: Authorize API Access).`}
+            {" "}The password isn't used and can't be set here.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3 text-[13px]">
+          <p className="flex items-center gap-1.5 text-[12px] text-[var(--color-amber)]"><AlertTriangle size={13} /> Not connected</p>
+          <p className="text-[12.5px] text-[var(--color-text-muted)]">Microsoft 365 doesn't allow password sign-in for sending mail (Security Defaults, and basic SMTP sign-in is being switched off for all tenants), so this account signs in with Microsoft. Set it up once in ERPNext:</p>
+          <ol className="list-decimal space-y-1 pl-5 text-[12px] text-[var(--color-text-muted)]">
+            <li>Integrations › Connected App for Microsoft, with the scopes <code>https://outlook.office.com/SMTP.Send</code> and <code>offline_access</code>.</li>
+            <li>Email Account with Method <b>OAuth</b>, that Connected App, Enable Outgoing (and Default Outgoing), smtp.office365.com port 587 TLS.</li>
+            <li>Click <b>Authorize API Access</b> and sign in as the mailbox.</li>
+          </ol>
+          <p className="text-[11px] text-[var(--color-text-faint)]">This card picks the account up automatically once it can send.</p>
+        </div>
+      )}
+      {account && (
+        <div className="mt-4 flex flex-wrap items-end gap-2 border-t border-[var(--color-border)] pt-4">
+          <div className="min-w-[14rem] flex-1"><Field label="Send a Test Email To"><input type="email" className={inputCls} value={testTo} onChange={(e) => setTestTo(e.target.value)} /></Field></div>
+          <Button type="button" variant="secondary" disabled={Boolean(busy) || !testTo} onClick={test}><Send size={14} /> {busy === "test" ? "Sending…" : "Send Test"}</Button>
+        </div>
+      )}
+      <Delivery delivery={delivery} />
+      {msg && <div className="mt-3"><Notice tone={msg.ok ? "info" : "error"}>{msg.text}</Notice></div>}
+    </Panel>
+  );
+}
+
+/** Whether queued emails actually leave: ERPNext's scheduler and a queue worker send them every few minutes. */
+function Delivery({ delivery }) {
+  if (!delivery) return null;
+  const { waiting, stuck, failed, lastRun } = delivery;
+  const ok = !stuck && !failed.length;
+  return (
+    <div className={`mt-4 rounded-md border px-3 py-2.5 text-[12px] ${ok ? "border-[var(--color-border)] text-[var(--color-text-muted)]" : "border-[var(--color-amber)]/40 text-[var(--color-text)]"}`}>
+      <p className="font-medium">{ok ? "Automatic sending is working" : "Automatic sending needs attention"}</p>
+      <p className="mt-0.5">{waiting ? `${waiting} email(s) waiting to send` : "No emails waiting"}{stuck ? ` · ${stuck} waiting over 15 minutes` : ""}{failed.length ? ` · ${failed.length} failed` : ""}{lastRun ? ` · send job last ran ${dmyHm(lastRun.creation)} (${lastRun.status})` : ""}</p>
+      {stuck > 0 && <p className="mt-1 text-[11.5px] text-[var(--color-text-muted)]">Emails are queued but not going out: ERPNext's scheduler or its queue worker isn't running. The server administrator can check with <code>bench --site &lt;site&gt; doctor</code> and turn it on with <code>bench --site &lt;site&gt; enable-scheduler</code>.</p>}
+      {failed[0]?.error && <p className="mt-1 line-clamp-2 text-[11.5px] text-[var(--color-red-hover)]">Last error: {String(failed[0].error).replace(/<[^>]*>/g, " ").trim().slice(0, 240)}</p>}
+    </div>
+  );
+}
 
 function MailAccount({ kind, account, onSaved }) {
   const { user } = useAuth();
