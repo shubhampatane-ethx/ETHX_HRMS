@@ -41,8 +41,3 @@ export function staffView(pathname, search = "") {
   if (SHARED_PAGES.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return saved && saved !== "self" ? "work" : "self";
   return "self";
 }
-
-/** The sidebar link that flips a staff member between their own pages and their workspace. */
-export function switchLink(to, label) {
-  return { to, label, switch: true };
-}

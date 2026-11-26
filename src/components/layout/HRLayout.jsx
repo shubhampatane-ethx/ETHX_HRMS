@@ -8,7 +8,7 @@ import { hasPermission, isStaffEmployee } from "../../permissions/roles";
 import { Topbar } from "./Topbar";
 import { useClientScope } from "../../lib/clientScope";
 import { HR_SETUP_SECTIONS, slugify } from "../../lib/hrSetupConfig";
-import { coreSection, flattenNav, moduleSection, switchLink } from "./navSections";
+import { coreSection, flattenNav, moduleSection } from "./navSections";
 
 // A setup page or report from the HR setup config, by its doctype (its own page if it has one).
 const SETUP_ITEMS = HR_SETUP_SECTIONS.flatMap((s) => s.items);
@@ -134,7 +134,7 @@ export function dashboardLink(user, workspaceHome) {
 
 /**
  * HR sidebar: Dashboard first, then HR work by module. With view "work" (HR staff who are employees, on HR pages) the
- * Dashboard opens the HR Dashboard and a switch leads to their own pages; without a view (search, Access Control) the
+ * Dashboard opens the HR Dashboard (its My Dashboard tab leads to their own pages); without a view (search, Access Control) the
  * person's own self-service is listed too, so every page is in one menu.
  */
 export function hrNav(user, view) {
@@ -143,7 +143,7 @@ export function hrNav(user, view) {
   return [
     ...(isAdmin ? [{ to: "/admin", label: "Back to Admin", icon: ArrowLeft }] : []),
     split ? { to: "/employee?view=hr", label: "Dashboard", icon: LayoutDashboard, end: true } : dashboardLink(user, "/hr"),
-    ...(split ? [switchLink("/employee?view=self", "Switch to My Self-Service")] : isStaffEmployee(user) ? [SELF_SERVICE] : []),
+    ...(!split && isStaffEmployee(user) ? [SELF_SERVICE] : []),
     // HR staff made manager of a project (project-based role) get their projects in the Project Lifecycle section.
     ...hrSections({ myProjects: !isAdmin && hasPermission(user, "dashboard.pm") }),
     coreSection("Reports & Setup", hrSetupGroups(isAdmin), SlidersHorizontal),

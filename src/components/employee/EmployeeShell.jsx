@@ -13,7 +13,7 @@ import { Topbar } from "../layout/Topbar";
 import { hrNav, hrTitleFor } from "../layout/HRLayout";
 import { hasPermission, isStaffEmployee } from "../../permissions/roles";
 import { pmNav, pmTitleFor } from "../layout/PMLayout";
-import { coreSection, flattenNav, moduleSection, staffView, switchLink } from "../layout/navSections";
+import { coreSection, flattenNav, moduleSection, staffView } from "../layout/navSections";
 
 /* ===== ui.jsx ===== */
 export const inputCls =
@@ -362,14 +362,9 @@ const INTERVIEWS_NAV = { to: "/employee/interviews", label: "My Interviews", ico
 // Reached from the account menu ("Profile & password"), so it is not repeated in the sidebar; kept here for the page title.
 const PROFILE_NAV = { to: "/employee/profile", label: "My Profile" };
 
-/**
- * HR staff and Project Managers on their own pages: only their employee menu, with the Dashboard opening My Dashboard
- * and a switch back to their HR / Projects workspace.
- */
-function staffSelfNav(user, workView, workLabel) {
-  return navFor(user).flatMap((n) => (n.to === "/employee"
-    ? [{ ...n, to: "/employee?view=self", end: true }, switchLink(`/employee?view=${workView}`, `Switch to ${workLabel}`)]
-    : [n]));
+/** HR staff and Project Managers on their own pages: only their employee menu, with the Dashboard opening My Dashboard. */
+function staffSelfNav(user) {
+  return navFor(user).map((n) => (n.to === "/employee" ? { ...n, to: "/employee?view=self", end: true } : n));
 }
 
 function navFor(user) {
@@ -437,14 +432,14 @@ export function EmployeeLayout() {
   const self = staff && staffView(pathname, search) === "self";
   const asHr = hr && !self;
   const asPm = pm && !self;
-  const nav = self ? staffSelfNav(user, hr ? "hr" : "pm", hr ? "HR Workspace" : "Projects Workspace")
+  const nav = self ? staffSelfNav(user)
     : asHr ? hrNav(user, staff ? "work" : undefined) : asPm ? pmNav(user, staff ? "work" : undefined) : navFor(user);
   return (
     <EmployeeProvider>
       <div className="flex h-screen overflow-hidden bg-[var(--color-bg)]">
         <Sidebar title={asHr ? "HR Workspace" : asPm ? "Project Manager" : self ? "My Self-Service" : "Employee Portal"} items={nav} />
         <div className="flex min-w-0 flex-1 flex-col">
-          <Topbar search={hr || pm} roleLabel={asHr ? (hasPermission(user, "dashboard.admin") ? "Admin" : "HR") : asPm ? "Project Manager" : "Employee"} pageTitle={asHr ? hrTitleFor(pathname) : asPm ? pmTitleFor(pathname) : titleFor(pathname)} />
+          <Topbar search roleLabel={asHr ? (hasPermission(user, "dashboard.admin") ? "Admin" : "HR") : asPm ? "Project Manager" : "Employee"} pageTitle={asHr ? hrTitleFor(pathname) : asPm ? pmTitleFor(pathname) : titleFor(pathname)} />
           <main className="flex-1 overflow-y-auto p-6">
             <div className="mx-auto max-w-6xl space-y-5">
               <Gate />

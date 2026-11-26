@@ -9,7 +9,7 @@ import { useAuth } from "../../context/AuthContext";
 import { hasPermission, isStaffEmployee } from "../../permissions/roles";
 import { dashboardLink, SELF_SERVICE, SELF_SERVICE_PAGES } from "./HRLayout";
 import { ForcedPasswordScreen } from "../employee/EmployeeShell";
-import { moduleSection, switchLink } from "./navSections";
+import { moduleSection } from "./navSections";
 
 const TITLES = {
   "/employee": "Dashboard",
@@ -36,13 +36,13 @@ export function pmTitleFor(pathname) {
 /** PM sidebar: the one Dashboard, the person's own self-service (when they are an employee too), then PM work. */
 export function pmNav(user, view) {
   // "My Team" is already a PM page, so it is not repeated in the self-service group.
-  // With view "work" (on work pages) their own pages are behind a switch instead, like the HR workspace.
+  // With view "work" (on work pages) their own pages are reached from the dashboard's My Dashboard tab instead.
   const selfService = { ...SELF_SERVICE, children: SELF_SERVICE.children.filter((c) => c.to !== "/employee/team") };
   const split = view === "work" && isStaffEmployee(user);
   return [
     ...(hasPermission(user, "dashboard.admin") ? [{ to: "/admin", label: "Back to Admin", icon: ArrowLeft }] : []),
     split ? { to: "/employee?view=pm", label: "Dashboard", icon: LayoutDashboard, end: true } : dashboardLink(user, "/pm"),
-    ...(split ? [switchLink("/employee?view=self", "Switch to My Self-Service")] : isStaffEmployee(user) ? [selfService] : []),
+    ...(!split && isStaffEmployee(user) ? [selfService] : []),
     // One section per HRMS 360 module, so the client sees only what they have.
     moduleSection("projects", [
       { to: "/pm/projects", label: "Projects", icon: Briefcase },

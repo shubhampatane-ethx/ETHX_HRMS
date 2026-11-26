@@ -8,7 +8,7 @@ import { useAuth } from "../../context/AuthContext";
 import { hasPermission } from "../../permissions/roles";
 import { greetingName } from "../../lib/names";
 import { searchPages, searchRecords } from "../../lib/appSearch";
-import { GlobalSearch, GROUP_ICONS } from "../../components/search/GlobalSearch";
+import { GROUP_ICONS } from "../../components/search/GlobalSearch";
 
 // Workspace dashboards that HR staff / Project Managers who are also employees switch to from their one Dashboard.
 const HRDashboard = lazy(() => import("../hr/Dashboard"));
@@ -510,7 +510,6 @@ function SelfDashboard() {
             <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-[var(--color-red-hover)]">{WEEKDAYS[now.getDay()]}, {String(now.getDate()).padStart(2, "0")} {MONTHS[now.getMonth()]} {now.getFullYear()}</p>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-[var(--color-text)]">{greeting(now.getHours())}, {greetingName(employee.first_name || employee.employee_name, employee.user_id)}</h2>
           </div>
-          <GlobalSearch employee={employee} className="w-full max-w-sm" placeholder="Search anything - pages, people, policies…" />
         </div>
       </section>
 

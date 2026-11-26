@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Link, NavLink, useLocation } from "react-router-dom";
-import { ArrowLeftRight, ChevronDown } from "lucide-react";
+import { NavLink, useLocation } from "react-router-dom";
+import { ChevronDown } from "lucide-react";
 import { Brand } from "../Brand";
 import { useAuth } from "../../context/AuthContext";
 import { visibleNav } from "../../permissions/pageAccess";
@@ -37,16 +37,6 @@ export function Sidebar({ title, items }) {
 }
 
 function TopItem({ item, pathname }) {
-  if (item.switch) {
-    return (
-      <li className="py-1.5">
-        <Link to={item.to} className="flex items-center gap-2.5 rounded-lg border border-dashed border-[var(--color-red-deep)] px-3 py-2 text-[12.5px] font-medium text-[var(--color-red-hover)] transition-colors hover:bg-[var(--color-red-wash)]">
-          <ArrowLeftRight size={14} strokeWidth={1.9} />
-          {item.label}
-        </Link>
-      </li>
-    );
-  }
   if (item.children) return <GroupItem group={item} pathname={pathname} />;
   return (
     <li>
