@@ -41,6 +41,20 @@ export const PERMISSIONS = {
     "onboarding.view",
     "performance.view",
     "training.view",
+    // ...every Project Manager page...
+    "projects.manage",
+    "assignments.manage",
+    "timesheets.team.view",
+    "requisitions.raise",
+    "interviews.own",
+    // ...and the employee portal (their own records, when the account is linked to an employee).
+    "dashboard.employee",
+    "profile.own.view",
+    "profile.own.edit",
+    "attendance.own.view",
+    "leave.own.view",
+    "leave.own.apply",
+    "payroll.own.view",
   ],
   HR_USER: [
     "dashboard.hr",
@@ -61,6 +75,12 @@ export const PERMISSIONS = {
     "performance.view",
     "training.view",
     "reports.view",
+    // HR has full access to projects: every project, its team, assignments and timesheets (the PM pages).
+    "dashboard.pm",
+    "projects.manage",
+    "assignments.manage",
+    "timesheets.team.view",
+    "requisitions.raise",
   ],
   EMPLOYEE: [
     "dashboard.employee",

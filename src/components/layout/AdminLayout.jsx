@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { PageLoading } from "../PageLoading";
 import { Outlet, useLocation } from "react-router-dom";
-import { LayoutDashboard, Users, Building2, ListChecks, ShieldCheck, ScrollText, Briefcase, SlidersHorizontal, Mail, Boxes, Plug } from "lucide-react";
+import { LayoutDashboard, Users, Building2, ListChecks, ShieldCheck, ScrollText, Briefcase, SlidersHorizontal, Mail, Boxes, Plug, UserRound } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { useClientScope } from "../../lib/clientScope";
@@ -44,6 +44,7 @@ export const ADMIN_NAV = [
   ], ShieldCheck),
   coreSection(`${PRODUCT_NAME} Modules`, [
     { to: "/hr", label: "HR Dashboard", icon: Briefcase },
+    { to: "/employee", label: "Employee Portal", icon: UserRound, end: true },
     ...MODULE_GROUPS,
     ...hrSetupGroups(true),
   ], Boxes),

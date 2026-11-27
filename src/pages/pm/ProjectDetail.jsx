@@ -14,7 +14,7 @@ import { daysUntil, dmy, dmyHm, errMsg, isoDate, listTry, useAsync } from "../..
 import { listAssignments, parseAssignment } from "../../lib/assignments";
 import { managerOf, setProjectManager } from "../../lib/projectRoles";
 import { endProject, previewEndProject } from "../../lib/contractors";
-import { addProjectNote, ENDING_STAGES, loadProjectTimeline, PROJECT_STAGES, setProjectDates, setStage, STAGE_PATH, STAGE_TONE, stageOf } from "../../lib/projectLifecycle";
+import { addProjectNote, ENDING_STAGES, isMonday, loadProjectTimeline, MONDAY_START, mondayFrom, PROJECT_STAGES, setProjectDates, setStage, STAGE_PATH, STAGE_TONE, stageOf } from "../../lib/projectLifecycle";
 import { TeamMemberSearch } from "../../components/TeamMemberSearch";
 import { confirmDialog } from "../../components/ui/dialogs";
 
@@ -30,7 +30,7 @@ export default function ProjectDetail() {
   const { id } = useParams();
   const { user } = useAuth();
   const seesAll = hasPermission(user, "dashboard.admin") || hasPermission(user, "dashboard.hr");
-  const isAdmin = hasPermission(user, "dashboard.admin");
+  const isAdmin = seesAll; // HR and the Administrator may end projects and close stages
   const project = useAsync(() => frappe.getDoc("Project", id), [id]);
   const employees = useAsync(() => listTry("Employee", { fields: ["name", "employee_name", "user_id", "designation", "department", "status", "image"], orderBy: "employee_name asc" }, ["name", "employee_name", "user_id", "status"]), []);
   const tasks = useAsync(listAssignments, []);
@@ -303,6 +303,8 @@ function DatesModal({ p, onClose, onSaved }) {
   const [err, setErr] = useState("");
   async function submit(e) {
     e.preventDefault();
+    // A changed start date must be a Monday (older projects keep theirs while only the ETA changes).
+    if (f.start && f.start !== (p.expected_start_date || "") && !isMonday(f.start)) return setErr(`${MONDAY_START} The nearest is ${dmy(mondayFrom(f.start))}.`);
     if (f.start && f.end && f.end < f.start) return setErr("The ETA can't be before the start date.");
     setBusy(true);
     try {
@@ -316,7 +318,10 @@ function DatesModal({ p, onClose, onSaved }) {
   return (
     <Modal title={`Change Dates · ${label(p)}`} onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
-        <div className="grid grid-cols-2 gap-3"><DateField label="Start" value={f.start} onChange={(v) => setF({ ...f, start: v })} /><DateField label="ETA (End)" value={f.end} onChange={(v) => setF({ ...f, end: v })} /></div>
+        <div className="grid grid-cols-2 gap-3">
+          <div><DateField label="Start (Monday)" value={f.start} onChange={(v) => setF({ ...f, start: v })} />{f.start && f.start !== (p.expected_start_date || "") && !isMonday(f.start) && <p className="mt-1 text-[11px] font-medium text-[var(--color-red-hover)]">Not a Monday</p>}</div>
+          <DateField label="ETA (End)" value={f.end} onChange={(v) => setF({ ...f, end: v })} />
+        </div>
         <Field label="Reason" hint="Shown on the project timeline"><input required className={inputCls} value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} placeholder="e.g. Scope extended by the client" /></Field>
         {err && <Notice>{err}</Notice>}
         <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Saving…" : "Save Dates"}</Button></div>

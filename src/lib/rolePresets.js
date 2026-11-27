@@ -41,7 +41,7 @@ export const HR_PRESET = [
   { doctype: "Job Applicant", permlevel: 1, perms: ["read", "write"], why: "Candidate current / expected CTC (restricted fields)" },
   { doctype: "Job Applicant Source", perms: ["read", "create"], why: "Candidate source (LinkedIn, Naukri, referral…)" },
   { doctype: "Interview Round", perms: ["read", "write", "create", "delete"], why: "Rounds and skill scorecards" },
-  { doctype: "Interview Type", perms: ["read"], why: "Round type" },
+  { doctype: "Interview Type", perms: ["read", "write", "create", "delete"], why: "Interview rounds and skill scorecards (HRMS v16)" },
   { doctype: "Skill", perms: ["read", "create"], why: "Scorecard skills" },
   { doctype: "Interview", perms: ["read", "write", "create", "delete", "submit"], why: "Schedule interviews and record the decision" },
   { doctype: "Interview Feedback", perms: ["read"], why: "Read the panel's scorecards" },
@@ -109,6 +109,7 @@ const INTERVIEWER_PRESET = [
   { doctype: "Interview", perms: ["read"], why: "See interviews they're on" },
   { doctype: "Interview Feedback", perms: ["read", "create", "submit"], why: "Submit their scorecard" },
   { doctype: "Interview Round", perms: ["read"], why: "Round details" },
+  { doctype: "Interview Type", perms: ["read"], why: "Round details (HRMS v16)" },
   { doctype: "Skill", perms: ["read"], why: "Scorecard skills" },
 ];
 // HRMS's approver roles, given automatically to anyone set as a leave / expense approver (Admin › Organization).

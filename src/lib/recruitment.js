@@ -1,6 +1,6 @@
 // Recruitment: pipeline stages, ERPNext HRMS calls and small helpers shared by every recruitment screen.
 //
-// Everything is stored in standard HRMS doctypes (Job Requisition, Job Opening, Job Applicant, Interview Round,
+// Everything is stored in standard HRMS doctypes (Job Requisition, Job Opening, Job Applicant, Interview Type / Round,
 // Interview, Interview Feedback, Job Offer, Employee Onboarding). The few things HRMS has no field for (pipeline
 // stage, CTC, offer approval, joining outcome, consent, retention) live in custom fields that the Administrator
 // installs once from HR > Recruitment > Setup (see recruitmentSetup.js).
@@ -239,11 +239,35 @@ export async function timelineOf(doctype, name) {
 
 /* ------------------------------- interviews ------------------------------- */
 
+// HRMS v16 merged "Interview Round" into "Interview Type": the round master is Interview Type (named by
+// interview_type_name, needs at least one skill), and Interview / Interview Feedback point to it through
+// interview_type. Older HRMS (and sites where System Setup created the interview doctypes) still use Interview Round
+// and interview_round. The app keeps calling it a "round" and reads/writes whichever the site has; every interview
+// it returns carries the round in `interview_round` either way.
+const ROUND_V16 = { doctype: "Interview Type", nameField: "interview_type_name", field: "interview_type", v16: true };
+const ROUND_OLD = { doctype: "Interview Round", nameField: "round_name", field: "interview_round", v16: false };
+let roundModelP = null;
+/** Which round model this site uses (asked once: does Interview have an interview_type field?). */
+export function roundModel() {
+  roundModelP ||= frappe.getList("Interview", { fields: ["name"], filters: [["interview_type", "is", "set"]], limit: 1 })
+    .then(() => ROUND_V16)
+    .catch((e) => {
+      if (!e?.response) { roundModelP = null; return ROUND_V16; } // offline: assume v16 and ask again next time
+      return e.response.data?.exc_type === "PermissionError" ? ROUND_V16 : ROUND_OLD;
+    });
+  return roundModelP;
+}
+// v16 refuses a round without skills: one general skill is used when none were given.
+const DEFAULT_SKILL = "Overall Assessment";
+
 const INT_FIELDS = ["name", "job_applicant", "job_opening", "interview_round", "designation", "status", "scheduled_on", "from_time", "to_time", "average_rating", "expected_average_rating", "interview_summary", "resume_link", "docstatus", "custom_mode", "custom_meeting_link", "creation"];
 const INT_BASIC = ["name", "job_applicant", "job_opening", "interview_round", "designation", "status", "scheduled_on", "from_time", "to_time", "average_rating", "interview_summary", "docstatus"];
 
-export function listInterviews(filters = []) {
-  return listTry("Interview", { filters: [["docstatus", "<", 2], ...filters], fields: INT_FIELDS, orderBy: "scheduled_on desc" }, INT_BASIC);
+export async function listInterviews(filters = []) {
+  const m = await roundModel();
+  const swap = (list) => list.map((f) => (f === "interview_round" ? m.field : f));
+  const rows = await listTry("Interview", { filters: [["docstatus", "<", 2], ...filters], fields: swap(INT_FIELDS), orderBy: "scheduled_on desc" }, swap(INT_BASIC));
+  return rows.map((r) => ({ ...r, interview_round: r[m.field] ?? r.interview_round ?? "" }));
 }
 
 /** Interviewers on a set of interviews -> { interviewName: [user, ...] } */
@@ -272,12 +296,15 @@ export async function feedbackFor(interviewNames) {
 
 /** Interview rounds (master), with skills and default interviewers. */
 export async function listRounds() {
-  const rounds = await listTry("Interview Round", { fields: ["name", "round_name", "designation", "interview_type", "expected_average_rating"], orderBy: "round_name asc" }, ["name", "round_name", "designation"]);
+  const m = await roundModel();
+  const fields = m.v16 ? ["name", "interview_type_name", "designation", "expected_average_rating"] : ["name", "round_name", "designation", "interview_type", "expected_average_rating"];
+  const rounds = (await listTry(m.doctype, { fields, orderBy: `${m.nameField} asc` }, ["name", m.nameField, "designation"]))
+    .map((r) => ({ ...r, round_name: r[m.nameField] || r.name }));
   if (!rounds.length) return rounds;
   const names = rounds.map((r) => r.name);
   const [skills, people] = await Promise.allSettled([
-    frappe.getList("Expected Skill Set", { filters: [["parent", "in", names]], fields: ["parent", "skill", "idx"], limit: 0, parent: "Interview Round", orderBy: "idx asc" }),
-    frappe.getList("Interviewer", { filters: [["parent", "in", names]], fields: ["parent", "user"], limit: 0, parent: "Interview Round" }),
+    frappe.getList("Expected Skill Set", { filters: [["parent", "in", names]], fields: ["parent", "skill", "idx"], limit: 0, parent: m.doctype, orderBy: "idx asc" }),
+    frappe.getList("Interviewer", { filters: [["parent", "in", names]], fields: ["parent", "user"], limit: 0, parent: m.doctype }),
   ]);
   const sk = skills.status === "fulfilled" ? skills.value : [];
   const pp = people.status === "fulfilled" ? people.value : [];
@@ -294,16 +321,24 @@ export async function ensureSkills(skills) {
 }
 
 export async function saveRound(round, data) {
-  const skills = await ensureSkills(data.skills);
+  const m = await roundModel();
+  let skills = await ensureSkills(data.skills);
+  if (m.v16 && !skills.length) skills = await ensureSkills([DEFAULT_SKILL]);
   const doc = {
-    round_name: data.round_name.trim(),
+    [m.nameField]: data.round_name.trim(),
     designation: data.designation || null,
-    interview_type: data.interview_type || null,
+    ...(m.v16 ? {} : { interview_type: data.interview_type || null }),
     expected_average_rating: data.expected ? fromStars(data.expected) : null,
     expected_skill_set: skills.map((skill) => ({ skill })),
     interviewers: data.interviewers.map((user) => ({ user })),
   };
-  return round ? frappe.updateDoc("Interview Round", round.name, doc) : frappe.createDoc("Interview Round", doc);
+  return round ? frappe.updateDoc(m.doctype, round.name, doc) : frappe.createDoc(m.doctype, doc);
+}
+
+/** Delete a round from the master (refused by the server while interviews use it). */
+export async function deleteRound(round) {
+  const m = await roundModel();
+  return frappe.deleteDoc(m.doctype, round.name);
 }
 
 /** Users who can be picked as interviewers: enabled system users. */
@@ -353,9 +388,10 @@ export async function interviewClashes({ date, from, to, interviewers, exclude }
 }
 
 export async function scheduleInterview({ applicant, round, date, from, to, interviewers, mode, link, existing }) {
+  const m = await roundModel();
   const doc = {
     job_applicant: applicant.name,
-    interview_round: round,
+    [m.field]: round,
     scheduled_on: date,
     from_time: `${from}:00`,
     to_time: `${to}:00`,
@@ -419,18 +455,20 @@ export async function submitFeedback({ interview, interviewer, skills, result, f
     if (!hrmsMethodMissing(e)) throw e;
   }
   const average = ratings.length ? ratings.reduce((n, r) => n + Number(r.rating || 0), 0) / ratings.length : 0;
-  const doc = await frappe.createDoc("Interview Feedback", { interview: interview.name, interview_round: interview.interview_round, job_applicant: interview.job_applicant, interviewer, result, feedback, average_rating: average, skill_assessment: ratings });
+  const m = await roundModel();
+  const doc = await frappe.createDoc("Interview Feedback", { interview: interview.name, [m.field]: interview.interview_round, job_applicant: interview.job_applicant, interviewer, result, feedback, average_rating: average, skill_assessment: ratings });
   return frappe.submitDoc(doc);
 }
 
 export async function expectedSkills(round) {
+  const m = await roundModel();
   try {
-    const rows = await frappe.callMethod("hrms.hr.doctype.interview.interview.get_expected_skill_set", { interview_round: round });
+    const rows = await frappe.callMethod("hrms.hr.doctype.interview.interview.get_expected_skill_set", { [m.field]: round });
     return (rows || []).map((r) => r.skill);
   } catch (e) {
-    if (!hrmsMethodMissing(e)) throw e;
+    if (!hrmsMethodMissing(e) && !/unexpected keyword|missing \d+ required/i.test(String(e?.response?.data?.exception || ""))) throw e;
   }
-  const rows = await frappe.getList("Expected Skill Set", { filters: [["parent", "=", round]], fields: ["skill", "idx"], limit: 0, parent: "Interview Round", orderBy: "idx asc" });
+  const rows = await frappe.getList("Expected Skill Set", { filters: [["parent", "=", round]], fields: ["skill", "idx"], limit: 0, parent: m.doctype, orderBy: "idx asc" });
   return rows.map((r) => r.skill);
 }
 

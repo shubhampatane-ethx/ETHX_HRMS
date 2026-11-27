@@ -93,8 +93,8 @@ if doc.get("custom_is_contractor") and doc.user_id:
 `;
 
 const END_PROJECT_API = `${HELD.trim()}
-if not is_admin:
-    frappe.throw("Only the Administrator can end a project.")
+if not sees_all:
+    frappe.throw("Only HR or the Administrator can end a project.")
 args = frappe.form_dict
 project = args.get("project")
 preview = frappe.utils.cint(args.get("preview"))

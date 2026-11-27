@@ -89,6 +89,17 @@ ${SEE_ALL.trim().split("\n").map((l) => `        ${l}`).join("\n")}
             row = frappe.db.get_value("Project", doc.project, ["custom_project_manager", "owner"], as_dict=True)
             if not row or (row.custom_project_manager or row.owner) != user:
                 frappe.throw("Only the manager of this project, HR or the Administrator can change its team.")
+    # Nobody can be put on a project before they join.
+    if doc.exp_start_date and (doc.is_new() or doc.has_value_changed("exp_start_date") or doc.has_value_changed("description")):
+        text = doc.description or ""
+        who = ""
+        i = text.find("Assignee:")
+        if i >= 0:
+            who = text[i + 9:].split("\\n")[0].split("<")[0].strip()
+        if who:
+            doj = frappe.db.get_value("Employee", {"user_id": who, "status": "Active"}, "date_of_joining") or frappe.db.get_value("Employee", {"user_id": who}, "date_of_joining")
+            if doj and frappe.utils.getdate(doc.exp_start_date) < frappe.utils.getdate(doj):
+                frappe.throw("This person joins on " + frappe.utils.formatdate(doj) + ". An assignment can't start before their date of joining.")
 `;
 
 const SET_MANAGER_API = `
@@ -207,11 +218,28 @@ for u in frappe.get_all("User", filters={"name": ["in", people]}, fields=["name"
 frappe.response["message"] = {"created": row.creation, "created_by": row.owner, "versions": versions, "comments": comments, "names": names}
 `;
 
+// HR has full access to projects, so both HR roles get the project doctypes in ERPNext too.
+const PROJECT_DOCTYPE_PERMS = [
+  ["Project", ["read", "write", "create", "delete", "report", "export"]],
+  ["Task", ["read", "write", "create", "delete", "report", "export"]],
+  ["Timesheet", ["read", "write", "create", "delete", "submit", "cancel", "report", "export"]],
+  ["Activity Type", ["read", "write", "create", "report"]],
+];
+export const PROJECT_HR_PERMS = ["HR Manager", "HR User"].flatMap((role) => PROJECT_DOCTYPE_PERMS.map(([doctype, perms]) => ({ doctype, role, permlevel: 0, perms, what: `${role} gets full access to ${doctype}` })));
+
+// Projects start on a Monday: a new or changed start date on any other day is refused.
+const PROJECT_MONDAY_START = `
+if doc.expected_start_date and (doc.is_new() or doc.has_value_changed("expected_start_date")):
+    if frappe.utils.getdate(doc.expected_start_date).weekday() != 0:
+        frappe.throw("A project's start date must be a Monday.")
+`;
+
 export const PROJECT_ROLE_SCRIPTS = [
+  { name: "ETHX - Project starts on Monday", script_type: "DocType Event", reference_doctype: "Project", doctype_event: "Before Save", script: PROJECT_MONDAY_START, what: "A project's start date must be a Monday" },
   { name: "ETHX - Project timeline", script_type: "API", api_method: "ethx_project_timeline", script: PROJECT_TIMELINE_API, what: "A project's history: stage, status, dates, manager and notes, for the people who may see it" },
   { name: "ETHX - My project teams", script_type: "API", api_method: "ethx_my_project_teams", script: MY_PROJECT_TEAMS_API, what: "My Team shows the team of each project you manage or work on" },
   { name: "ETHX - Set project manager", script_type: "API", api_method: "ethx_set_project_manager", script: SET_MANAGER_API, what: "Any employee can be made manager of a project, with access to that project only" },
   { name: "ETHX - Projects: own only", script_type: "Permission Query", reference_doctype: "Project", script: PROJECT_QUERY, what: "Project managers see only their own projects" },
   { name: "ETHX - Tasks: own projects only", script_type: "Permission Query", reference_doctype: "Task", script: TASK_QUERY, what: "Project managers see tasks of their own projects and their own tasks" },
-  { name: "ETHX - Assignment guard", script_type: "DocType Event", reference_doctype: "Task", doctype_event: "Before Validate", script: ASSIGNMENT_GUARD, what: "Only a project's manager, HR or the Administrator change its team" },
+  { name: "ETHX - Assignment guard", script_type: "DocType Event", reference_doctype: "Task", doctype_event: "Before Validate", script: ASSIGNMENT_GUARD, what: "Only a project's manager, HR or the Administrator change its team, and nobody is assigned before their date of joining" },
 ];

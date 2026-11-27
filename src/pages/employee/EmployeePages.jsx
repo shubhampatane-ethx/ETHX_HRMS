@@ -856,7 +856,9 @@ const VIEW_KEY = "ethx.dashboard.view";
 export function EmpDashboard() {
   const { user } = useAuth();
   const [params] = useSearchParams();
-  const work = hasPermission(user, "dashboard.hr") ? { id: "hr", label: "HR Dashboard", Page: HRDashboard }
+  // The Admin has its own dashboard; here it sees the employee one.
+  const work = hasPermission(user, "dashboard.admin") ? null
+    : hasPermission(user, "dashboard.hr") ? { id: "hr", label: "HR Dashboard", Page: HRDashboard }
     : hasPermission(user, "dashboard.pm") ? { id: "pm", label: "Projects Dashboard", Page: PMDashboard } : null;
   const asked = params.get("view");
   // A view opened from a link (the sidebar switch) is remembered like a tab click, so the sidebar stays on that side.
