@@ -70,6 +70,8 @@ if doc.first_name:
 if doc.department and (doc.is_new() or doc.has_value_changed("department")) and frappe.db.get_value("Department", doc.department, "is_group"):
     frappe.throw(doc.department + " is a group of departments. Choose the actual department the employee works in.")
 contractor = doc.get("custom_is_contractor") and int(doc.get("custom_is_contractor") or 0)
+if doc.date_of_joining and not contractor and (doc.is_new() or doc.has_value_changed("date_of_joining")) and frappe.utils.getdate(doc.date_of_joining).weekday() >= 5:
+    frappe.throw("The date of joining can't be a Saturday or Sunday. Choose a working day.")
 if doc.is_new() and not contractor:
     missing = [label for f, label in [["department", "Department"], ["designation", "Designation"]] if not doc.get(f)]
     if missing:
@@ -168,7 +170,7 @@ export const EMPLOYEE_LEVEL_PERMS = ["System Manager", "HR Manager", "HR User"].
 
 export const EMPLOYEE_RECORD_SCRIPTS = [
   { name: "ETHX - My identity numbers", script_type: "API", api_method: "ethx_my_identity", script: MY_IDENTITY_API, what: "Employees see their own PAN and Aadhaar (and nobody else's)" },
-  { name: "ETHX - Employee data quality", script_type: "DocType Event", reference_doctype: "Employee", doctype_event: "Before Save", script: EMPLOYEE_QUALITY_CHECK, what: "Names are capitalised, group departments refused, new staff need a department and designation, and duplicates are blocked" },
+  { name: "ETHX - Employee data quality", script_type: "DocType Event", reference_doctype: "Employee", doctype_event: "Before Save", script: EMPLOYEE_QUALITY_CHECK, what: "Names are capitalised, group departments refused, joining dates can't be weekends, new staff need a department and designation, and duplicates are blocked" },
   { name: "ETHX - Promotion CTC check", script_type: "DocType Event", reference_doctype: "Employee Promotion", doctype_event: "Before Validate", script: PROMOTION_CTC_CHECK, what: "A promotion's revised CTC must be a real annual amount, within ten times the current CTC" },
   { name: "ETHX - My photo", script_type: "API", api_method: "ethx_set_my_photo", script: MY_PHOTO_API, what: "Employees change their own profile photo" },
   { name: "ETHX - Employee ID numbers", script_type: "DocType Event", reference_doctype: "Employee", doctype_event: "Before Save", script: EMPLOYEE_ID_CHECK, what: "PAN and Aadhaar numbers are checked before an employee is saved" },

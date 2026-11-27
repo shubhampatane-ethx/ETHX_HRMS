@@ -47,6 +47,18 @@ export async function setStage(project, from, to, note = "") {
 /** A free note on the project's timeline. */
 export const addProjectNote = (project, note) => addComment(project, `${NOTE_MARK} ${note.trim()}`);
 
+/* ---- projects start on a Monday (the server checks this too) ---- */
+const parseIso = (iso) => { const [y, m, d] = String(iso || "").slice(0, 10).split("-").map(Number); return new Date(y, m - 1, d); };
+const toIso = (dt) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+export const isMonday = (iso) => Boolean(iso) && parseIso(iso).getDay() === 1;
+/** The Monday on or after a date. */
+export function mondayFrom(iso) {
+  const dt = parseIso(iso);
+  dt.setDate(dt.getDate() + ((8 - dt.getDay()) % 7));
+  return toIso(dt);
+}
+export const MONDAY_START = "A project's start date must be a Monday.";
+
 /** New start / end dates, with the reason on the timeline. */
 export async function setProjectDates(project, { start, end }, reason = "") {
   await frappe.updateDoc("Project", project, { expected_start_date: start || null, expected_end_date: end || null });

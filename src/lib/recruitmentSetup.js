@@ -161,7 +161,9 @@ if opening:
             required = json.loads(raw)
         except Exception:
             required = [r.strip() for r in raw.replace(",", "\\n").split("\\n") if r.strip()]
-cleared = frappe.get_all("Interview", filters={"job_applicant": doc.job_applicant, "docstatus": 1, "status": "Cleared"}, pluck="interview_round")
+# HRMS v16 keeps the round in interview_type (Interview Round was merged into Interview Type).
+round_field = "interview_type" if frappe.get_meta("Interview").has_field("interview_type") else "interview_round"
+cleared = frappe.get_all("Interview", filters={"job_applicant": doc.job_applicant, "docstatus": 1, "status": "Cleared"}, pluck=round_field)
 missing = []
 for r in required:
     if r not in cleared:

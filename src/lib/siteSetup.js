@@ -21,7 +21,7 @@ import { CONTRACTOR_FIELDS, CONTRACTOR_PERMISSIONS, CONTRACTOR_RECORDS, CONTRACT
 import { PAGE_ACCESS_FIELDS, PAGE_ACCESS_SCRIPTS } from "./pageAccessSetup";
 import { FALLBACK_DOCTYPES } from "./doctypeSetup";
 import { PRESETS } from "./rolePresets";
-import { PROJECT_ROLE_DOCTYPES, PROJECT_ROLE_FIELDS, PROJECT_ROLE_SCRIPTS, PROJECT_ROLE_TRACK } from "./projectRoleSetup";
+import { PROJECT_HR_PERMS, PROJECT_ROLE_DOCTYPES, PROJECT_ROLE_FIELDS, PROJECT_ROLE_SCRIPTS, PROJECT_ROLE_TRACK } from "./projectRoleSetup";
 
 export const MODULES = [
   // First, so later modules can add fields to doctypes created here.
@@ -42,7 +42,7 @@ export const MODULES = [
   // levelPerms are granted before properties are set, so HR never loses sight of PAN / Aadhaar in between.
   { id: "employeeRecords", label: "Employee records", fields: EMPLOYEE_RECORD_FIELDS, scripts: EMPLOYEE_RECORD_SCRIPTS, track: [], properties: EMPLOYEE_RECORD_PROPERTIES, levelPerms: EMPLOYEE_LEVEL_PERMS },
   { id: "signin", label: "Sign-in page", fields: SIGNIN_FIELDS, scripts: SIGNIN_SCRIPTS, track: [] },
-  { id: "projectRoles", label: "Project roles", doctypes: PROJECT_ROLE_DOCTYPES, fields: PROJECT_ROLE_FIELDS, scripts: PROJECT_ROLE_SCRIPTS, track: PROJECT_ROLE_TRACK },
+  { id: "projectRoles", label: "Project roles", doctypes: PROJECT_ROLE_DOCTYPES, fields: PROJECT_ROLE_FIELDS, scripts: PROJECT_ROLE_SCRIPTS, track: PROJECT_ROLE_TRACK, levelPerms: PROJECT_HR_PERMS },
   { id: "pageAccess", label: "Page access", fields: PAGE_ACCESS_FIELDS, scripts: PAGE_ACCESS_SCRIPTS, track: [] },
   { id: "contractors", label: "Contractors", records: CONTRACTOR_RECORDS, permissions: CONTRACTOR_PERMISSIONS, fields: CONTRACTOR_FIELDS, scripts: CONTRACTOR_SCRIPTS, retiredScripts: CONTRACTOR_RETIRED_SCRIPTS, track: [] },
 ];
@@ -108,7 +108,7 @@ export async function setupStatus() {
     scriptsReadable: scripts !== null,
     modules: MODULES.map((m) => ({
       ...m,
-      missingDoctypes: (m.doctypes || []).filter((d) => !(doctypes || []).some((x) => x.name === d.name)),
+      missingDoctypes: (m.doctypes || []).filter((d) => !(doctypes || []).some((x) => x.name === d.name || (d.skipIfPresent && x.name === d.skipIfPresent))),
       missingPermissions: (m.permissions || []).filter((g) => permGaps[g.role].length),
       missingLevelPerms: levelGaps[m.id] || [],
       missingRecords: (m.records || []).filter((r) => !recordExists[`${r.doctype}:${r.name}`]),

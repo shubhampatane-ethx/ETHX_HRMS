@@ -7,7 +7,7 @@ import { frappe } from "../../../lib/api/frappeClient";
 import { Button, LinkField } from "../../../components/ui/primitives";
 import { Async, Field, Grid, inputCls, Modal, Notice, PageHeader, Panel, Tabs } from "../../../components/employee/EmployeeShell";
 import { dmy, errMsg, isoDate, useAsync } from "../../../lib/employeePortal";
-import { feedbackFor, fmtTime, interviewersOf, isClosedStage, listApplicants, listInterviews, listOpenings, listRounds, listUsers, saveRound, stageOf, toStars } from "../../../lib/recruitment";
+import { deleteRound, feedbackFor, fmtTime, interviewersOf, isClosedStage, listApplicants, listInterviews, listOpenings, listRounds, listUsers, saveRound, stageOf, toStars } from "../../../lib/recruitment";
 import { candidateUrl, DecideModal, IcsButton, Rating, ScheduleModal, SetupHint, StageBadge, Stars } from "./shared";
 import { alertDialog, confirmDialog } from "../../../components/ui/dialogs";
 
@@ -35,7 +35,7 @@ export default function Interviews() {
   const columns = [
     { key: "when", label: "When", render: (i) => <span>{dmy(i.scheduled_on)}<span className="block text-[11px] text-[var(--color-text-faint)]">{fmtTime(i.from_time)}–{fmtTime(i.to_time)}{i.custom_mode ? ` · ${i.custom_mode}` : ""}</span></span> },
     { key: "cand", label: "Candidate", render: (i) => <Link to={candidateUrl(i.job_applicant)} className="hover:underline">{i.applicant?.applicant_name || i.job_applicant}</Link> },
-    { key: "interview_round", label: "Round" },
+    { key: "interview_round", label: "Round", render: (i) => i.interview_round || "—" },
     { key: "panel", label: "Panel", render: (i) => <span className="text-[11.5px]">{i.panel.join(", ") || "—"}</span> },
     { key: "fb", label: "Feedback", render: (i) => `${i.feedback.length}/${i.panel.length || "?"}` },
     { key: "avg", label: "Avg", render: (i) => <Rating fraction={i.average_rating} /> },
@@ -128,7 +128,7 @@ function Rounds() {
   async function remove(r) {
     if (!(await confirmDialog(`Delete the round "${r.round_name}"? Rounds already used in interviews can't be deleted.`))) return;
     try {
-      await frappe.deleteDoc("Interview Round", r.name);
+      await deleteRound(r);
       rounds.reload();
     } catch (e) {
       alertDialog({ tone: "error", message: errMsg(e, "Couldn't delete this round - it's probably used by interviews.") });

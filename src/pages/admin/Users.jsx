@@ -136,7 +136,7 @@ export default function AdminUsers() {
                 render: (r) => (
                   <button
                     type="button"
-                    title="Change company"
+                    title="Edit user"
                     onClick={() => setEditing(r)}
                     className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] transition-colors hover:border-[var(--color-border-strong)] hover:bg-[var(--color-surface-2)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
                   >
@@ -152,8 +152,8 @@ export default function AdminUsers() {
       </Card>
 
       {showForm && <CreateHRModal onClose={() => setShowForm(false)} onCreated={load} />}
-      {detail && <HRUserModal user={detail} onClose={() => setDetail(null)} onChanged={load} onChangeCompany={() => { setEditing(detail); setDetail(null); }} />}
-      {editing && <AssignCompanyModal user={editing} onClose={() => setEditing(null)} onSaved={load} />}
+      {detail && <HRUserModal user={detail} onClose={() => setDetail(null)} onChanged={load} onEdit={() => { setEditing(detail); setDetail(null); }} />}
+      {editing && <EditUserModal user={editing} onClose={() => setEditing(null)} onSaved={load} />}
     </div>
   );
 }
@@ -182,43 +182,107 @@ function ErrorNote({ children }) {
   );
 }
 
-function AssignCompanyModal({ user, onClose, onSaved }) {
-  const [company, setCompany] = useState(user.company);
+const selectCls = "w-full rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-3 py-2 text-[13px] text-[var(--color-text)] outline-none focus:border-[var(--color-red)]";
+
+/** Edit everything about an HR user: name, sign-in email, mobile, HR level, company, account status and password. */
+function EditUserModal({ user, onClose, onSaved }) {
+  const doc = useAsync(() => frappe.getDoc("User", user.name), [user.name]);
+  const [form, setForm] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    const d = doc.data;
+    if (!d || form) return;
+    setForm({
+      first_name: d.first_name || "",
+      last_name: d.last_name || "",
+      email: d.email || d.name,
+      mobile_no: d.mobile_no || "",
+      role: (d.roles || []).some((r) => r.role === "HR Manager") ? "HR Manager" : "HR User",
+      company: user.company || "",
+      enabled: Number(d.enabled) ? 1 : 0,
+      password: "",
+    });
+  }, [doc.data, form, user.company]);
+
+  const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.type === "checkbox" ? (e.target.checked ? 1 : 0) : e.target.value }));
+
   async function handleSubmit(e) {
     e.preventDefault();
+    const email = form.email.trim().toLowerCase();
+    if (!form.first_name.trim()) return setError("Enter the first name.");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setError("Enter a valid email address.");
+    if (form.mobile_no && !/^\+?[\d\s-]{10,15}$/.test(form.mobile_no)) return setError("Enter a valid mobile number (10 to 15 digits).");
+    if (form.password && form.password.length < 8) return setError("The new password needs at least 8 characters.");
+    if (!form.company) return setError("Choose the company this HR user manages.");
     setSubmitting(true);
     setError("");
+    let name = user.name;
     try {
-      await setUserCompany(user.name, company);
+      // A new sign-in email renames the account (the User's name is its email).
+      if (email !== String(user.name).toLowerCase()) {
+        await frappe.callMethod("frappe.client.rename_doc", { doctype: "User", old_name: user.name, new_name: email });
+        name = email;
+      }
+      const keep = (doc.data.roles || []).map((r) => r.role).filter((r) => r !== "HR Manager" && r !== "HR User");
+      await frappe.updateDoc("User", name, {
+        email,
+        first_name: form.first_name.trim(),
+        last_name: form.last_name.trim(),
+        mobile_no: form.mobile_no.trim(),
+        enabled: form.enabled,
+        roles: [...keep, form.role].map((role) => ({ role })),
+        ...(form.password ? { new_password: form.password } : {}),
+      });
+      if (form.company !== user.company) await setUserCompany(name, form.company);
       onSaved();
       onClose();
     } catch (err) {
-      setError(err?.response?.data?.message || "Could not update the company for this user.");
+      if (name !== user.name) onSaved();
+      setError(`${name !== user.name ? "The email was changed, but the other details weren't saved: " : ""}${portalErr(err, "Could not save this user.")}`);
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <ModalShell title={`Company for ${user.full_name || user.name}`} onClose={onClose}>
-      <form onSubmit={handleSubmit} className="mt-4 space-y-3">
-        <LinkField label="Company" linkDoctype="Company" value={company} onChange={setCompany} required frappe={frappe} />
-        <p className="text-[12px] text-[var(--color-text-muted)]">
-          This user will only see employees and records that belong to this company.
-        </p>
-        {error && <ErrorNote>{error}</ErrorNote>}
-        <div className="flex justify-end gap-2 pt-2">
-          <Button type="button" variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={submitting || !company}>
-            {submitting ? "Saving…" : "Save"}
-          </Button>
-        </div>
-      </form>
+    <ModalShell title={`Edit ${user.full_name || user.name}`} onClose={onClose} wide>
+      {doc.error && <div className="mt-4"><ErrorNote>{portalErr(doc.error, "Couldn't load this user.")}</ErrorNote></div>}
+      {!form && !doc.error && <p className="py-8 text-center text-[13px] text-[var(--color-text-muted)]">Loading…</p>}
+      {form && (
+        <form onSubmit={handleSubmit} className="mt-4 space-y-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Input label="First Name" value={form.first_name} onChange={set("first_name")} required />
+            <Input label="Last Name" value={form.last_name} onChange={set("last_name")} />
+            <Input label="Email (Sign-in)" type="email" value={form.email} onChange={set("email")} required />
+            <Input label="Mobile Number" type="tel" value={form.mobile_no} onChange={set("mobile_no")} />
+            <label className="block">
+              <span className="mb-1.5 block text-[12px] text-[var(--color-text-muted)]">HR Level</span>
+              <select value={form.role} onChange={set("role")} className={selectCls}>
+                <option value="HR User">HR User</option>
+                <option value="HR Manager">HR Manager</option>
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-[12px] text-[var(--color-text-muted)]">Account Status</span>
+              <select value={form.enabled} onChange={(e) => setForm((f) => ({ ...f, enabled: Number(e.target.value) }))} className={selectCls}>
+                <option value={1}>Active</option>
+                <option value={0}>Disabled</option>
+              </select>
+            </label>
+          </div>
+          <CompanyField value={form.company} onChange={(v) => setForm((f) => ({ ...f, company: v }))} required />
+          <p className="-mt-1 text-[12px] text-[var(--color-text-muted)]">This HR user only sees this company's employees and records.</p>
+          <Input label="New Password (Optional)" type="text" autoComplete="off" value={form.password} onChange={set("password")} placeholder="Leave blank to keep the current password" />
+          {form.email.trim().toLowerCase() !== String(user.name).toLowerCase() && <p className="text-[12px] text-[var(--color-amber)]">Changing the email changes how they sign in: they use the new email from now on.</p>}
+          {error && <ErrorNote>{error}</ErrorNote>}
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+            <Button type="submit" disabled={submitting}>{submitting ? "Saving…" : "Save Changes"}</Button>
+          </div>
+        </form>
+      )}
     </ModalShell>
   );
 }
@@ -262,7 +326,7 @@ function CreateHRModal({ onClose, onCreated }) {
       if (created) onCreated();
       setError(
         created
-          ? "The user was created, but the role or company could not be set. Use the pencil icon on the HR Users list to assign the company."
+          ? "The user was created, but the role or company could not be set. Use the pencil icon on the HR Users list to finish it."
           : err?.response?.data?.message || "Could not create HR user. Check the email isn't already in use."
       );
     } finally {
@@ -313,7 +377,7 @@ function CreateHRModal({ onClose, onCreated }) {
 
 /* ---------------------- HR user: everything about one account ---------------------- */
 
-function HRUserModal({ user, onClose, onChanged, onChangeCompany }) {
+function HRUserModal({ user, onClose, onChanged, onEdit }) {
   const q = useAsync(async () => {
     const [doc, emps] = await Promise.all([
       frappe.getDoc("User", user.name),
@@ -404,7 +468,7 @@ function HRUserModal({ user, onClose, onChanged, onChangeCompany }) {
           <section>
             <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Actions</h3>
             <div className="flex flex-wrap items-center gap-2">
-              <Button variant="secondary" onClick={onChangeCompany} disabled={Boolean(busy)}><Building2 size={14} /> Change Company</Button>
+              <Button variant="secondary" onClick={onEdit} disabled={Boolean(busy)}><Pencil size={14} /> Edit User</Button>
               <Button variant="secondary" onClick={toggle} disabled={Boolean(busy)}><Power size={14} /> {doc.enabled ? "Disable Account" : "Enable Account"}</Button>
               <Button variant="ghost" onClick={remove} disabled={Boolean(busy)}><Trash2 size={14} /> Delete</Button>
             </div>

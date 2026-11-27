@@ -201,4 +201,6 @@ export const FALLBACK_DOCTYPES = ordered([...EXPLICIT, ...generated]).map((doc) 
   doc,
   prepare,
   onlyIfMissing: true,
+  // HRMS v16 merged Interview Round into Interview Type: when the site's own Interview exists, it isn't needed.
+  ...(doc.name === "Interview Round" ? { skipIfPresent: "Interview" } : {}),
 }));

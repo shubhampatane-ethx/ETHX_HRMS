@@ -2,7 +2,7 @@
 import { PageLoading } from "../PageLoading";
 import { createContext, useContext, useEffect, useRef, useState, Suspense } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
-import { AlertCircle, ArrowRight, Bell, Briefcase, CalendarCheck, ClipboardCheck, FileText, GraduationCap, Inbox, LayoutDashboard, LifeBuoy, Loader2, Search, Target, Timer, Wallet, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, ArrowRight, Bell, Briefcase, CalendarCheck, ClipboardCheck, FileText, GraduationCap, Inbox, LayoutDashboard, LifeBuoy, Loader2, Search, Target, Timer, Wallet, X } from "lucide-react";
 import { errMsg, friendlyError, getMyEmployee, isoDate, useAsync } from "../../lib/employeePortal";
 import { frappe } from "../../lib/api/frappeClient";
 import { Brand } from "../Brand";
@@ -387,13 +387,16 @@ function titleFor(pathname) {
 
 function Gate() {
   const { employee, loading, error } = useEmployee();
+  const { user } = useAuth();
   if (loading && !employee) return <Loading />;
   if (error) return <ErrorState error={error} />;
   if (!employee) {
     return (
       <div className="mx-auto mt-16 max-w-md rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 text-center">
         <h2 className="text-[15px] font-semibold text-[var(--color-text)]">Your Account Isn't Linked to an Employee Profile</h2>
-        <p className="mt-2 text-[13px] text-[var(--color-text-muted)]">Ask HR to link your sign-in email to your employee profile, then refresh this page.</p>
+        <p className="mt-2 text-[13px] text-[var(--color-text-muted)]">{hasPermission(user, "dashboard.admin")
+          ? "To use the employee screens with this account, open its employee record (Employees, then Edit Employee) and choose this sign-in as the User Account, then refresh this page."
+          : "Ask HR to link your sign-in email to your employee profile, then refresh this page."}</p>
       </div>
     );
   }
@@ -433,20 +436,23 @@ export function EmployeeLayout() {
   if (user?.mustChangePassword) return <ForcedPasswordScreen />;
   // HR staff and Project Managers who are employees see one side at a time: their own pages (employee menu) or their
   // HR / Projects work (workspace menu), following the dashboard tab and the page they are on.
-  const hr = hasPermission(user, "dashboard.hr");
-  const pm = !hr && hasPermission(user, "dashboard.pm");
+  // The super user (Admin) here is on the employee screens: the employee menu, with a way back to Admin.
+  const admin = hasPermission(user, "dashboard.admin");
+  const hr = !admin && hasPermission(user, "dashboard.hr");
+  const pm = !admin && !hr && hasPermission(user, "dashboard.pm");
   const staff = isStaffEmployee(user);
   const self = staff && staffView(pathname, search) === "self";
   const asHr = hr && !self;
   const asPm = pm && !self;
-  const nav = self ? staffSelfNav(user)
+  const nav = admin ? [{ to: "/admin", label: "Back to Admin", icon: ArrowLeft }, ...navFor(user)]
+    : self ? staffSelfNav(user)
     : asHr ? hrNav(user, staff ? "work" : undefined) : asPm ? pmNav(user, staff ? "work" : undefined) : navFor(user);
   return (
     <EmployeeProvider>
       <div className="flex h-screen overflow-hidden bg-[var(--color-bg)]">
         <Sidebar title={asHr ? "HR Workspace" : asPm ? "Project Manager" : self ? "My Self-Service" : "Employee Portal"} items={nav} switchTo={staff ? switchLink(self ? "self" : "work", hr ? "hr" : "pm") : undefined} />
         <div className="flex min-w-0 flex-1 flex-col">
-          <Topbar search roleLabel={asHr ? (hasPermission(user, "dashboard.admin") ? "Admin" : "HR") : asPm ? "Project Manager" : "Employee"} pageTitle={asHr ? hrTitleFor(pathname) : asPm ? pmTitleFor(pathname) : titleFor(pathname)} />
+          <Topbar search roleLabel={asHr ? "HR" : asPm ? "Project Manager" : "Employee"} pageTitle={asHr ? hrTitleFor(pathname) : asPm ? pmTitleFor(pathname) : titleFor(pathname)} />
           <main className="flex-1 overflow-y-auto p-6">
             <div className="mx-auto max-w-6xl space-y-5">
               <Gate />

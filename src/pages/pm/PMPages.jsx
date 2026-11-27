@@ -15,10 +15,10 @@ import { endProject, previewEndProject } from "../../lib/contractors";
 import { alertDialog, confirmDialog } from "../../components/ui/dialogs";
 import { ProjectBoard } from "./ProjectBoard";
 import { RowMenu } from "../../components/ui/RowMenu";
-import { setStage, stageOf, STAGE_PATH } from "../../lib/projectLifecycle";
+import { isMonday, MONDAY_START, mondayFrom, setStage, stageOf, STAGE_PATH } from "../../lib/projectLifecycle";
 
 const loadProjects = () => listTry("Project", { fields: ["name", "project_name", "status", "expected_start_date", "expected_end_date", "percent_complete", "company", "custom_project_manager", "owner", "custom_stage", "actual_time", "actual_start_date", "priority"], orderBy: "modified desc" }, ["name", "project_name", "status", "expected_end_date", "company"]);
-const loadEmployees = () => listTry("Employee", { filters: [["status", "=", "Active"]], fields: ["name", "employee_name", "user_id", "department", "designation", "company"], orderBy: "employee_name asc" }, ["name", "employee_name", "user_id", "company"]);
+const loadEmployees = () => listTry("Employee", { filters: [["status", "=", "Active"]], fields: ["name", "employee_name", "user_id", "department", "designation", "company", "date_of_joining"], orderBy: "employee_name asc" }, ["name", "employee_name", "user_id", "company", "date_of_joining"]);
 const projectLabel = (p) => (p.project_name && p.project_name !== p.name ? p.project_name : p.name);
 const ACTIVE = ["Open", "Working", "Pending Review", "Overdue"];
 const isActive = (a) => ACTIVE.includes(a.status);
@@ -80,7 +80,7 @@ export function PMDashboard() {
 
 export function PMProjects() {
   const { user } = useAuth();
-  const isAdmin = hasPermission(user, "dashboard.admin");
+  const isAdmin = hasPermission(user, "dashboard.admin") || hasPermission(user, "dashboard.hr");
   const { projects, employees, assignments, rows } = useTeam();
   const [open, setOpen] = useState(false);
   const ended = (p) => ["Completed", "Cancelled"].includes(p.status);
@@ -129,11 +129,13 @@ export function PMProjects() {
 
 function ProjectModal({ onClose, onSaved }) {
   const { user } = useAuth();
-  const [f, setF] = useState({ name: "", company: "", start: isoDate(), end: "" });
+  // Projects start on a Monday: today if it is one, else the coming Monday.
+  const [f, setF] = useState({ name: "", company: "", start: mondayFrom(isoDate()), end: "" });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   async function submit(e) {
     e.preventDefault();
+    if (f.start && !isMonday(f.start)) return setErr(`${MONDAY_START} The nearest is ${dmy(mondayFrom(f.start))}.`);
     if (f.end && f.end < f.start) return setErr("The ETA can't be before the start date.");
     setBusy(true);
     setErr("");
@@ -153,7 +155,10 @@ function ProjectModal({ onClose, onSaved }) {
       <form onSubmit={submit} className="space-y-3">
         <Field label="Project Name"><input required className={inputCls} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
         <LinkField label="Company" linkDoctype="Company" value={f.company} onChange={(v) => setF({ ...f, company: v })} required frappe={frappe} />
-        <div className="grid grid-cols-2 gap-3"><DateField label="Start" value={f.start} onChange={(v) => setF({ ...f, start: v })} /><DateField label="ETA (End)" value={f.end} onChange={(v) => setF({ ...f, end: v })} /></div>
+        <div className="grid grid-cols-2 gap-3">
+          <div><DateField label="Start (Monday)" value={f.start} onChange={(v) => setF({ ...f, start: v })} />{f.start && !isMonday(f.start) && <p className="mt-1 text-[11px] font-medium text-[var(--color-red-hover)]">Not a Monday</p>}</div>
+          <DateField label="ETA (End)" value={f.end} onChange={(v) => setF({ ...f, end: v })} />
+        </div>
         {err && <Notice>{err}</Notice>}
         <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Creating…" : "Create Project"}</Button></div>
       </form>
@@ -294,12 +299,21 @@ function AssignModal({ init, projects, employees, roles, active, history, onClos
   const hours = Number(f.hours) || 0;
 
   // how booked is this person in the same period?
+  // Nobody is put on a project before they join (the server checks this too).
+  const joinOf = (email) => employees.find((x) => x.user_id === email)?.date_of_joining || "";
+  const joining = joinOf(f.email);
+  const pickMember = (email) => {
+    const doj = joinOf(email);
+    setF((cur) => (doj && cur.start < doj ? { ...cur, email, start: doj, eta: cur.eta < doj ? doj : cur.eta } : { ...cur, email }));
+  };
+
   const booked = f.email ? active.filter((a) => a.name !== edit?.name && a.assignees.includes(f.email) && a.start <= f.eta && a.end >= f.start).reduce((s, a) => s + a.hoursPerDay, 0) : 0;
 
   async function submit(e) {
     e.preventDefault();
     if (!f.email) return setErr("Choose a team member.");
     if (f.eta < f.start) return setErr("The ETA can't be before the start date.");
+    if (joining && f.start < joining) return setErr(`${employees.find((x) => x.user_id === f.email)?.employee_name || f.email} joins on ${dmy(joining)}. The assignment can't start before their date of joining.`);
     if (!(hours > 0 && hours <= 24)) return setErr("Hours per day must be between 0 and 24.");
     const makeManager = managesProject(roles, f.role);
     const wasManager = edit && managesProject(roles, edit.role);
@@ -339,7 +353,7 @@ function AssignModal({ init, projects, employees, roles, active, history, onClos
             <p className="mb-1.5 text-[12px] text-[var(--color-text-muted)]">Team Member</p>
             {edit
               ? <p className="py-2 text-[13px] text-[var(--color-text)]">{employees.find((x) => x.user_id === f.email)?.employee_name || f.email}</p>
-              : <TeamMemberSearch people={employees} assignments={history} value={f.email} onChange={(email) => setF({ ...f, email })} />}
+              : <TeamMemberSearch people={employees} assignments={history} value={f.email} onChange={pickMember} />}
             {!edit && <p className="mt-1 text-[11px] text-[var(--color-text-faint)]">Search by name or role. Only people with a portal login can be assigned.</p>}
           </div>
         </div>
@@ -351,7 +365,10 @@ function AssignModal({ init, projects, employees, roles, active, history, onClos
           </select>
         </Field>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <DateField label="Start Date" value={f.start} onChange={(v) => setF({ ...f, start: v, eta: f.eta < v ? v : f.eta })} required />
+          <div>
+            <DateField label="Start Date" value={f.start} onChange={(v) => setF({ ...f, start: v, eta: f.eta < v ? v : f.eta })} required />
+            {joining && <p className={`mt-1 text-[11px] ${f.start < joining ? "font-medium text-[var(--color-red-hover)]" : "text-[var(--color-text-faint)]"}`}>Joins on {dmy(joining)}</p>}
+          </div>
           <DateField label="ETA (End Date)" value={f.eta} onChange={(v) => setF({ ...f, eta: v })} required />
           <Field label="Hours per Day"><input type="number" min="0.25" max="24" step="0.25" required className={inputCls} value={f.hours} onChange={(e) => setF({ ...f, hours: e.target.value })} /></Field>
         </div>

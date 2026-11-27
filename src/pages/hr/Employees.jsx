@@ -42,6 +42,13 @@ const FIELDS = [
   { name: "health_insurance_no", label: "Health Insurance Number" },
 ];
 
+// The New Employee form: the required details only (plus last name, part of the full name).
+const NEW_FIELDS = FIELDS.filter((x) => x.required || x.name === "last_name");
+
+/** Saturday or Sunday, for an ISO date. */
+const isWeekend = (iso) => { const [y, m, d] = String(iso || "").slice(0, 10).split("-").map(Number); const wd = new Date(y, m - 1, d).getDay(); return y > 0 && (wd === 0 || wd === 6); };
+const WEEKEND_JOINING = "The date of joining can't be a Saturday or Sunday. Choose a working day.";
+
 /* ------------------------------ identity checks (BUG-004) ------------------------------ */
 
 const fail = (message) => { const e = new Error(message); e.userMessage = message; throw e; };
@@ -52,6 +59,12 @@ const NAME_OK = /^[\p{L}][\p{L} .'-]*$/u;
 /** Tidies and checks an employee before it's saved; the server rules check the same. */
 async function validateEmployee(payload, { recordName }) {
   const p = { ...payload };
+  if (!recordName) p.status = "Active";
+  if (p.date_of_joining && isWeekend(p.date_of_joining)) {
+    // Older records may already have a weekend date: only a new or changed date is refused.
+    const before = recordName ? (await frappe.getList("Employee", { filters: [["name", "=", recordName]], fields: ["date_of_joining"], limit: 1 }).catch(() => []))[0]?.date_of_joining : null;
+    if (!recordName || before !== p.date_of_joining) fail(WEEKEND_JOINING);
+  }
   for (const k of ["first_name", "last_name"]) if (p[k]) p[k] = capName(p[k]);
   if (!p.first_name || p.first_name.length < 2 || !NAME_OK.test(p.first_name)) fail("Enter the first name in letters (at least 2), e.g. Shakti.");
   if (p.last_name && !NAME_OK.test(p.last_name)) fail("The last name can only contain letters, spaces, dots, apostrophes and hyphens.");
@@ -315,7 +328,7 @@ export default function Employees({ contractorsOnly = false }) {
         </div>
       </section>
 
-      {formOpen && <HrRecordForm doctype="Employee" fields={FIELDS} recordName={editing} validate={validateEmployee} onCancel={closeForm} onSaved={() => { closeForm(); load(); }} />}
+      {formOpen && <HrRecordForm doctype="Employee" fields={editing ? FIELDS : NEW_FIELDS} recordName={editing} validate={validateEmployee} onCancel={closeForm} onSaved={() => { closeForm(); load(); }} />}
 
       <Card className="overflow-hidden p-5">
         {/* search, filters, sort (BUG-005) */}
@@ -410,6 +423,7 @@ function RejoinModal({ employee, onClose, onDone }) {
 
   async function submit(e) {
     e.preventDefault();
+    if (newJoining && isWeekend(date)) return setErr(WEEKEND_JOINING);
     setBusy(true);
     setErr("");
     const problems = [];

@@ -7,7 +7,7 @@ import { Topbar } from "./Topbar";
 import { useClientScope } from "../../lib/clientScope";
 import { useAuth } from "../../context/AuthContext";
 import { hasPermission, isStaffEmployee } from "../../permissions/roles";
-import { dashboardLink, SELF_SERVICE, SELF_SERVICE_PAGES } from "./HRLayout";
+import { dashboardLink, hrNav, SELF_SERVICE, SELF_SERVICE_PAGES } from "./HRLayout";
 import { ForcedPasswordScreen } from "../employee/EmployeeShell";
 import { moduleSection, switchLink } from "./navSections";
 
@@ -68,13 +68,15 @@ export function PMLayout() {
   const { pathname } = useLocation();
   const { user } = useAuth();
   if (user?.mustChangePassword) return <ForcedPasswordScreen />;
-  const items = pmNav(user, "work");
+  // HR opens the project pages from their own workspace, so they keep the HR menu there.
+  const asHr = hasPermission(user, "dashboard.hr") && !hasPermission(user, "dashboard.admin");
+  const items = asHr ? hrNav(user, "work") : pmNav(user, "work");
 
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--color-bg)]">
-      <Sidebar title="Project Manager" items={items} switchTo={isStaffEmployee(user) ? switchLink("work", "pm") : undefined} />
+      <Sidebar title={asHr ? "HR Workspace" : "Project Manager"} items={items} switchTo={isStaffEmployee(user) ? switchLink("work", asHr ? "hr" : "pm") : undefined} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar search roleLabel="Project Manager" pageTitle={pmTitleFor(pathname)} />
+        <Topbar search roleLabel={asHr ? "HR" : "Project Manager"} pageTitle={pmTitleFor(pathname)} />
         <main className="flex-1 overflow-y-auto p-6">
           <div className="mx-auto max-w-6xl space-y-5">
             <Suspense key={client || "all"} fallback={<PageLoading />}><Outlet /></Suspense>

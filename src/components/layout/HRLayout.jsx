@@ -19,9 +19,9 @@ const setupLink = (doctype, label) => {
 
 // The HR menu, one section per HRMS 360 module (lib/modules.js). A client sees only the sections of the modules they
 // have; Core HR and Reports & Setup are always there.
-const MY_PROJECTS = { label: "My Projects", icon: Briefcase, children: [{ to: "/pm/projects", label: "Projects" }, { to: "/pm/assignments", label: "Assignments" }, { to: "/pm/approvals", label: "Timesheet Approvals" }, { to: "/pm/timesheets", label: "Team Timesheets" }] };
+const MY_PROJECTS = { label: "Project Management", icon: Briefcase, children: [{ to: "/pm/projects", label: "Projects" }, { to: "/pm/assignments", label: "Assignments" }, { to: "/pm/approvals", label: "Timesheet Approvals" }, { to: "/pm/timesheets", label: "Team Timesheets" }] };
 
-/** The module sections of the HR menu. `myProjects` adds the person's own projects (HR staff managing a project). */
+/** The module sections of the HR menu. `myProjects` adds the project pages (every project, for HR). */
 export function hrSections({ myProjects = false } = {}) {
   return [
     coreSection("Core HR", [
@@ -145,7 +145,7 @@ export function hrNav(user, view) {
     ...(isAdmin ? [{ to: "/admin", label: "Back to Admin", icon: ArrowLeft }] : []),
     split ? { to: "/employee?view=hr", label: "Dashboard", icon: LayoutDashboard, end: true } : dashboardLink(user, "/hr"),
     ...(!split && isStaffEmployee(user) ? [SELF_SERVICE] : []),
-    // HR staff made manager of a project (project-based role) get their projects in the Project Lifecycle section.
+    // HR has full access to projects: the project pages sit in the Projects section (Admin has its own menu for them).
     ...hrSections({ myProjects: !isAdmin && hasPermission(user, "dashboard.pm") }),
     coreSection("Reports & Setup", hrSetupGroups(isAdmin), SlidersHorizontal),
   ];

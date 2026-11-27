@@ -98,6 +98,8 @@ function useOutside(open, box, close) {
 function accountMenu(user, roleLabel) {
   const items = [];
   if (roleLabel === "Admin") {
+    items.push({ to: "/employee", label: "Employee Portal", icon: UserRound });
+    items.push({ to: "/employee/profile", label: "My Profile", icon: UserRound });
     items.push({ to: "/admin/settings", label: "Settings", icon: Settings });
     if (hasPermission(user, "dashboard.hr")) items.push({ to: "/hr/setup/hr-settings", label: "HR Settings", icon: SlidersHorizontal });
   } else if (roleLabel === "HR") {
@@ -108,6 +110,7 @@ function accountMenu(user, roleLabel) {
     items.push({ to: "/hr/setup/hr-settings", label: "HR Settings", icon: Settings });
   } else if (roleLabel === "Employee") {
     items.push({ to: "/employee/profile", label: "My Profile", icon: UserRound });
+    if (hasPermission(user, "dashboard.admin")) items.push({ to: "/admin", label: "Admin Workspace", icon: Settings });
     if (hasPermission(user, "dashboard.hr")) items.push({ to: "/hr", label: "HR Workspace", icon: Briefcase });
     if (hasPermission(user, "dashboard.pm")) items.push({ to: "/pm", label: "Project Manager Workspace", icon: Briefcase });
   } else if (roleLabel === "Project Manager" && hasPermission(user, "dashboard.employee")) {
