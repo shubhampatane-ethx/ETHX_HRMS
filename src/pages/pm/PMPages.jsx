@@ -280,6 +280,20 @@ function Period({ a, today }) {
   );
 }
 
+export function QuickAssign({ email, onClose, onSaved }) {
+  const { projects, employees, assignments, rows } = useTeam();
+  const roleList = useAsync(loadProjectRoles, []);
+  const failed = projects.error || employees.error || roleList.error;
+  if (failed || !projects.data || !employees.data || !roleList.data || !assignments.data) {
+    return (
+      <Modal title="Assign to a Project" onClose={onClose}>
+        {failed ? <Notice>{errMsg(failed, "Couldn't load projects and people.")}</Notice> : <p className="text-[13px] text-[var(--color-text-muted)]">Loading projects and people…</p>}
+      </Modal>
+    );
+  }
+  return <AssignModal init={{ project: "", email }} projects={projects.data} employees={employees.data} roles={roleList.data.roles || []} active={rows.filter(isActive)} history={rows} onClose={onClose} onSaved={onSaved} />;
+}
+
 function AssignModal({ init, projects, employees, roles, active, history, onClose, onSaved }) {
   const edit = init.edit;
   const lastDay = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0);
