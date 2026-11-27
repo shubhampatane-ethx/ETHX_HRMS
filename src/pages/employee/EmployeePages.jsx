@@ -302,16 +302,98 @@ export function EmpBenefits() {
 }
 
 /* ===== EmpCalendar.jsx ===== */
+// Calendar & Holidays. Everyone sees their holiday list, weekly offs, their own leave, company events and birthdays.
+// HR and the Administrator can also edit it: click any day to add / rename / remove a holiday, make it a weekly off or
+// a working day, or add / remove company events - and the "Holiday Lists" tab sets up whole lists (weekly offs, festival
+// holidays pasted from a sheet, company default, who uses each list).
+import { CalendarPlus, CalendarRange, ClipboardPaste, PartyPopper, Star } from "lucide-react";
+
+const HOL_EVENT = "#4f8cff";
+const HOL_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const HOL_JS_DAY = { Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6 };
+const holIso = (d) => `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+const canEditCalendar = (user) => hasPermission(user, "dashboard.hr") || hasPermission(user, "dashboard.admin");
+
+/** Every list, the companies / offices / employees using them, and each list's holiday and weekly-off counts. */
+async function holLoadLists() {
+  const safe = (p) => p.catch(() => []);
+  const [lists, companies, employees, branches, rows] = await Promise.all([
+    frappe.getList("Holiday List", { fields: ["name", "from_date", "to_date"], orderBy: "from_date desc", limit: 0 }),
+    safe(frappe.getList("Company", { fields: ["name", "default_holiday_list"], limit: 0 })),
+    safe(frappe.getList("Employee", { filters: [["status", "=", "Active"]], fields: ["name", "employee_name", "company", "branch", "holiday_list"], limit: 0 })),
+    safe(frappe.getList("Branch", { fields: ["name", "custom_holiday_list"], limit: 0 })),
+    safe(frappe.getList("Holiday", { parent: "Holiday List", fields: ["parent", "holiday_date", "weekly_off"], limit: 0 })),
+  ]);
+  const counts = {};
+  for (const r of rows) {
+    const c = (counts[r.parent] = counts[r.parent] || { holidays: 0, weeklyOffs: 0, next: null });
+    if (Number(r.weekly_off)) c.weeklyOffs += 1;
+    else {
+      c.holidays += 1;
+      if (r.holiday_date >= isoDate() && (!c.next || r.holiday_date < c.next)) c.next = r.holiday_date;
+    }
+  }
+  return { lists, companies, employees, branches, counts };
+}
+
+/** Weekly-off rows for every matching weekday between two dates (inclusive). */
+function holWeeklyOffRows(from, to, days) {
+  const want = new Set(days.map((d) => HOL_JS_DAY[d]));
+  const rows = [];
+  for (let d = new Date(`${from}T00:00:00Z`); holIso(d) <= to; d = new Date(d.getTime() + 86400000)) {
+    if (want.has(d.getUTCDay())) rows.push({ holiday_date: holIso(d), description: HOL_DAYS[(d.getUTCDay() + 6) % 7], weekly_off: 1 });
+  }
+  return rows;
+}
+
+/** One row per date (the last one wins), sorted, tidy. */
+function holClean(rows) {
+  const seen = new Map();
+  for (const r of rows) if (r.holiday_date) seen.set(r.holiday_date, { holiday_date: r.holiday_date, description: String(r.description || "").replace(/<[^>]+>/g, "").trim() || "Holiday", weekly_off: Number(r.weekly_off) ? 1 : 0 });
+  return [...seen.values()].sort((a, b) => a.holiday_date.localeCompare(b.holiday_date));
+}
+const holSaveRows = (name, rows) => frappe.updateDoc("Holiday List", name, { holidays: holClean(rows) });
+
+/** Add or rename one day on a list; `null` removes it. The list's period must contain the date. */
+async function holSetDay(listName, date, description, weeklyOff = false) {
+  const doc = await frappe.getDoc("Holiday List", listName);
+  if (date < doc.from_date || date > doc.to_date) throw new Error(`${listName} only covers ${dmy(doc.from_date)} to ${dmy(doc.to_date)}. Pick or create the list for that period.`);
+  const rest = (doc.holidays || []).filter((h) => h.holiday_date !== date);
+  return holSaveRows(listName, description === null ? rest : [...rest, { holiday_date: date, description, weekly_off: weeklyOff ? 1 : 0 }]);
+}
+
+/** Lines like "25-12-2026, Christmas", "2026-12-25 Christmas" or "25/12/2026 - Christmas" -> rows; bad lines come back too. */
+function holParseLines(text) {
+  const rows = [];
+  const bad = [];
+  for (const raw of String(text).split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    const m = /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})\s*[,\-–:\t ]\s*(.+)$/.exec(line) || /^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})\s*[,\-–:\t ]\s*(.+)$/.exec(line);
+    if (!m) { bad.push(line); continue; }
+    const [y, mo, d] = m[1].length === 4 ? [m[1], m[2], m[3]] : [m[3], m[2], m[1]];
+    if (Number(mo) < 1 || Number(mo) > 12 || Number(d) < 1 || Number(d) > 31) { bad.push(line); continue; }
+    rows.push({ holiday_date: `${y}-${pad(mo)}-${pad(d)}`, description: m[4].trim(), weekly_off: 0 });
+  }
+  return { rows, bad };
+}
+
+const holEventsBetween = (from, to) =>
+  frappe.getList("Event", { filters: [["event_type", "=", "Public"], ["starts_on", ">=", `${from} 00:00:00`], ["starts_on", "<=", `${to} 23:59:59`]], fields: ["name", "subject", "starts_on", "all_day"], orderBy: "starts_on asc", limit: 0 });
+
 export function EmpCalendar() {
   const { employee } = useEmployee();
+  const { user } = useAuth();
+  const editor = canEditCalendar(user);
   const [tab, setTab] = useState("calendar");
   return (
     <>
-      <PageHeader icon={CalendarDays} title="Calendar & Holidays" subtitle="Company holidays, weekly offs, your shifts and events" />
-      <Tabs value={tab} onChange={setTab} tabs={[{ id: "calendar", label: "Calendar" }, { id: "shifts", label: "Shifts & Events" }, { id: "team", label: "Team Availability" }]} />
-      {tab === "calendar" && <CalendarTab employee={employee} />}
+      <PageHeader icon={CalendarDays} title="Calendar & Holidays" subtitle={editor ? "Company holidays, weekly offs, shifts and events - you can edit the calendar and the holiday lists" : "Company holidays, weekly offs, your shifts and events"} />
+      <Tabs value={tab} onChange={setTab} tabs={[{ id: "calendar", label: "Calendar" }, { id: "shifts", label: "Shifts & Events" }, { id: "team", label: "Team Availability" }, ...(editor ? [{ id: "lists", label: "Holiday Lists" }] : [])]} />
+      {tab === "calendar" && <CalendarTab employee={employee} editor={editor} onLists={() => setTab("lists")} />}
       {tab === "shifts" && <ShiftsTab employee={employee} />}
       {tab === "team" && <TeamTab employee={employee} />}
+      {tab === "lists" && editor && <HolidayListsTab />}
     </>
   );
 }
@@ -331,64 +413,399 @@ function BirthdayList({ rows, limit = 6 }) {
   );
 }
 
-function CalendarTab({ employee }) {
+function CalendarTab({ employee, editor, onLists }) {
   const t = new Date();
   const [cursor, setCursor] = useState({ y: t.getFullYear(), m: t.getMonth() });
+  const [day, setDay] = useState(null); // ISO date being edited
+  const [msg, setMsg] = useState("");
   const holidays = useAsync(() => getHolidays(employee), [employee.name]);
   const birthdays = useAsync(getUpcomingBirthdays, []);
   const start = `${cursor.y}-${pad(cursor.m + 1)}-01`;
   const end = `${cursor.y}-${pad(cursor.m + 1)}-${pad(new Date(cursor.y, cursor.m + 1, 0).getDate())}`;
   const leaves = useAsync(() => getMyLeavesBetween(employee.name, start, end), [employee.name, start]);
+  const events = useAsync(() => holEventsBetween(start, end).catch(() => []), [start]);
 
   const byDate = useMemo(() => Object.fromEntries((holidays.data?.holidays || []).map((h) => [h.date, h])), [holidays.data]);
+  const eventsOn = (iso) => (events.data || []).filter((e) => String(e.starts_on).slice(0, 10) === iso);
   const leaveOn = (iso) => (leaves.data || []).find((l) => l.from_date <= iso && l.to_date >= iso);
   const first = new Date(cursor.y, cursor.m, 1).getDay();
   const dim = new Date(cursor.y, cursor.m + 1, 0).getDate();
   const cells = [...Array(first).fill(null), ...Array.from({ length: dim }, (_, i) => i + 1)];
   const upcoming = (holidays.data?.holidays || []).filter((h) => !h.weeklyOff && h.date >= isoDate()).slice(0, 8);
   const go = (d) => setCursor(({ y, m }) => { const n = new Date(y, m + d, 1); return { y: n.getFullYear(), m: n.getMonth() }; });
+  const changed = (text) => { setDay(null); setMsg(text); holidays.reload(); events.reload(); };
 
   return (
-    <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-      <Panel className="lg:col-span-2" title={`${MONTHS_LONG[cursor.m]} ${cursor.y}`} hint={holidays.data?.name ? `Holiday list: ${holidays.data.name}` : undefined} action={
-        <div className="flex gap-1"><button type="button" onClick={() => go(-1)} className="rounded p-1.5 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]"><ChevronLeft size={16} /></button><button type="button" onClick={() => setCursor({ y: t.getFullYear(), m: t.getMonth() })} className="rounded px-2 text-[12px] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]">Today</button><button type="button" onClick={() => go(1)} className="rounded p-1.5 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]"><ChevronRight size={16} /></button></div>}>
-        <Async state={holidays}>
-          {() => (
+    <div className="space-y-4">
+      {editor && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-[color-mix(in_srgb,var(--color-red)_45%,transparent)] bg-[var(--color-red-wash)] px-4 py-2.5">
+          <p className="flex items-center gap-2 text-[12.5px] text-[var(--color-text)]"><Pencil size={14} className="text-[var(--color-red-hover)]" /> You can edit this calendar: click any day to add or change a holiday, a weekly off or a company event.</p>
+          <button type="button" onClick={onLists} className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-[var(--color-red-hover)] hover:underline"><CalendarRange size={14} /> Holiday Lists</button>
+        </div>
+      )}
+      {msg && <Notice tone="info">{msg}</Notice>}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+        <Panel className="lg:col-span-2" title={`${MONTHS_LONG[cursor.m]} ${cursor.y}`} hint={holidays.data?.name ? `Holiday list: ${holidays.data.name}` : undefined} action={
+          <div className="flex gap-1"><button type="button" aria-label="Previous month" onClick={() => go(-1)} className="rounded p-1.5 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]"><ChevronLeft size={16} /></button><button type="button" onClick={() => setCursor({ y: t.getFullYear(), m: t.getMonth() })} className="rounded px-2 text-[12px] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]">Today</button><button type="button" aria-label="Next month" onClick={() => go(1)} className="rounded p-1.5 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]"><ChevronRight size={16} /></button></div>
+        }>
+          <Async state={holidays}>
+            {() => (
+              <>
+                <div className="grid grid-cols-7 gap-1 text-center text-[11px] text-[var(--color-text-faint)]">{WEEKDAYS.map((d) => <div key={d} className="py-1">{d}</div>)}</div>
+                <div className="grid grid-cols-7 gap-1">
+                  {cells.map((d, i) => {
+                    if (!d) return <div key={`e${i}`} />;
+                    const iso = `${cursor.y}-${pad(cursor.m + 1)}-${pad(d)}`;
+                    const h = byDate[iso];
+                    const l = leaveOn(iso);
+                    const ev = eventsOn(iso);
+                    const born = (birthdays.data || []).filter((b) => b.date === iso);
+                    const isToday = iso === isoDate();
+                    const bg = l ? "color-mix(in srgb, var(--color-amber) 22%, transparent)" : h && !h.weeklyOff ? "var(--color-red-wash)" : h?.weeklyOff ? "var(--color-surface-2)" : "transparent";
+                    const tip = [h?.description, l && "On leave", ...ev.map((e) => `Event: ${e.subject}`), editor && "Click to edit"].filter(Boolean).join(" · ");
+                    const Tag = editor ? "button" : "div";
+                    return (
+                      <Tag key={iso} type={editor ? "button" : undefined} onClick={editor ? () => { setMsg(""); setDay(iso); } : undefined} title={tip}
+                        className={`group relative flex h-16 flex-col overflow-hidden rounded-md border p-1.5 text-left text-[12px] ${isToday ? "border-[var(--color-red)]" : "border-[var(--color-border)]"} ${editor ? "transition-colors hover:border-[var(--color-red)]" : ""}`} style={{ background: bg }}>
+                        <span className={h?.weeklyOff ? "text-[var(--color-text-faint)]" : "text-[var(--color-text)]"}>{d}</span>
+                        {editor && <Pencil size={10} className="absolute right-1.5 top-1.5 text-[var(--color-text-faint)] opacity-0 transition-opacity group-hover:opacity-100" />}
+                        <span className="mt-auto space-y-0.5">
+                          {h && !h.weeklyOff && <span className="block truncate text-[10px] text-[var(--color-red-hover)]">{h.description}</span>}
+                          {ev.length > 0 && <span className="block truncate text-[10px]" style={{ color: HOL_EVENT }}>{ev.length > 1 ? `${ev.length} events` : ev[0].subject}</span>}
+                          {l && !h && <span className="block truncate text-[10px] text-[var(--color-amber)]">Leave</span>}
+                          {born.length > 0 && <span title={born.map((b) => b.name).join(", ")} className="flex items-center gap-0.5 truncate text-[10px] text-[var(--color-text-muted)]"><Cake size={10} className="shrink-0" /> {born.length > 1 ? `${born.length} birthdays` : born[0].name.split(" ")[0]}</span>}
+                        </span>
+                      </Tag>
+                    );
+                  })}
+                </div>
+                <div className="mt-4 flex flex-wrap gap-4 text-[11px] text-[var(--color-text-muted)]">
+                  {[["var(--color-red-wash)", "Holiday"], ["var(--color-surface-2)", "Weekly off"], ["color-mix(in srgb, var(--color-amber) 22%, transparent)", "Your leave"]].map(([c, label]) => <span key={label} className="flex items-center gap-1.5"><i className="h-3 w-3 rounded border border-[var(--color-border)]" style={{ background: c }} />{label}</span>)}
+                  <span className="flex items-center gap-1.5"><i className="h-3 w-3 rounded" style={{ background: HOL_EVENT }} />Company event</span>
+                </div>
+              </>
+            )}
+          </Async>
+        </Panel>
+        <Panel title="Upcoming Holidays">
+          {holidays.data && !holidays.data.name && <Empty text={editor ? "No holiday list applies here yet. Create one in the Holiday Lists tab and make it the company default." : "No holiday list is assigned to you yet. Ask HR to set your Office Location."} />}
+          {upcoming.length > 0 && <ul className="space-y-3">{upcoming.map((h) => <li key={h.date} className="flex items-center justify-between text-[13px]"><span className="text-[var(--color-text)]">{h.description}</span><span className="text-[var(--color-text-muted)]">{dmy(h.date)}</span></li>)}</ul>}
+          {holidays.data?.name && upcoming.length === 0 && <Empty text={(holidays.data.holidays || []).some((h) => !h.weeklyOff) ? "No more holidays this year." : editor ? "No holidays in this list yet - click a day on the calendar, or add them all at once in the Holiday Lists tab." : "No holidays have been added to this list yet."} />}
+          <div className="mt-5 border-t border-[var(--color-border)] pt-4"><p className="mb-3 text-[13px] font-semibold text-[var(--color-text)]">Upcoming Birthdays</p><BirthdayList rows={birthdays.data} /></div>
+        </Panel>
+      </div>
+      {day && <DayEditor date={day} listName={holidays.data?.name} holiday={byDate[day]} events={eventsOn(day)} onClose={() => setDay(null)} onDone={changed} />}
+    </div>
+  );
+}
+
+/** HR / Administrator: change one day - its holiday (on a chosen list) and its company events. */
+function DayEditor({ date, listName, holiday, events, onClose, onDone }) {
+  const lists = useAsync(holLoadLists, []);
+  const covering = (lists.data?.lists || []).filter((l) => l.from_date <= date && l.to_date >= date);
+  const [picked, setPicked] = useState(listName || "");
+  const list = covering.some((l) => l.name === picked) ? picked : covering[0]?.name || "";
+  const [name, setName] = useState(holiday && !holiday.weeklyOff ? holiday.description : "");
+  const [ev, setEv] = useState({ subject: "", time: "", description: "" });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const label = new Date(`${date}T00:00:00`).toLocaleDateString("en-GB", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
+  const onThisList = list === listName ? holiday : null; // what the shown list has for this day
+
+  async function run(action, text) {
+    setBusy(true);
+    setErr("");
+    try { await action(); onDone(text); } catch (x) { setErr(errMsg(x, "Couldn't save the change.")); setBusy(false); }
+  }
+  const addEvent = () => frappe.createDoc("Event", { subject: ev.subject.trim(), event_type: "Public", all_day: ev.time ? 0 : 1, starts_on: `${date} ${ev.time || "00:00"}:00`, description: ev.description.trim() || undefined });
+
+  return (
+    <Modal title={label} onClose={onClose} wide>
+      <div className="space-y-5">
+        <section className="space-y-3">
+          <h3 className="flex items-center gap-2 text-[13px] font-semibold text-[var(--color-text)]"><PartyPopper size={14} className="text-[var(--color-red-hover)]" /> Holiday</h3>
+          <Field label="Holiday List" hint={covering.length ? "Changes apply to everyone on this list" : undefined}>
+            {lists.loading && !lists.data ? <p className="py-2 text-[13px] text-[var(--color-text-muted)]">Loading lists…</p> : covering.length === 0 ? (
+              <p className="py-2 text-[13px] text-[var(--color-amber)]">No holiday list covers {dmy(date)}. Create one in the Holiday Lists tab.</p>
+            ) : (
+              <select className={inputCls} value={list} onChange={(e) => setPicked(e.target.value)}>{covering.map((l) => <option key={l.name} value={l.name}>{l.name}{l.name === listName ? " (shown here)" : ""}</option>)}</select>
+            )}
+          </Field>
+          {covering.length > 0 && (
             <>
-              <div className="grid grid-cols-7 gap-1 text-center text-[11px] text-[var(--color-text-faint)]">{WEEKDAYS.map((d) => <div key={d} className="py-1">{d}</div>)}</div>
-              <div className="grid grid-cols-7 gap-1">
-                {cells.map((d, i) => {
-                  if (!d) return <div key={`e${i}`} />;
-                  const iso = `${cursor.y}-${pad(cursor.m + 1)}-${pad(d)}`;
-                  const h = byDate[iso];
-                  const l = leaveOn(iso);
-                  const born = (birthdays.data || []).filter((b) => b.date === iso);
-                  const isToday = iso === isoDate();
-                  const bg = l ? "color-mix(in srgb, var(--color-amber) 22%, transparent)" : h && !h.weeklyOff ? "var(--color-red-wash)" : h?.weeklyOff ? "var(--color-surface-2)" : "transparent";
-                  return (
-                    <div key={iso} title={h?.description || (l ? "On leave" : "")} className={`flex h-14 flex-col rounded-md border p-1.5 text-[12px] ${isToday ? "border-[var(--color-red)]" : "border-[var(--color-border)]"}`} style={{ background: bg }}>
-                      <span className={h?.weeklyOff ? "text-[var(--color-text-faint)]" : "text-[var(--color-text)]"}>{d}</span>
-                      {h && !h.weeklyOff && <span className="mt-auto truncate text-[10px] text-[var(--color-red-hover)]">{h.description}</span>}
-                      {l && !h && <span className="mt-auto truncate text-[10px] text-[var(--color-amber)]">Leave</span>}
-                      {born.length > 0 && <span title={born.map((b) => b.name).join(", ")} className="mt-auto flex items-center gap-0.5 truncate text-[10px] text-[var(--color-text-muted)]"><Cake size={10} className="shrink-0" /> {born.length > 1 ? `${born.length} birthdays` : born[0].name.split(" ")[0]}</span>}
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="mt-4 flex flex-wrap gap-4 text-[11px] text-[var(--color-text-muted)]">
-                {[["var(--color-red-wash)", "Holiday"], ["var(--color-surface-2)", "Weekly off"], ["color-mix(in srgb, var(--color-amber) 22%, transparent)", "Your leave"]].map(([c, l]) => <span key={l} className="flex items-center gap-1.5"><i className="h-3 w-3 rounded border border-[var(--color-border)]" style={{ background: c }} />{l}</span>)}
+              {onThisList?.weeklyOff && <Notice tone="info">This day is a weekly off on {list}.</Notice>}
+              <Field label="Holiday Name"><input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Diwali, Company Foundation Day" /></Field>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" disabled={busy || !list || !name.trim()} onClick={() => run(() => holSetDay(list, date, name.trim()), `${name.trim()} on ${dmy(date)} saved to ${list}.`)}>{onThisList && !onThisList.weeklyOff ? "Rename Holiday" : "Make It a Holiday"}</Button>
+                {onThisList && <Button type="button" variant="secondary" disabled={busy} onClick={() => run(() => holSetDay(list, date, null), `${dmy(date)} is now a working day on ${list}.`)}><Trash2 size={13} /> {onThisList.weeklyOff ? "Make It a Working Day" : "Remove Holiday"}</Button>}
+                {!onThisList && <Button type="button" variant="ghost" disabled={busy || !list} onClick={() => run(() => holSetDay(list, date, new Date(`${date}T00:00:00`).toLocaleDateString("en-GB", { weekday: "long" }), true), `${dmy(date)} is now a weekly off on ${list}.`)}>Mark as Weekly Off</Button>}
               </div>
             </>
           )}
-        </Async>
-      </Panel>
-      <Panel title="Upcoming Holidays">
-        {holidays.data && !holidays.data.name && <Empty text="No holiday list is assigned to you yet. Ask HR to set your Office Location." />}
-        {upcoming.length > 0 && <ul className="space-y-3">{upcoming.map((h) => <li key={h.date} className="flex items-center justify-between text-[13px]"><span className="text-[var(--color-text)]">{h.description}</span><span className="text-[var(--color-text-muted)]">{dmy(h.date)}</span></li>)}</ul>}
-        {holidays.data?.name && upcoming.length === 0 && <Empty text={(holidays.data.holidays || []).some((h) => !h.weeklyOff) ? "No more holidays this year." : "No holidays have been added to this list yet. HR adds them under Office Locations."} />}
-        <div className="mt-5 border-t border-[var(--color-border)] pt-4"><p className="mb-3 text-[13px] font-semibold text-[var(--color-text)]">Upcoming Birthdays</p><BirthdayList rows={birthdays.data} /></div>
-      </Panel>
+        </section>
+
+        <section className="space-y-3 border-t border-[var(--color-border)] pt-4">
+          <h3 className="flex items-center gap-2 text-[13px] font-semibold text-[var(--color-text)]"><CalendarPlus size={14} style={{ color: HOL_EVENT }} /> Company Events</h3>
+          {events.length > 0 && (
+            <ul className="space-y-1.5">
+              {events.map((e) => (
+                <li key={e.name} className="flex items-center justify-between gap-3 rounded-md border border-[var(--color-border)] px-3 py-2 text-[13px]">
+                  <span className="text-[var(--color-text)]">{e.subject}<span className="ml-2 text-[11.5px] text-[var(--color-text-muted)]">{Number(e.all_day) ? "All day" : String(e.starts_on).slice(11, 16)}</span></span>
+                  <button type="button" disabled={busy} onClick={() => run(() => frappe.deleteDoc("Event", e.name), `Event “${e.subject}” removed.`)} className="rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-red-hover)]" title="Remove event"><Trash2 size={14} /></button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="sm:col-span-2"><Field label="New Event"><input className={inputCls} value={ev.subject} onChange={(e) => setEv({ ...ev, subject: e.target.value })} placeholder="e.g. Town hall, Team outing" /></Field></div>
+            <Field label="Time (Optional)"><input type="time" className={inputCls} value={ev.time} onChange={(e) => setEv({ ...ev, time: e.target.value })} /></Field>
+          </div>
+          <Field label="Details (Optional)"><textarea rows={2} className={inputCls} value={ev.description} onChange={(e) => setEv({ ...ev, description: e.target.value })} /></Field>
+          <div className="flex justify-end"><Button type="button" variant="secondary" disabled={busy || !ev.subject.trim()} onClick={() => run(addEvent, `Event “${ev.subject.trim()}” added on ${dmy(date)}. Everyone sees it on the calendar, and it's in the event reminder emails.`)}><CalendarPlus size={13} /> Add Event</Button></div>
+        </section>
+        {err && <Notice>{err}</Notice>}
+      </div>
+    </Modal>
+  );
+}
+
+/* ---------- Holiday Lists tab (HR / Administrator) ---------- */
+
+function HolidayListsTab() {
+  const data = useAsync(holLoadLists, []);
+  const [editing, setEditing] = useState(null);
+  const [creating, setCreating] = useState(false);
+  const [using, setUsing] = useState(null);
+  const [msg, setMsg] = useState("");
+  const done = (text) => { setMsg(text); data.reload(); };
+  return (
+    <div className="space-y-5">
+      {msg && <Notice tone="info">{msg}</Notice>}
+      <Async state={data}>
+        {(d) => {
+          const withoutList = d.employees.filter((e) => !e.holiday_list && !d.companies.find((c) => c.name === e.company)?.default_holiday_list && !d.branches.find((b) => b.name === e.branch)?.custom_holiday_list);
+          const current = d.lists.filter((l) => l.from_date <= isoDate() && l.to_date >= isoDate());
+          const noHolidays = current.filter((l) => !d.counts[l.name]?.holidays);
+          const usedBy = (name) => [...d.companies.filter((c) => c.default_holiday_list === name).map((c) => `${c.name} (default)`), ...d.branches.filter((b) => b.custom_holiday_list === name).map((b) => `${b.name} office`), ...(d.employees.filter((e) => e.holiday_list === name).length ? [`${d.employees.filter((e) => e.holiday_list === name).length} employee(s)`] : [])];
+          return (
+            <>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <Stat icon={CalendarRange} label="Holiday Lists" value={d.lists.length} sub={`${current.length} cover today`} accent="#4f8cff" />
+                <Stat icon={Star} label="Company Defaults" value={d.companies.filter((c) => c.default_holiday_list).length} sub={`of ${d.companies.length} compan${d.companies.length === 1 ? "y" : "ies"}`} accent="var(--color-green)" />
+                <Stat icon={CalendarCheck} label="Current Lists Without Holidays" value={noHolidays.length} sub={noHolidays.length ? noHolidays.map((l) => l.name).join(", ") : "All have holidays"} accent="var(--color-amber)" />
+                <Stat icon={Users} label="Employees Without a List" value={withoutList.length} sub={withoutList.length ? "Weekends may count as leave" : "Everyone is covered"} accent="var(--color-red-hover)" />
+              </div>
+              {withoutList.length > 0 && <Notice>{withoutList.length} active employee(s) have no holiday list ({withoutList.slice(0, 5).map((e) => e.employee_name).join(", ")}{withoutList.length > 5 ? "…" : ""}). Make a list their company's default with “Use This List”.</Notice>}
+              <Panel title="All Holiday Lists" hint="Edit a list to add festival holidays or change its weekly offs. Changes apply to leave counts, timesheets and everyone's calendar straight away." action={<Button onClick={() => { setMsg(""); setCreating(true); }}><Plus size={14} /> New Holiday List</Button>}>
+                {d.lists.length === 0 ? <Empty icon={CalendarDays} text="No holiday lists yet. Create one for this year." /> : (
+                  <Grid rows={d.lists} columns={[
+                    { key: "name", label: "List", render: (l) => <span><b className="font-medium">{l.name}</b><span className="block text-[11px] text-[var(--color-text-faint)]">{dmy(l.from_date)} – {dmy(l.to_date)}{l.from_date <= isoDate() && l.to_date >= isoDate() ? " · current" : ""}</span></span> },
+                    { key: "h", label: "Holidays", render: (l) => <span>{d.counts[l.name]?.holidays ?? 0}{d.counts[l.name]?.next && <span className="block text-[11px] text-[var(--color-text-faint)]">next {dmy(d.counts[l.name].next)}</span>}</span> },
+                    { key: "w", label: "Weekly Offs", render: (l) => d.counts[l.name]?.weeklyOffs ?? 0 },
+                    { key: "u", label: "Used By", render: (l) => (usedBy(l.name).length ? <span className="text-[12px]">{usedBy(l.name).join(" · ")}</span> : <span className="text-[var(--color-text-faint)]">Nobody yet</span>) },
+                    { key: "a", label: "", render: (l) => (
+                      <div className="flex justify-end gap-1">
+                        <Button variant="secondary" className="!px-2.5 !py-1 !text-[12px]" onClick={() => { setMsg(""); setEditing(l.name); }}><Pencil size={12} /> Edit Holidays</Button>
+                        <Button variant="ghost" className="!px-2.5 !py-1 !text-[12px]" onClick={() => { setMsg(""); setUsing(l); }}><Star size={12} /> Use This List</Button>
+                      </div>
+                    ) },
+                  ]} />
+                )}
+              </Panel>
+              {creating && <HolNewList lists={d.lists} onClose={() => setCreating(false)} onDone={(name) => { setCreating(false); done(`${name} created. Add its festival holidays now.`); setEditing(name); }} />}
+              {editing && <HolEditList name={editing} lists={d.lists} onClose={() => setEditing(null)} onDone={(text) => { setEditing(null); done(text); }} />}
+              {using && <HolUseList list={using} data={d} onClose={() => setUsing(null)} onDone={(text) => { setUsing(null); done(text); }} />}
+            </>
+          );
+        }}
+      </Async>
     </div>
+  );
+}
+
+function HolWeekdays({ value, onChange }) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {HOL_DAYS.map((d) => <button key={d} type="button" onClick={() => onChange(value.includes(d) ? value.filter((x) => x !== d) : [...value, d])} className={chipCls(value.includes(d))}>{d.slice(0, 3)}</button>)}
+    </div>
+  );
+}
+
+function HolNewList({ lists, onClose, onDone }) {
+  const now = new Date();
+  const y = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1; // Indian financial year, April to March
+  const [f, setF] = useState({ name: `Holidays ${y}-${String(y + 1).slice(2)}`, from: `${y}-04-01`, to: `${y + 1}-03-31`, weeklyOffs: ["Saturday", "Sunday"], copyFrom: "" });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  async function submit(e) {
+    e.preventDefault();
+    setErr("");
+    if (f.to < f.from) return setErr("The end date is before the start date.");
+    if (lists.some((l) => l.name.toLowerCase() === f.name.trim().toLowerCase())) return setErr(`A list called ${f.name.trim()} already exists.`);
+    setBusy(true);
+    try {
+      let rows = holWeeklyOffRows(f.from, f.to, f.weeklyOffs);
+      if (f.copyFrom) {
+        const src = await frappe.getDoc("Holiday List", f.copyFrom);
+        rows = rows.concat((src.holidays || []).filter((h) => !Number(h.weekly_off) && h.holiday_date >= f.from && h.holiday_date <= f.to));
+      }
+      const doc = await frappe.createDoc("Holiday List", { holiday_list_name: f.name.trim(), from_date: f.from, to_date: f.to, weekly_off: f.weeklyOffs[0] || undefined, holidays: holClean(rows) });
+      onDone(doc.name);
+    } catch (x) {
+      setErr(errMsg(x, "Couldn't create the list."));
+      setBusy(false);
+    }
+  }
+  return (
+    <Modal title="New Holiday List" onClose={onClose} wide>
+      <form onSubmit={submit} className="space-y-3">
+        <Field label="List Name"><input required className={inputCls} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="From"><input required type="date" className={inputCls} value={f.from} onChange={(e) => setF({ ...f, from: e.target.value })} /></Field>
+          <Field label="To"><input required type="date" className={inputCls} value={f.to} onChange={(e) => setF({ ...f, to: e.target.value })} /></Field>
+        </div>
+        <Field label="Weekly Offs" hint="Every one of these days in the period becomes a weekly off"><HolWeekdays value={f.weeklyOffs} onChange={(v) => setF({ ...f, weeklyOffs: v })} /></Field>
+        <Field label="Copy Holidays From (Optional)" hint="Copies the festival holidays that fall inside the new period">
+          <select className={inputCls} value={f.copyFrom} onChange={(e) => setF({ ...f, copyFrom: e.target.value })}><option value="">Don't copy - I'll add them</option>{lists.map((l) => <option key={l.name} value={l.name}>{l.name}</option>)}</select>
+        </Field>
+        {err && <Notice>{err}</Notice>}
+        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Creating…" : "Create List"}</Button></div>
+      </form>
+    </Modal>
+  );
+}
+
+function HolEditList({ name, lists, onClose, onDone }) {
+  const doc = useAsync(() => frappe.getDoc("Holiday List", name), [name]);
+  return (
+    <Modal title={`Holiday List · ${name}`} onClose={onClose} wide="xl">
+      <Async state={doc}>{(d) => <HolListEditor doc={d} lists={lists} onClose={onClose} onDone={onDone} />}</Async>
+    </Modal>
+  );
+}
+
+function HolListEditor({ doc, lists, onClose, onDone }) {
+  const [rows, setRows] = useState(() => (doc.holidays || []).filter((h) => !Number(h.weekly_off)).map((h, i) => ({ id: i, holiday_date: h.holiday_date, description: String(h.description || "").replace(/<[^>]+>/g, "") })));
+  const [offs, setOffs] = useState(() => {
+    const days = new Set((doc.holidays || []).filter((h) => Number(h.weekly_off)).map((h) => HOL_DAYS[(new Date(`${h.holiday_date}T00:00:00Z`).getUTCDay() + 6) % 7]));
+    return HOL_DAYS.filter((d) => days.has(d));
+  });
+  const [paste, setPaste] = useState(null);
+  const [copyFrom, setCopyFrom] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const outside = rows.filter((r) => r.holiday_date && (r.holiday_date < doc.from_date || r.holiday_date > doc.to_date));
+  const set = (id, k, v) => setRows((list) => list.map((r) => (r.id === id ? { ...r, [k]: v } : r)));
+  const add = (more) => setRows((list) => { const have = new Set(list.map((r) => r.holiday_date)); let n = Date.now(); return [...list, ...more.filter((m) => !have.has(m.holiday_date)).map((m) => ({ id: n++, holiday_date: m.holiday_date, description: m.description }))].sort((a, b) => String(a.holiday_date).localeCompare(String(b.holiday_date))); });
+
+  async function copy() {
+    if (!copyFrom) return;
+    try {
+      const src = await frappe.getDoc("Holiday List", copyFrom);
+      add((src.holidays || []).filter((h) => !Number(h.weekly_off) && h.holiday_date >= doc.from_date && h.holiday_date <= doc.to_date).map((h) => ({ holiday_date: h.holiday_date, description: String(h.description || "").replace(/<[^>]+>/g, "") })));
+    } catch (x) { setErr(errMsg(x, "Couldn't read that list.")); }
+  }
+  function applyPaste() {
+    const { rows: parsed, bad } = holParseLines(paste);
+    add(parsed);
+    setPaste(bad.length ? bad.join("\n") : null);
+    setErr(bad.length ? `${bad.length} line(s) weren't understood and are left in the box - use “25-12-2026, Christmas”.` : "");
+  }
+  async function save() {
+    setErr("");
+    if (outside.length) return setErr(`${outside.length} holiday(s) are outside ${dmy(doc.from_date)} – ${dmy(doc.to_date)}. Change the date or remove them.`);
+    if (rows.some((r) => !r.holiday_date || !r.description.trim())) return setErr("Every holiday needs a date and a name.");
+    setBusy(true);
+    try {
+      const dates = new Set(rows.map((r) => r.holiday_date));
+      await holSaveRows(doc.name, [...holWeeklyOffRows(doc.from_date, doc.to_date, offs).filter((w) => !dates.has(w.holiday_date)), ...rows.map((r) => ({ holiday_date: r.holiday_date, description: r.description.trim(), weekly_off: 0 }))]);
+      onDone(`${doc.name} saved: ${rows.length} holiday(s), weekly offs on ${offs.length ? offs.join(", ") : "no day"}.`);
+    } catch (x) {
+      setErr(errMsg(x, "Couldn't save the list."));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-[12px] text-[var(--color-text-muted)]">Covers {dmy(doc.from_date)} – {dmy(doc.to_date)}.</p>
+      <Field label="Weekly Offs" hint="Changing these rebuilds the weekly offs for the whole period"><HolWeekdays value={offs} onChange={setOffs} /></Field>
+      <div>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-[13px] font-semibold text-[var(--color-text)]">Holidays <span className="font-normal text-[var(--color-text-muted)]">({rows.length})</span></p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <select aria-label="Copy holidays from" className={`${inputCls} !w-auto !py-1 text-[12px]`} value={copyFrom} onChange={(e) => setCopyFrom(e.target.value)}><option value="">Copy from another list…</option>{lists.filter((l) => l.name !== doc.name).map((l) => <option key={l.name} value={l.name}>{l.name}</option>)}</select>
+            {copyFrom && <Button type="button" variant="secondary" className="!px-2.5 !py-1 !text-[12px]" onClick={copy}>Copy</Button>}
+            <Button type="button" variant="secondary" className="!px-2.5 !py-1 !text-[12px]" onClick={() => setPaste(paste === null ? "" : null)}><ClipboardPaste size={12} /> Paste List</Button>
+            <Button type="button" className="!px-2.5 !py-1 !text-[12px]" onClick={() => setRows((l) => [...l, { id: Date.now(), holiday_date: "", description: "" }])}><Plus size={12} /> Add Holiday</Button>
+          </div>
+        </div>
+        {paste !== null && (
+          <div className="mb-3 space-y-2 rounded-lg border border-[var(--color-border)] p-3">
+            <textarea rows={5} className={inputCls} value={paste} onChange={(e) => setPaste(e.target.value)} placeholder={"One holiday per line, e.g.\n25-12-2026, Christmas\n26-01-2027, Republic Day"} />
+            <div className="flex justify-end"><Button type="button" variant="secondary" onClick={applyPaste} disabled={!paste.trim()}>Add These</Button></div>
+          </div>
+        )}
+        {rows.length === 0 ? <Empty text="No holidays yet - add them one by one, paste a list, or copy them from another list." /> : (
+          <div className="max-h-[45vh] overflow-y-auto rounded-lg border border-[var(--color-border)]">
+            <table className="w-full text-left text-[12.5px]">
+              <thead className="sticky top-0 bg-[var(--color-surface-2)] text-[10.5px] uppercase tracking-wide text-[var(--color-text-faint)]"><tr><th className="px-3 py-2 font-semibold">Date</th><th className="px-3 py-2 font-semibold">Holiday</th><th className="w-10 px-3 py-2" /></tr></thead>
+              <tbody>
+                {rows.map((r) => {
+                  const bad = r.holiday_date && (r.holiday_date < doc.from_date || r.holiday_date > doc.to_date);
+                  return (
+                    <tr key={r.id} className="border-t border-[var(--color-border)]">
+                      <td className="px-3 py-1.5"><input type="date" aria-label="Date" className={`${inputCls} !py-1 ${bad ? "!border-[var(--color-red)]" : ""}`} value={r.holiday_date} min={doc.from_date} max={doc.to_date} onChange={(e) => set(r.id, "holiday_date", e.target.value)} /></td>
+                      <td className="px-3 py-1.5"><input aria-label="Holiday name" className={`${inputCls} !py-1`} value={r.description} placeholder="e.g. Diwali" onChange={(e) => set(r.id, "description", e.target.value)} /></td>
+                      <td className="px-3 py-1.5 text-right"><button type="button" title="Remove" onClick={() => setRows((l) => l.filter((x) => x.id !== r.id))} className="rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-red-hover)]"><Trash2 size={14} /></button></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+      {err && <Notice>{err}</Notice>}
+      <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button><Button type="button" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save List"}</Button></div>
+    </div>
+  );
+}
+
+function HolUseList({ list, data, onClose, onDone }) {
+  const [company, setCompany] = useState(data.companies[0]?.name || "");
+  const [makeDefault, setMakeDefault] = useState(true);
+  const [assign, setAssign] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const others = data.employees.filter((e) => e.company === company && e.holiday_list !== list.name);
+  async function submit(e) {
+    e.preventDefault();
+    setBusy(true);
+    setErr("");
+    try {
+      const done = [];
+      if (makeDefault) { await frappe.updateDoc("Company", company, { default_holiday_list: list.name }); done.push(`now ${company}'s default`); }
+      if (assign) {
+        for (const x of others) await frappe.callMethod("frappe.client.set_value", { doctype: "Employee", name: x.name, fieldname: "holiday_list", value: list.name });
+        done.push(`${others.length} employee(s) moved onto it`);
+      }
+      onDone(`${list.name}: ${done.join(", ") || "no change"}.`);
+    } catch (x) {
+      setErr(errMsg(x, "Couldn't update. Changing a company's default needs the Administrator if HR isn't allowed to edit Company."));
+      setBusy(false);
+    }
+  }
+  return (
+    <Modal title={`Use ${list.name}`} onClose={onClose}>
+      <form onSubmit={submit} className="space-y-3">
+        <Field label="Company"><select className={inputCls} value={company} onChange={(e) => setCompany(e.target.value)}>{data.companies.map((c) => <option key={c.name} value={c.name}>{c.name}{c.default_holiday_list ? ` (default: ${c.default_holiday_list})` : ""}</option>)}</select></Field>
+        <label className="flex items-start gap-2 text-[13px] text-[var(--color-text)]"><input type="checkbox" className="mt-0.5" checked={makeDefault} onChange={(e) => setMakeDefault(e.target.checked)} /> <span>Make it the company's default <span className="block text-[11.5px] text-[var(--color-text-muted)]">Used by everyone without their own or an office list</span></span></label>
+        <label className="flex items-start gap-2 text-[13px] text-[var(--color-text)]"><input type="checkbox" className="mt-0.5" checked={assign} onChange={(e) => setAssign(e.target.checked)} /> <span>Also put every active employee of this company on it <span className="block text-[11.5px] text-[var(--color-text-muted)]">{others.length} employee(s) would move</span></span></label>
+        {err && <Notice>{err}</Notice>}
+        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button><Button type="submit" disabled={busy || (!makeDefault && !assign) || !company}>{busy ? "Saving…" : "Apply"}</Button></div>
+      </form>
+    </Modal>
   );
 }
 
@@ -984,7 +1401,13 @@ export function EmpLeave() {
 
 /** Apply for leave, or change an open request (`leave`). */
 function ApplyModal({ employee, balance, leave, onClose, onSaved }) {
-  const types = useAsync(async () => (balance.length ? balance.map((b) => b.leave_type) : (await getLeaveTypes()).map((t) => t.name)), []);
+  // Types with an allocation, plus Leave Without Pay (needs no balance). With no allocations at all, every type is listed.
+  const types = useAsync(async () => {
+    const all = await getLeaveTypes().catch(() => []);
+    if (!balance.length) return all.map((x) => x.name);
+    const mine = balance.map((b) => b.leave_type);
+    return [...mine, ...all.filter((x) => Number(x.is_lwp) && !mine.includes(x.name)).map((x) => x.name)];
+  }, []);
   const [f, setF] = useState(() => leave
     ? { leave_type: leave.leave_type || "", from_date: leave.from_date, to_date: leave.to_date, half_day: Boolean(Number(leave.half_day)), ...(() => { const r = splitLeaveReason(stripHtml(leave.description || "")); return { reason: r.reason, description: r.details }; })() }
     : { leave_type: "", from_date: isoDate(), to_date: isoDate(), half_day: false, reason: "", description: "" });
@@ -1118,6 +1541,7 @@ export function EmpPayslips() {
   const { employee } = useEmployee();
   const q = useAsync(() => getPayslips(employee.name), [employee.name]);
   const [year, setYear] = useState("all");
+  const [month, setMonth] = useState("all"); // "01".."12" or "all"
   const [open, setOpen] = useState(null);
 
   return (
@@ -1126,7 +1550,10 @@ export function EmpPayslips() {
       <Async state={q}>
         {(rows) => {
           const years = [...new Set(rows.map((r) => r.end_date.slice(0, 4)))];
-          const shown = rows.filter((r) => year === "all" || r.end_date.startsWith(year));
+          // Months that have a payslip in the chosen year (or in any year)
+          const months = [...new Set(rows.filter((r) => year === "all" || r.end_date.startsWith(year)).map((r) => r.end_date.slice(5, 7)))].sort();
+          const shown = rows.filter((r) => (year === "all" || r.end_date.startsWith(year)) && (month === "all" || r.end_date.slice(5, 7) === month));
+          const period = [month !== "all" ? MONTHS_LONG[Number(month) - 1] : "", year !== "all" ? year : ""].filter(Boolean).join(" ");
           const sum = (k) => shown.reduce((s, r) => s + (Number(r[k]) || 0), 0);
           const cur = rows[0]?.currency || "INR";
           return (
@@ -1134,12 +1561,17 @@ export function EmpPayslips() {
               {shown.length > 0 && (
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   {[["Gross earnings", sum("gross_pay")], ["Total deductions", sum("total_deduction")], ["Net pay", sum("net_pay")]].map(([l, v]) => (
-                    <div key={l} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5"><p className="text-[12px] text-[var(--color-text-muted)]">{l}{year !== "all" ? ` · ${year}` : ""}</p><p className="mt-2 text-2xl font-semibold text-[var(--color-text)]">{money(v, cur)}</p></div>
+                    <div key={l} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5"><p className="text-[12px] text-[var(--color-text-muted)]">{l}{period ? ` · ${period}` : ""}</p><p className="mt-2 text-2xl font-semibold text-[var(--color-text)]">{money(v, cur)}</p></div>
                   ))}
                 </div>
               )}
-              <Panel title="Payslips" action={<select value={year} onChange={(e) => setYear(e.target.value)} className={`${inputCls} !w-auto !py-1`}><option value="all">All years</option>{years.map((y) => <option key={y}>{y}</option>)}</select>}>
-                <Grid rows={shown} empty="No payslips have been issued yet." columns={[
+              <Panel title="Payslips" action={
+                <div className="flex gap-2">
+                  <select aria-label="Month" value={month} onChange={(e) => setMonth(e.target.value)} className={`${inputCls} !w-auto !py-1`}><option value="all">All months</option>{months.map((m) => <option key={m} value={m}>{MONTHS_LONG[Number(m) - 1]}</option>)}</select>
+                  <select aria-label="Year" value={year} onChange={(e) => { setYear(e.target.value); setMonth("all"); }} className={`${inputCls} !w-auto !py-1`}><option value="all">All years</option>{years.map((y) => <option key={y}>{y}</option>)}</select>
+                </div>
+              }>
+                <Grid rows={shown} empty={rows.length ? "No payslip for this month." : "No payslips have been issued yet."} columns={[
                   { key: "end_date", label: "Month", render: (r) => <button type="button" className="text-left text-[var(--color-text)] hover:text-[var(--color-red-hover)]" onClick={() => setOpen(r.name)}>{MONTHS_LONG[Number(r.end_date.slice(5, 7)) - 1]} {r.end_date.slice(0, 4)}</button> },
                   { key: "start_date", label: "Period", render: (r) => `${dmy(r.start_date)} – ${dmy(r.end_date)}` },
                   { key: "gross_pay", label: "Gross", render: (r) => money(r.gross_pay, r.currency) },
