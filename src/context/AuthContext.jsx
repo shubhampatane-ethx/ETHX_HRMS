@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from "rea
 import { frappe } from "../lib/api/frappeClient";
 import { setClientScope, storedClient } from "../lib/clientScope";
 import { SUPER_ADMIN } from "../lib/modules";
+import { cacheClear, cacheGet, cacheSet } from "../lib/sessionCache";
 import { ADMIN_USERNAME, appRolesFor, effectiveRolesForUser, rolesToPermissions } from "../permissions/roles";
 
 const AuthContext = createContext(null);
@@ -66,6 +67,15 @@ export function AuthProvider({ children }) {
       // Session survived a page refresh but the in-memory CSRF token didn't - fetch it now
       // (non-blocking) so the first save doesn't have to wait for it.
       frappe.refreshCsrfToken();
+      // The rest of the start-up (roles, profile, page access, modules) is cached for the tab for a few minutes, so a
+      // reload or a typed URL doesn't repeat it (BUG-008). Signing in again always loads it fresh.
+      const cached = cacheGet(`session:${email}`);
+      if (cached?.email === email) {
+        setClientScope(email === SUPER_ADMIN ? storedClient() : null);
+        setUser(cached);
+        setStatus("authenticated");
+        return cached;
+      }
       const { roles, mustChangePassword, erpRoles = [] } = await resolveAccount(email);
       let userImage = "";
       let fullName = "";
@@ -86,6 +96,7 @@ export function AuthProvider({ children }) {
       const nextUser = { email, fullName, roles, erpRoles, permissions: rolesToPermissions(roles), mustChangePassword, userImage, deniedPages: Array.isArray(deniedPages) ? deniedPages : [], disabledModules };
       // The super admin works on one client at a time (lib/clientScope.js); everyone else is scoped by ERPNext.
       setClientScope(email === SUPER_ADMIN ? storedClient() : null);
+      cacheSet(`session:${email}`, nextUser);
       setUser(nextUser);
       setStatus("authenticated");
       return nextUser;
@@ -100,6 +111,7 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     loadSession();
     const onUnauthorized = () => {
+      cacheClear();
       setClientScope(null);
       setUser(null);
       setStatus("guest");
@@ -111,6 +123,7 @@ export function AuthProvider({ children }) {
   const login = useCallback(
     async (usr, pwd) => {
       await frappe.login(usr, pwd);
+      cacheClear();
       return loadSession();
     },
     [loadSession]
@@ -122,14 +135,22 @@ export function AuthProvider({ children }) {
     } catch {
       /* even if the server call fails, sign the user out of this app */
     } finally {
+      cacheClear();
       setClientScope(null);
       setUser(null);
       setStatus("guest");
     }
   }, []);
 
-  const markPasswordChanged = useCallback(() => setUser((u) => (u ? { ...u, mustChangePassword: false } : u)), []);
-  const setProfileImage = useCallback((userImage) => setUser((u) => (u ? { ...u, userImage } : u)), []);
+  // Keep the cached session in step with changes made during it.
+  const patchUser = useCallback((patch) => setUser((u) => {
+    if (!u) return u;
+    const next = { ...u, ...patch };
+    cacheSet(`session:${u.email}`, next);
+    return next;
+  }), []);
+  const markPasswordChanged = useCallback(() => patchUser({ mustChangePassword: false }), [patchUser]);
+  const setProfileImage = useCallback((userImage) => patchUser({ userImage }), [patchUser]);
 
   return (
     <AuthContext.Provider value={{ user, status, login, logout, refresh: loadSession, markPasswordChanged, setProfileImage }}>

@@ -1,6 +1,6 @@
 // Employee portal: shared UI pieces, employee context and the portal layout in one file.
 import { PageLoading } from "../PageLoading";
-import { createContext, useContext, useEffect, useState, Suspense } from "react";
+import { createContext, useContext, useEffect, useRef, useState, Suspense } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { AlertCircle, ArrowRight, Bell, Briefcase, CalendarCheck, ClipboardCheck, FileText, GraduationCap, Inbox, LayoutDashboard, LifeBuoy, Loader2, Search, Target, Timer, Wallet, X } from "lucide-react";
 import { errMsg, friendlyError, getMyEmployee, isoDate, useAsync } from "../../lib/employeePortal";
@@ -178,21 +178,21 @@ export function Tabs({ tabs, value, onChange }) {
 export const chipCls = (active) =>
   `shrink-0 rounded-md border px-2.5 py-1 text-[12px] transition-colors ${active ? "border-[var(--color-red)] bg-[var(--color-red-wash)] text-[var(--color-text)]" : "border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"}`;
 
-/** Compact table. columns: [{ key, label, render?, className? }] */
+/** The app's standard table: framed, with a shaded header row. columns: [{ key, label, render?, className? }] */
 export function Grid({ columns, rows, empty = "Nothing here yet.", rowKey = (r, i) => r.name ?? i }) {
   if (!rows?.length) return <Empty text={empty} />;
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto rounded-lg border border-[var(--color-border)]">
       <table className="w-full text-left text-[12.5px]">
         <thead>
-          <tr className="border-b border-[var(--color-border)] text-[var(--color-text-muted)]">
-            {columns.map((c) => <th key={c.key} className={`px-3 py-2 font-medium ${c.className || ""}`}>{c.label}</th>)}
+          <tr className="border-b border-[var(--color-border)] bg-[var(--color-surface-2)] text-[10.5px] uppercase tracking-wide text-[var(--color-text-faint)]">
+            {columns.map((c) => <th key={c.key} className={`whitespace-nowrap px-3.5 py-2.5 font-semibold ${c.className || ""}`}>{c.label}</th>)}
           </tr>
         </thead>
         <tbody>
           {rows.map((r, i) => (
-            <tr key={rowKey(r, i)} className="border-b border-[var(--color-border)] last:border-0 hover:bg-[var(--color-surface-2)]">
-              {columns.map((c) => <td key={c.key} className={`px-3 py-2 text-[var(--color-text)] ${c.className || ""}`}>{c.render ? c.render(r) : r[c.key] ?? "—"}</td>)}
+            <tr key={rowKey(r, i)} className="border-b border-[var(--color-border)] transition-colors last:border-0 hover:bg-[color-mix(in_srgb,var(--color-surface-2)_60%,transparent)]">
+              {columns.map((c) => <td key={c.key} className={`px-3.5 py-2.5 align-middle text-[var(--color-text)] ${c.className || ""}`}>{c.render ? c.render(r) : r[c.key] ?? "—"}</td>)}
             </tr>
           ))}
         </tbody>
@@ -200,6 +200,10 @@ export function Grid({ columns, rows, empty = "Nothing here yet.", rowKey = (r, 
     </div>
   );
 }
+
+/** Small square button for a row action, with its name as a tooltip. tone: "danger" | "good". */
+export const iconBtnCls = (tone) =>
+  `inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] transition-colors hover:border-[var(--color-border-strong)] hover:bg-[var(--color-surface-2)] ${tone === "danger" ? "text-[var(--color-text-muted)] hover:!text-[var(--color-red-hover)]" : tone === "good" ? "text-[var(--color-green)]" : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"}`;
 
 export function KeyValue({ items }) {
   return (
@@ -220,9 +224,12 @@ const EmployeeContext = createContext(null);
 /** Loads the Employee record linked to the signed-in user once for the whole portal. */
 export function EmployeeProvider({ children }) {
   const { user } = useAuth();
-  const q = useAsync(() => getMyEmployee(user.email), [user.email]);
+  // The record is shared and cached (getMyEmployee); reload() fetches it fresh, e.g. after the person edits it.
+  const fresh = useRef(false);
+  const q = useAsync(() => { const f = fresh.current; fresh.current = false; return getMyEmployee(user.email, { fresh: f }); }, [user.email]);
+  const reload = () => { fresh.current = true; q.reload(); };
   return (
-    <EmployeeContext.Provider value={{ employee: q.data, loading: q.loading, error: q.error, reload: q.reload }}>
+    <EmployeeContext.Provider value={{ employee: q.data, loading: q.loading, error: q.error, reload }}>
       {children}
     </EmployeeContext.Provider>
   );

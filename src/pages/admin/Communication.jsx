@@ -97,8 +97,8 @@ function CompanyEvents() {
           { key: "description", label: "Details", render: (e) => <span className="text-[12px] text-[var(--color-text-muted)]">{String(e.description || "").replace(/<[^>]*>/g, " ").trim() || "—"}</span> },
           { key: "_a", label: "", render: (e) => (
             <div className="flex justify-end gap-1">
-              <button type="button" title="Edit" onClick={() => setEditing(e)} className="rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]"><Pencil size={14} /></button>
-              <button type="button" title="Delete" onClick={() => remove(e)} className="rounded p-1 text-[var(--color-text-muted)] hover:text-[var(--color-red-hover)]"><Trash2 size={14} /></button>
+              <button type="button" title="Edit" onClick={() => setEditing(e)} className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] transition-colors hover:border-[var(--color-border-strong)] hover:bg-[var(--color-surface-2)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"><Pencil size={14} /></button>
+              <button type="button" title="Delete" onClick={() => remove(e)} className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] transition-colors hover:border-[var(--color-border-strong)] hover:bg-[var(--color-surface-2)] text-[var(--color-text-muted)] hover:!text-[var(--color-red-hover)]"><Trash2 size={14} /></button>
             </div>
           ) },
         ]} />}

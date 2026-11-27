@@ -1,4 +1,5 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { PageLoading } from "../components/PageLoading";
 import { useAuth } from "../context/AuthContext";
 import { hasPermission, homePath } from "./roles";
 import { isPageBlocked } from "./pageAccess";
@@ -33,10 +34,7 @@ export function RequirePermission({ permission }) {
   return <Outlet />;
 }
 
+/** While the session loads: the workspace layout in placeholder blocks, not a blank screen (BUG-007). */
 function FullScreenLoader() {
-  return (
-    <div className="flex h-screen items-center justify-center bg-[var(--color-bg)]">
-      <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--color-border-strong)] border-t-[var(--color-red)]" />
-    </div>
-  );
+  return <PageLoading full />;
 }

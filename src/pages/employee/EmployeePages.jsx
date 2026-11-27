@@ -3,7 +3,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ArrowRight, BadgeCheck, Briefcase, Bell, Cake, CalendarCheck, CalendarClock, CalendarDays, CheckCheck, ChevronLeft, ChevronRight, ClipboardCheck, Download, ExternalLink, FileText, GraduationCap, HeartPulse, KeyRound, Laptop, LifeBuoy, LogIn, LogOut, Mail, Megaphone, Paperclip, Pencil, Phone, Plus, Receipt, Search, ShieldAlert, Target, Trash2, Undo2, Upload, UserRound, Users, Wallet } from "lucide-react";
 import { Async, ChangePasswordForm, chipCls, Empty, ErrorState, Field, Grid, inputCls, KeyValue, Loading, Modal, Notice, PageHeader, Panel, Skeleton, Stat, StatusPill, Tabs, useEmployee } from "../../components/employee/EmployeeShell";
-import { CONTACTS, createRequest, joinLeaveReason, LEAVE_REASONS, OTHER_REASON, splitLeaveReason, daysBetween, daysUntil, dmy, dmyHm, errMsg, EXPIRY_WARN_DAYS, getAcknowledged, getAnnouncements, attReqStatus, getAppraisals, getApprovals, getAttendanceHistory, getAttendanceRequests, getCheckinsBetween, getEvents, getExpenseClaims, getFeedback, getGoals, getHolidays, getLeaveApplications, getLeaveBalance, getLeaveTypes, getMyAssets, getMyBenefits, getMyDocuments, getMyLeavesBetween, getMyTraining, getNotifications, getPayslips, getPolicies, getRequests, getShiftAssignments, getTeamAvailability, getTodayAttendance, getUpcomingBirthdays, hm, punchDayStatus, hoursLabel, isoDate, LETTER_TYPES, money, MONTHS, MONTHS_LONG, nowStamp, pad, removeMyDocument, REQUEST_CATEGORIES, splitRequest, stripHtml, updateRequest, uploadMyDocument, withdrawRequest, summariseCheckins, useAsync, WEEKDAYS } from "../../lib/employeePortal";
+import { CONTACTS, createRequest, joinLeaveReason, LEAVE_REASONS, OTHER_REASON, splitLeaveReason, daysBetween, daysUntil, dmy, dmyHm, errMsg, EXPIRY_WARN_DAYS, getAcknowledged, getAnnouncements, attReqStatus, getAppraisals, getApprovals, getAttendanceHistory, getAttendanceRequests, getCheckinsBetween, getEvents, getExpenseClaims, getFeedback, getGoals, getHolidays, getLeaveApplications, getLeaveBalance, getLeaveTypes, getMyAssets, getMyBenefits, getMyDocuments, getMyIdentity, getMyLeavesBetween, getMyTraining, getNotifications, getPayslips, getPolicies, getRequests, getShiftAssignments, getTeamAvailability, getTodayAttendance, getUpcomingBirthdays, hm, punchDayStatus, hoursLabel, isoDate, LETTER_TYPES, money, MONTHS, MONTHS_LONG, nowStamp, pad, removeMyDocument, REQUEST_CATEGORIES, splitRequest, stripHtml, updateRequest, uploadMyDocument, withdrawRequest, summariseCheckins, useAsync, WEEKDAYS } from "../../lib/employeePortal";
 import { useAuth } from "../../context/AuthContext";
 import { hasPermission } from "../../permissions/roles";
 import { greetingName } from "../../lib/names";
@@ -1313,6 +1313,9 @@ function MyDocumentsPanel({ employee }) {
 
 export function EmpProfile() {
   const { employee: e, reload } = useEmployee();
+  // PAN / Aadhaar come from a server rule that returns only the caller's own numbers (never with the shared record).
+  const ids = useAsync(getMyIdentity, []);
+  const idv = { custom_pan_number: ids.data?.pan || "", custom_aadhaar_number: ids.data?.aadhaar || "" };
   const [editing, setEditing] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
   const documentsRef = useRef(null);
@@ -1321,7 +1324,7 @@ export function EmpProfile() {
   const [error, setError] = useState("");
 
   function open() {
-    setForm(Object.fromEntries(EDITABLE.map(([k]) => [k, e[k] || ""])));
+    setForm(Object.fromEntries(EDITABLE.map(([k]) => [k, (k in idv ? idv[k] : e[k]) || ""])));
     setError("");
     setEditing(true);
   }
@@ -1340,6 +1343,7 @@ export function EmpProfile() {
       }
       setEditing(false);
       reload();
+      ids.reload();
     } catch (err) {
       setError(errMsg(err, "Couldn't save. Updating your own details is set up automatically the next time the Administrator signs in - try again after that."));
     } finally {
@@ -1366,7 +1370,7 @@ export function EmpProfile() {
         <KeyValue items={[
           ["Date of birth", dmy(e.date_of_birth)], ["Gender", e.gender], ["Blood group", e.blood_group], ["Marital status", e.marital_status],
           ["Mobile", e.cell_number], ["Personal email", e.personal_email], ["Current address", e.current_address], ["Permanent address", e.permanent_address],
-          ["PAN number", e.custom_pan_number], ["Aadhaar number", maskAadhaar(e.custom_aadhaar_number)],
+          ["PAN number", idv.custom_pan_number], ["Aadhaar number", maskAadhaar(idv.custom_aadhaar_number)],
         ]} />
       </Panel>
 
@@ -1383,7 +1387,7 @@ export function EmpProfile() {
         <Modal title="Edit My Details" onClose={() => setEditing(false)} wide>
           <form onSubmit={save} className="space-y-3">
             {/* PAN / Aadhaar can be entered once ERPNext Setup has added those fields. */}
-            {EDIT_SECTIONS.filter(([title]) => title !== "Identity" || e.idFields).map(([title, fields]) => (
+            {EDIT_SECTIONS.filter(([title]) => title !== "Identity" || ids.data?.available).map(([title, fields]) => (
               <fieldset key={title} className="space-y-3">
                 <legend className="mb-1 text-[12px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">{title}</legend>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -1396,7 +1400,7 @@ export function EmpProfile() {
                           {type === "area" ? <textarea rows={2} className={inputCls} value={form[key]} onChange={(ev) => set(ev.target.value)} />
                             : Array.isArray(type) ? <select className={inputCls} value={form[key]} onChange={(ev) => set(ev.target.value)}><option value="">—</option>{type.map((o) => <option key={o}>{o}</option>)}</select>
                               : type === "pan" ? <input className={inputCls} value={form[key]} maxLength={10} placeholder="ABCDE1234F" onChange={(ev) => set(ev.target.value.toUpperCase())} />
-                                : type === "aadhaar" ? <input className={inputCls} value={form[key]} maxLength={14} inputMode="numeric" placeholder="12 digits" onChange={(ev) => set(ev.target.value.replace(/[^d ]/g, ""))} />
+                                : type === "aadhaar" ? <input className={inputCls} value={form[key]} maxLength={14} inputMode="numeric" placeholder="12 digits" onChange={(ev) => set(ev.target.value.replace(/[^\d ]/g, ""))} />
                                   : <input className={inputCls} type={type || "text"} max={key === "date_of_birth" ? isoDate() : undefined} value={form[key]} onChange={(ev) => set(ev.target.value)} />}
                         </Field>
                       </div>

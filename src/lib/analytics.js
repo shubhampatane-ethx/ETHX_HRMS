@@ -133,7 +133,9 @@ export async function loadMis(ym) {
   const to = monthEnd(ym);
   const [emps, attendance, leave, expenses, openings, candidates] = await Promise.all([
     frappe.getList("Employee", { fields: ["name", "status", "date_of_joining", "relieving_date", "department", "gender"], limit: 0 }),
-    safe(frappe.getList("Attendance", { filters: [["docstatus", "=", 1], ["attendance_date", "between", [from, to]]], fields: ["status as k", "count(name) as v"], groupBy: "status", limit: 0 })),
+    // Same records as the Attendance page (saved or submitted, not cancelled), counted here (BUG-006: the grouped server
+    // query only saw submitted records and came back empty when attendance was marked but not submitted).
+    safe(frappe.getList("Attendance", { filters: [["docstatus", "<", 2], ["attendance_date", "between", [from, to]]], fields: ["status"], limit: 0 })),
     safe(total("Leave Application", [["status", "=", "Approved"], ["docstatus", "=", 1], ["from_date", "between", [from, to]]], ["total_leave_days"])),
     safe(total("Expense Claim", [["docstatus", "<", 2], ["posting_date", "between", [from, to]]], ["total_claimed_amount"])),
     safe(total("Job Opening", [["status", "=", "Open"]], ["planned_vacancies"])),
@@ -165,10 +167,14 @@ export async function loadMis(ym) {
 
   let att = null;
   if (attendance) {
-    const by = Object.fromEntries(attendance.map((r) => [r.k, Number(r.v) || 0]));
-    const marked = Object.values(by).reduce((a, b) => a + b, 0);
-    const present = (by.Present || 0) + (by["Work From Home"] || 0) + (by["Half Day"] || 0) * 0.5;
-    att = { marked, by, rate: marked ? Math.round((present / marked) * 1000) / 10 : null, absent: by.Absent || 0 };
+    const by = {};
+    attendance.forEach((r) => { const k = r.status || "Not Set"; by[k] = (by[k] || 0) + 1; });
+    const marked = attendance.length;
+    // Rate = days worked / working days marked. A missed punch-out still means they came in; days on leave aren't
+    // working days, so they're left out of both sides.
+    const present = (by.Present || 0) + (by["Work From Home"] || 0) + (by["Missed Punch Out"] || 0) + (by["Half Day"] || 0) * 0.5;
+    const workingDays = marked - (by["On Leave"] || 0);
+    att = { marked, by, rate: workingDays > 0 ? Math.round((present / workingDays) * 1000) / 10 : null, absent: by.Absent || 0 };
   }
 
   const active = emps.filter((e) => e.status === "Active");

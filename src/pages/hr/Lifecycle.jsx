@@ -2,54 +2,374 @@
 // Employee Separation). Submitting a promotion / transfer updates the Employee record (HRMS does this on its
 // effective date), and can be edited while a draft, revised or withdrawn after; an exit runs the separation checklist, then HR marks the employee as Left. HR can cancel an exit
 // (the employee withdraws their resignation), which puts the Employee record back to Active.
-import { useRef, useState } from "react";
-import { ExternalLink, FileDown, LogOut, Paperclip, Pencil, Plus, Trash2, TrendingUp, Undo2, Upload } from "lucide-react";
+//
+// The Overview and Employee History tabs put those records together per employee: a career timeline from joining to
+// today, with every change shown as before → after, so HR can see how anyone got to where they are.
+import { useMemo, useRef, useState } from "react";
+import { ArrowRightLeft, CalendarClock, ExternalLink, FileDown, FilePen, History, LogOut, Paperclip, Pencil, Plus, Search, Trash2, TrendingUp, Undo2, Upload, UserCheck, UserMinus, Users } from "lucide-react";
 import { frappe } from "../../lib/api/frappeClient";
 import { Button, DateField, LinkField } from "../../components/ui/primitives";
-import { Async, Field, Grid, inputCls, Modal, Notice, PageHeader, Panel, StatusPill, Tabs } from "../../components/employee/EmployeeShell";
+import { Async, Empty, Field, Grid, inputCls, Modal, Notice, PageHeader, Panel, Stat, StatusPill, Tabs } from "../../components/employee/EmployeeShell";
 import { dmy, errMsg, isoDate, listTry, money, useAsync } from "../../lib/employeePortal";
 import { confirmDialog } from "../../components/ui/dialogs";
+import { HandoverModal } from "../../components/Handover";
+import { RowMenu } from "../../components/ui/RowMenu";
+import { MIN_ANNUAL_CTC } from "../../lib/peopleSetup";
 
 // Employee fields a promotion or transfer can change, with the doctype they link to.
 const PROPS = [
   { fieldname: "designation", label: "Designation", link: "Designation" },
-  { fieldname: "department", label: "Department", link: "Department" },
+  { fieldname: "department", label: "Department", link: "Department", filters: [["is_group", "=", 0]] },
   { fieldname: "grade", label: "Grade", link: "Employee Grade" },
   { fieldname: "branch", label: "Branch", link: "Branch" },
   { fieldname: "reports_to", label: "Reports To", link: "Employee", title: "employee_name" },
 ];
 const statusOf = (d) => (d.docstatus === 2 ? "Cancelled" : d.docstatus === 1 ? "Submitted" : "Draft");
+const DT = { promotion: "Employee Promotion", transfer: "Employee Transfer" };
+const DATE_FIELD = { promotion: "promotion_date", transfer: "transfer_date" };
 
-export default function Lifecycle() {
-  const [tab, setTab] = useState("promotions");
+// How each kind of event looks on the timeline and in the feed.
+const KIND = {
+  joined: { label: "Joined", icon: UserCheck, tone: "var(--color-green)" },
+  promotion: { label: "Promotion", icon: TrendingUp, tone: "var(--color-red-hover)" },
+  transfer: { label: "Transfer", icon: ArrowRightLeft, tone: "#2563eb" },
+  exit: { label: "Resignation", icon: LogOut, tone: "var(--color-amber)" },
+  left: { label: "Left", icon: UserMinus, tone: "var(--color-text-muted)" },
+};
+
+const EMP_FIELDS = ["name", "employee_name", "designation", "department", "branch", "grade", "reports_to", "date_of_joining", "status", "company", "relieving_date", "image", "ctc"];
+const EMP_BASIC = ["name", "employee_name", "designation", "department", "branch", "reports_to", "date_of_joining", "status", "company", "relieving_date"];
+
+/** Every lifecycle record, with each promotion's / transfer's property changes, plus the employees they're about. */
+async function loadLifecycle() {
+  const moves = async (kind) => {
+    const dt = DT[kind];
+    const date = DATE_FIELD[kind];
+    const rows = await listTry(dt, { filters: [["docstatus", "<", 2]], fields: ["name", "employee", "employee_name", date, "docstatus", "company", ...(kind === "promotion" ? ["revised_ctc", "current_ctc"] : ["new_company"])], orderBy: `${date} desc` }, ["name", "employee", "employee_name", date, "docstatus"]).catch(() => []);
+    const names = rows.map((r) => r.name);
+    const props = names.length ? await frappe.getList("Employee Property History", { parent: dt, filters: [["parent", "in", names]], fields: ["parent", "property", "fieldname", "current", "new"], limit: 0 }).catch(() => []) : [];
+    const by = {};
+    props.forEach((p) => { (by[p.parent] ||= []).push(p); });
+    return rows.map((r) => ({ ...r, kind, date: r[date], changes: by[r.name] || [] }));
+  };
+  const [promotions, transfers, exits, employees] = await Promise.all([
+    moves("promotion"),
+    moves("transfer"),
+    listTry("Employee Separation", { filters: [["docstatus", "<", 2]], fields: ["name", "employee", "employee_name", "resignation_letter_date", "boarding_begins_on", "boarding_status", "docstatus"], orderBy: "creation desc" }, ["name", "employee", "employee_name", "boarding_begins_on", "docstatus"]).catch(() => []),
+    listTry("Employee", { fields: EMP_FIELDS, orderBy: "employee_name asc" }, EMP_BASIC),
+  ]);
+  return { promotions, transfers, exits, employees, byId: Object.fromEntries(employees.map((e) => [e.name, e])) };
+}
+
+/** One employee's career events, newest first. */
+function eventsFor(data, emp) {
+  const out = [];
+  const moves = [...data.promotions, ...data.transfers].filter((m) => m.employee === emp.name);
+  // The role they joined in: the "current" side of their earliest designation change, else today's designation.
+  const firstDesig = [...moves].sort((a, b) => String(a.date).localeCompare(String(b.date))).flatMap((m) => m.changes).find((c) => c.fieldname === "designation" || c.property === "Designation")?.current;
+  if (emp.date_of_joining) out.push({ key: `${emp.name}-joined`, kind: "joined", date: emp.date_of_joining, emp, title: `Joined${firstDesig || emp.designation ? ` as ${firstDesig || emp.designation}` : ""}`, sub: [emp.department, emp.branch].filter(Boolean).join(" · ") });
+  moves.forEach((m) => out.push({ key: m.name, kind: m.kind, date: m.date, emp, record: m, draft: m.docstatus === 0, changes: m.changes, ctc: m.kind === "promotion" && Number(m.revised_ctc) ? { from: Number(m.current_ctc) || 0, to: Number(m.revised_ctc) } : null, newCompany: m.kind === "transfer" && m.new_company && m.new_company !== m.company ? m.new_company : "" }));
+  data.exits.filter((x) => x.employee === emp.name).forEach((x) => out.push({ key: x.name, kind: "exit", date: x.resignation_letter_date || x.boarding_begins_on, emp, record: x, draft: x.docstatus === 0, title: "Resigned", sub: `Last working day ${dmy(x.boarding_begins_on) || "not set"} · Checklist ${x.docstatus === 0 ? "not started" : String(x.boarding_status || "Pending").toLowerCase()}` }));
+  if (emp.status === "Left" && emp.relieving_date) out.push({ key: `${emp.name}-left`, kind: "left", date: emp.relieving_date, emp, title: "Left the company", sub: `Relieved on ${dmy(emp.relieving_date)}` });
+  return out.sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")) || (a.kind === "joined" ? 1 : b.kind === "joined" ? -1 : 0));
+}
+
+/** "3 yrs 2 mos" between two ISO dates. */
+function span(from, to = isoDate()) {
+  if (!from) return "";
+  const a = new Date(from);
+  const b = new Date(to);
+  let months = (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth()) - (b.getDate() < a.getDate() ? 1 : 0);
+  if (months < 0) return "";
+  const y = Math.floor(months / 12);
+  months %= 12;
+  const parts = [y && `${y} yr${y > 1 ? "s" : ""}`, months && `${months} mo${months > 1 ? "s" : ""}`].filter(Boolean);
+  return parts.join(" ") || "Under a month";
+}
+
+const initialsOf = (name) => String(name || "?").trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+
+function Avatar({ emp, size = 36 }) {
+  const [failed, setFailed] = useState(false);
   return (
-    <div className="space-y-5">
-      <PageHeader icon={TrendingUp} title="Employee Lifecycle" subtitle="Promotions, transfers and exits - each updates the employee record when it takes effect" />
-      <Tabs value={tab} onChange={setTab} tabs={[{ id: "promotions", label: "Promotions" }, { id: "transfers", label: "Transfers" }, { id: "exits", label: "Exits" }]} />
-      {tab === "promotions" && <Moves kind="promotion" />}
-      {tab === "transfers" && <Moves kind="transfer" />}
-      {tab === "exits" && <Exits />}
+    <span className="flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--color-red-wash)] font-semibold text-[var(--color-red-hover)]" style={{ width: size, height: size, fontSize: size * 0.36 }}>
+      {emp?.image && !failed ? <img src={emp.image} alt="" className="h-full w-full object-cover" onError={() => setFailed(true)} /> : initialsOf(emp?.employee_name || emp?.name)}
+    </span>
+  );
+}
+
+/** A property value as people read it: an employee ID becomes their name. */
+function useShow(byId) {
+  return (c, v) => ((c.fieldname === "reports_to" || c.property === "Reports To") && byId?.[v] ? byId[v].employee_name : v) || "—";
+}
+
+// A raise is shown as a percentage only when both figures look like real annual pay (test records often hold ₹3 or ₹12).
+const raisePct = (from, to) => {
+  if (from < 10000 || to < 10000) return "";
+  const pct = ((to - from) / from) * 100;
+  return Number.isFinite(pct) && Math.abs(pct) <= 500 ? `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%` : "";
+};
+
+/** A promotion's / transfer's changes as a small Field · Previous · New table. */
+function ChangeList({ changes, ctc, newCompany, byId, compact = false }) {
+  const show = useShow(byId);
+  const rows = changes.map((c) => ({ key: c.property, label: c.property, from: c.current ? show(c, c.current) : "", to: show(c, c.new) }));
+  if (newCompany) rows.push({ key: "company", label: "Company", from: "", to: newCompany });
+  if (ctc) rows.push({ key: "ctc", label: "CTC", from: ctc.from ? money(ctc.from) : "", to: money(ctc.to), note: raisePct(ctc.from, ctc.to), bad: ctc.to < MIN_ANNUAL_CTC });
+  if (!rows.length) return <span className="text-[12px] text-[var(--color-text-faint)]">No details recorded</span>;
+  const cell = compact ? "px-2.5 py-1.5" : "px-3 py-2";
+  return (
+    <div className="overflow-hidden rounded-lg border border-[var(--color-border)]">
+      <table className="w-full table-fixed text-left text-[12.5px]">
+        <colgroup><col className="w-[26%]" /><col className="w-[37%]" /><col className="w-[37%]" /></colgroup>
+        <thead className="bg-[var(--color-surface-2)] text-[10.5px] uppercase tracking-wide text-[var(--color-text-faint)]">
+          <tr><th className={`${cell} font-medium`}>Field</th><th className={`${cell} font-medium`}>Previous</th><th className={`${cell} font-medium`}>New</th></tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.key} className="border-t border-[var(--color-border)] align-top">
+              <td className={`${cell} font-medium text-[var(--color-text-muted)]`}>{r.label}</td>
+              <td className={`${cell} break-words`}>{r.from ? <span className="text-[var(--color-text-muted)]">{r.from}</span> : <span className="italic text-[var(--color-text-faint)]">Not set</span>}</td>
+              <td className={`${cell} break-words font-medium text-[var(--color-text)]`}>
+                {r.to}
+                {r.bad && <span title={`Below ${money(MIN_ANNUAL_CTC)} a year - probably entered wrongly. Revise this promotion to correct it.`} className="ml-1.5 inline-block rounded bg-[color-mix(in_srgb,var(--color-red-hover)_14%,transparent)] px-1.5 py-px text-[10.5px] font-semibold text-[var(--color-red-hover)]">Check Amount</span>}
+                {r.note && <span className="ml-1.5 inline-block rounded bg-[color-mix(in_srgb,var(--color-green)_14%,transparent)] px-1.5 py-px text-[10.5px] font-semibold text-[var(--color-green)]">{r.note}</span>}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
 
-const DT = { promotion: "Employee Promotion", transfer: "Employee Transfer" };
+function KindBadge({ kind }) {
+  const k = KIND[kind];
+  return <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide" style={{ background: `color-mix(in srgb, ${k.tone} 14%, transparent)`, color: k.tone }}><k.icon size={11} />{k.label}</span>;
+}
 
-function Moves({ kind }) {
+/* ------------------------------------ page ------------------------------------ */
+
+export default function Lifecycle() {
+  const data = useAsync(loadLifecycle, []);
+  const [tab, setTab] = useState("overview");
+  const [person, setPerson] = useState("");
+  const open = (id) => { setPerson(id); setTab("history"); };
+  const d = data.data;
+  const year = String(new Date().getFullYear());
+  const thisYear = (rows) => (rows || []).filter((r) => r.docstatus === 1 && String(r.date || "").startsWith(year)).length;
+  const drafts = d ? [...d.promotions, ...d.transfers].filter((r) => r.docstatus === 0).length : null;
+  const activeExits = d ? d.exits.filter((x) => d.byId[x.employee]?.status !== "Left").length : null;
+
+  return (
+    <div className="space-y-5">
+      <PageHeader icon={TrendingUp} title="Employee Lifecycle" subtitle="Every promotion, transfer and exit, and how each one changed the employee's record" />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Stat icon={TrendingUp} label="Promotions" value={d ? thisYear(d.promotions) : null} sub={`Submitted in ${year}`} />
+        <Stat icon={ArrowRightLeft} label="Transfers" value={d ? thisYear(d.transfers) : null} sub={`Submitted in ${year}`} accent="#2563eb" />
+        <Stat icon={LogOut} label="Exits in Progress" value={activeExits} sub="Resigned, not yet left" accent="var(--color-amber)" />
+        <Stat icon={FilePen} label="Awaiting Submission" value={drafts} sub="Draft promotions and transfers" accent="var(--color-text-muted)" />
+      </div>
+      <Tabs value={tab} onChange={setTab} tabs={[
+        { id: "overview", label: "Overview" },
+        { id: "history", label: "Employee History" },
+        { id: "promotions", label: "Promotions", count: d?.promotions.length },
+        { id: "transfers", label: "Transfers", count: d?.transfers.length },
+        { id: "exits", label: "Exits", count: d?.exits.length },
+      ]} />
+      {tab === "overview" && <Async state={data}>{(v) => <Overview data={v} onOpen={open} />}</Async>}
+      {tab === "history" && <Async state={data}>{(v) => <EmployeeHistory data={v} selected={person} onSelect={setPerson} />}</Async>}
+      {tab === "promotions" && <Moves kind="promotion" byId={d?.byId} onOpen={open} onChanged={data.reload} />}
+      {tab === "transfers" && <Moves kind="transfer" byId={d?.byId} onOpen={open} onChanged={data.reload} />}
+      {tab === "exits" && <Exits onChanged={data.reload} />}
+    </div>
+  );
+}
+
+/* ---------------------------------- overview ---------------------------------- */
+
+function Overview({ data, onOpen }) {
+  const today = isoDate();
+  const all = useMemo(() => data.employees.flatMap((e) => eventsFor(data, e)).filter((ev) => ev.kind !== "joined" || ev.date >= `${Number(today.slice(0, 4)) - 1}${today.slice(4)}`).sort((a, b) => String(b.date || "").localeCompare(String(a.date || ""))), [data, today]);
+  const recent = all.filter((ev) => ev.date && ev.date <= today).slice(0, 12);
+  const upcoming = [
+    ...all.filter((ev) => ev.date && ev.date > today && ev.kind !== "exit"),
+    ...data.exits.filter((x) => x.boarding_begins_on >= today && data.byId[x.employee]?.status !== "Left").map((x) => ({ key: `${x.name}-lwd`, kind: "exit", date: x.boarding_begins_on, emp: data.byId[x.employee] || { name: x.employee, employee_name: x.employee_name }, title: "Last working day" })),
+  ].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+
+  return (
+    <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
+      <Panel title="Recent Changes" hint="The latest promotions, transfers, exits and joiners. Choose one to see that employee's full history." className="xl:col-span-2">
+        {recent.length === 0 ? <Empty icon={History} text="No changes recorded yet." /> : (
+          <ul className="divide-y divide-[var(--color-border)]">
+            {recent.map((ev) => (
+              <li key={ev.key}>
+                <button type="button" onClick={() => onOpen(ev.emp.name)} className="flex w-full items-start gap-3 rounded-lg px-2 py-3 text-left transition-colors hover:bg-[var(--color-surface-2)]">
+                  <Avatar emp={ev.emp} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[13px] font-semibold text-[var(--color-text)]">{ev.emp.employee_name}</span>
+                      <KindBadge kind={ev.kind} />
+                      {ev.draft && <StatusPill status="Draft" />}
+                      <span className="ml-auto text-[11.5px] text-[var(--color-text-faint)]">{dmy(ev.date)}</span>
+                    </div>
+                    <div className="mt-1.5">{ev.record && (ev.kind === "promotion" || ev.kind === "transfer") ? <ChangeList compact changes={ev.changes} ctc={ev.ctc} newCompany={ev.newCompany} byId={data.byId} /> : <p className="text-[12.5px] text-[var(--color-text-muted)]">{[ev.title, ev.sub].filter(Boolean).join(" · ")}</p>}</div>
+                  </div>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Panel>
+      <Panel title="Coming Up" hint="Changes that take effect, and last working days, from today onwards">
+        {upcoming.length === 0 ? <Empty icon={CalendarClock} text="Nothing scheduled." /> : (
+          <ul className="space-y-2">
+            {upcoming.map((ev) => (
+              <li key={ev.key}>
+                <button type="button" onClick={() => onOpen(ev.emp.name)} className="flex w-full items-center gap-3 rounded-lg border border-[var(--color-border)] px-3 py-2.5 text-left transition-colors hover:border-[var(--color-border-strong)]">
+                  <div className="w-11 shrink-0 text-center leading-tight"><div className="text-[17px] font-semibold text-[var(--color-text)]">{ev.date.slice(8, 10)}</div><div className="text-[10px] uppercase text-[var(--color-text-faint)]">{new Date(ev.date).toLocaleString("en", { month: "short" })}</div></div>
+                  <div className="min-w-0 flex-1"><div className="truncate text-[12.5px] font-medium text-[var(--color-text)]">{ev.emp.employee_name}</div><div className="mt-0.5"><KindBadge kind={ev.kind} /></div></div>
+                  {ev.draft && <StatusPill status="Draft" />}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Panel>
+    </div>
+  );
+}
+
+/* ------------------------------ employee history ------------------------------ */
+
+function EmployeeHistory({ data, selected, onSelect }) {
+  const [q, setQ] = useState("");
+  const [status, setStatus] = useState("Active");
+  const counts = useMemo(() => {
+    const c = {};
+    [...data.promotions, ...data.transfers, ...data.exits].forEach((r) => { c[r.employee] = (c[r.employee] || 0) + 1; });
+    return c;
+  }, [data]);
+  const needle = q.trim().toLowerCase();
+  const people = data.employees.filter((e) => (status === "All" || e.status === status || e.name === selected) && (!needle || [e.employee_name, e.name, e.designation, e.department].some((v) => String(v || "").toLowerCase().includes(needle))));
+  const emp = data.byId[selected] || null;
+
+  return (
+    <div className="grid grid-cols-1 gap-5 lg:grid-cols-[300px_1fr]">
+      <section className="flex h-[480px] min-h-[420px] flex-col lg:sticky lg:top-0 lg:h-[calc(100vh-8rem)] lg:self-start rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]">
+        <div className="space-y-2 border-b border-[var(--color-border)] p-3">
+          <div className="relative"><Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-faint)]" /><input className={`${inputCls} pl-8`} placeholder="Search name, ID, role…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
+          <div className="flex gap-1">{["Active", "Left", "All"].map((s) => <button key={s} type="button" onClick={() => setStatus(s)} className={`flex-1 rounded-md border px-2 py-1 text-[11.5px] ${status === s ? "border-[var(--color-red)] bg-[var(--color-red-wash)] text-[var(--color-text)]" : "border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"}`}>{s}</button>)}</div>
+        </div>
+        <ul className="flex-1 overflow-y-auto p-1.5">
+          {people.length === 0 && <li className="p-4 text-center text-[12.5px] text-[var(--color-text-muted)]">No employees match.</li>}
+          {people.map((e) => (
+            <li key={e.name}>
+              <button type="button" onClick={() => onSelect(e.name)} className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${selected === e.name ? "bg-[var(--color-red-wash)]" : "hover:bg-[var(--color-surface-2)]"}`}>
+                <Avatar emp={e} size={32} />
+                <span className="min-w-0 flex-1"><span className="block truncate text-[12.5px] font-medium text-[var(--color-text)]">{e.employee_name}</span><span className="block truncate text-[11px] text-[var(--color-text-faint)]">{e.designation || e.name}</span></span>
+                {counts[e.name] > 0 && <span className="rounded-full bg-[var(--color-surface-2)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-text-muted)]" title="Lifecycle records">{counts[e.name]}</span>}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </section>
+      {emp ? <EmployeeCareer data={data} emp={emp} /> : (
+        <section className="flex min-h-[420px] items-center justify-center rounded-xl border border-dashed border-[var(--color-border)] bg-[var(--color-surface)]"><Empty icon={History} text="Choose an employee to see their journey: when they joined, every promotion and transfer, and any exit." /></section>
+      )}
+    </div>
+  );
+}
+
+function EmployeeCareer({ data, emp }) {
+  const events = eventsFor(data, emp);
+  const show = useShow(data.byId);
+  const submitted = events.filter((ev) => !ev.draft);
+  const promotions = submitted.filter((ev) => ev.kind === "promotion").length;
+  const transfers = submitted.filter((ev) => ev.kind === "transfer").length;
+  const today = isoDate();
+  // When they took their current role: the latest submitted change to their designation, else joining.
+  const roleSince = submitted.find((ev) => ev.date <= today && (ev.changes || []).some((c) => c.fieldname === "designation" || c.property === "Designation"))?.date || emp.date_of_joining;
+  const facts = [
+    ["Employee ID", emp.name],
+    ["Department", emp.department],
+    ["Branch", emp.branch],
+    ["Grade", emp.grade],
+    ["Reports To", emp.reports_to ? show({ fieldname: "reports_to" }, emp.reports_to) : ""],
+    ["Company", emp.company],
+    ["Date of Joining", dmy(emp.date_of_joining)],
+    ["Current CTC", Number(emp.ctc) ? money(emp.ctc) : ""],
+  ];
+
+  return (
+    <div className="space-y-5">
+      <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+        <div className="flex flex-wrap items-center gap-4">
+          <Avatar emp={emp} size={56} />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2"><h2 className="text-[17px] font-semibold text-[var(--color-text)]">{emp.employee_name}</h2><StatusPill status={emp.status} /></div>
+            <p className="mt-0.5 text-[13px] text-[var(--color-text-muted)]">{[emp.designation, emp.department].filter(Boolean).join(" · ") || "—"}</p>
+          </div>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {[["Tenure", span(emp.date_of_joining, emp.status === "Left" && emp.relieving_date ? emp.relieving_date : today) || "—"], ["In Current Role", span(roleSince) || "—"], ["Promotions", promotions], ["Transfers", transfers]].map(([k, v]) => (
+              <div key={k} className="rounded-lg bg-[var(--color-surface-2)] px-3 py-2"><div className="text-[10.5px] uppercase tracking-wide text-[var(--color-text-faint)]">{k}</div><div className="mt-0.5 text-[13.5px] font-semibold text-[var(--color-text)]">{v}</div></div>
+            ))}
+        </div>
+        <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 border-t border-[var(--color-border)] pt-4 sm:grid-cols-4">
+          {facts.map(([k, v]) => <div key={k} className="min-w-0"><dt className="text-[10.5px] uppercase tracking-wide text-[var(--color-text-faint)]">{k}</dt><dd className="mt-0.5 truncate text-[13px] text-[var(--color-text)]">{v || "—"}</dd></div>)}
+        </dl>
+      </section>
+
+      <Panel title="Career Timeline" hint="Newest first. Drafts (dashed) haven't changed the employee record yet.">
+        {events.length === 0 ? <Empty icon={History} text="No history recorded for this employee." /> : (
+          <ol className="relative">
+            {events.map((ev, i) => {
+              const k = KIND[ev.kind];
+              const future = ev.date > today;
+              return (
+                <li key={ev.key} className="relative flex gap-4 pb-6 last:pb-0">
+                  {i < events.length - 1 && <span className="absolute left-[17px] top-9 bottom-0 w-px bg-[var(--color-border)]" />}
+                  <span className="relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 bg-[var(--color-surface)]" style={{ borderColor: ev.draft ? "var(--color-border-strong)" : k.tone, color: k.tone }}><k.icon size={15} /></span>
+                  <div className={`min-w-0 flex-1 rounded-lg border p-3.5 ${ev.draft ? "border-dashed border-[var(--color-border-strong)]" : "border-[var(--color-border)]"}`}>
+                    <div className="mb-2 flex flex-wrap items-center gap-2">
+                      <KindBadge kind={ev.kind} />
+                      <span className="text-[12.5px] font-medium text-[var(--color-text)]">{dmy(ev.date) || "No date"}</span>
+                      {future && <span className="text-[11px] text-[var(--color-text-faint)]">· takes effect in {span(today, ev.date) === "Under a month" ? "under a month" : span(today, ev.date)}</span>}
+                      {ev.draft && <StatusPill status="Draft" />}
+                      {ev.record && <span className="ml-auto text-[11px] text-[var(--color-text-faint)]">{ev.record.name}{ev.record.amended_from ? ` · revises ${ev.record.amended_from}` : ""}</span>}
+                    </div>
+                    {ev.kind === "promotion" || ev.kind === "transfer" ? <ChangeList changes={ev.changes} ctc={ev.ctc} newCompany={ev.newCompany} byId={data.byId} /> : <p className="text-[13px] text-[var(--color-text)]">{ev.title}{ev.sub && <span className="block text-[12px] text-[var(--color-text-muted)]">{ev.sub}</span>}</p>}
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        )}
+      </Panel>
+    </div>
+  );
+}
+
+/* ------------------------------ promotions / transfers ------------------------------ */
+
+function Moves({ kind, byId, onOpen, onChanged }) {
   const dt = DT[kind];
-  const date = kind === "promotion" ? "promotion_date" : "transfer_date";
+  const date = DATE_FIELD[kind];
   const list = useAsync(() => listTry(dt, { fields: ["name", "employee", "employee_name", date, "docstatus", "company", "amended_from", ...(kind === "promotion" ? ["revised_ctc", "current_ctc"] : ["new_company"])], orderBy: `${date} desc` }, ["name", "employee", "employee_name", date, "docstatus"]), [dt]);
   const details = useAsync(async () => {
     const names = (list.data || []).map((r) => r.name);
     if (!names.length) return {};
-    const rows = await frappe.getList("Employee Property History", { parent: dt, filters: [["parent", "in", names]], fields: ["parent", "property", "current", "new"], limit: 0 }).catch(() => []);
+    const rows = await frappe.getList("Employee Property History", { parent: dt, filters: [["parent", "in", names]], fields: ["parent", "property", "fieldname", "current", "new"], limit: 0 }).catch(() => []);
     const m = {};
     rows.forEach((r) => { (m[r.parent] ||= []).push(r); });
     return m;
   }, [list.data]);
   const [modal, setModal] = useState(null); // { record?, revise? }
   const [msg, setMsg] = useState(null);
-  const done = (text) => { setMsg({ ok: true, text }); list.reload(); };
+  const [filter, setFilter] = useState("all");
+  const done = (text) => { setMsg({ ok: true, text }); list.reload(); onChanged?.(); };
+  const Label = kind === "promotion" ? "Promotion" : "Transfer";
 
   async function submit(r) {
     if (r[date] > isoDate()) return setMsg({ ok: false, text: `A ${kind} can only be submitted on or after its effective date (${dmy(r[date])}). Submit it then.` });
@@ -66,7 +386,7 @@ function Moves({ kind }) {
   async function withdraw(r) {
     const submitted = r.docstatus === 1;
     const ok = await confirmDialog({
-      title: `Withdraw ${kind === "promotion" ? "Promotion" : "Transfer"}`,
+      title: `Withdraw ${Label}`,
       message: submitted ? `Cancel ${r.employee_name}'s ${kind}? The employee record goes back to what it was before (${(details.data?.[r.name] || []).map((p) => `${p.property}: ${p.current || "—"}`).join(", ") || "previous details"}).` : `Delete ${r.employee_name}'s draft ${kind}? Nothing on the employee record has changed yet.`,
       confirmLabel: submitted ? "Cancel It" : "Delete Draft",
       danger: true,
@@ -91,25 +411,42 @@ function Moves({ kind }) {
     }
   }
 
-  const act = "flex items-center gap-1 rounded px-1.5 py-1 text-[11.5px] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]";
+  const FILTERS = [["all", "All"], ["draft", "Drafts"], ["submitted", "Submitted"], ["cancelled", "Cancelled"]];
+  const match = (r) => filter === "all" || statusOf(r).toLowerCase() === filter;
   return (
-    <Panel action={<div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={() => downloadTemplate(kind)}><FileDown size={14} /> Letter Template</Button><Button onClick={() => setModal({})}><Plus size={14} /> New {kind === "promotion" ? "Promotion" : "Transfer"}</Button></div>}>
+    <Panel action={<div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={() => downloadTemplate(kind)}><FileDown size={14} /> Letter Template</Button><Button onClick={() => setModal({})}><Plus size={14} /> New {Label}</Button></div>} title={`${Label}s`} hint={kind === "promotion" ? "Role, grade and pay changes. Submitting updates the employee record." : "Moves between departments, branches, managers or companies. Submitting updates the employee record."}>
       {msg && <div className="mb-3"><Notice tone={msg.ok ? "info" : "error"}>{msg.text}</Notice></div>}
+      <div className="mb-3 flex flex-wrap gap-1.5">{FILTERS.map(([id, l]) => <button key={id} type="button" onClick={() => setFilter(id)} className={`rounded-md border px-2.5 py-1 text-[12px] ${filter === id ? "border-[var(--color-red)] bg-[var(--color-red-wash)] text-[var(--color-text)]" : "border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"}`}>{l}{list.data && <span className="ml-1.5 text-[var(--color-text-faint)]">{(list.data || []).filter((r) => id === "all" || statusOf(r).toLowerCase() === id).length}</span>}</button>)}</div>
       <Async state={list}>
-        {(rows) => <Grid rows={rows} empty={`No ${kind}s yet.`} columns={[
-          { key: "employee_name", label: "Employee", render: (r) => <span>{r.employee_name}<span className="block text-[11px] text-[var(--color-text-faint)]">{r.name}{r.amended_from ? ` · revises ${r.amended_from}` : ""}</span></span> },
-          { key: date, label: "Effective", render: (r) => dmy(r[date]) },
-          { key: "changes", label: "Changes", render: (r) => <span className="text-[12px]">{(details.data?.[r.name] || []).map((p) => `${p.property}: ${p.current || "—"} → ${p.new}`).join(" · ") || "—"}{kind === "transfer" && r.new_company && r.new_company !== r.company ? ` · Company → ${r.new_company}` : ""}{kind === "promotion" && Number(r.revised_ctc) ? ` · CTC → ${money(r.revised_ctc)}` : ""}</span> },
-          { key: "status", label: "Status", render: (r) => <StatusPill status={statusOf(r)} /> },
-          { key: "_a", label: "", render: (r) => (
-            <div className="flex flex-wrap items-center justify-end gap-1">
-              {r.docstatus === 0 && (r[date] > isoDate() ? <span className="mr-1 text-[11px] text-[var(--color-text-faint)]">Submit on {dmy(r[date])}</span> : <Button variant="secondary" className="!px-2 !py-1 text-[11px]" onClick={() => submit(r)}>Submit</Button>)}
-              {r.docstatus === 0 && <button type="button" className={act} onClick={() => setModal({ record: r })}><Pencil size={12} /> Edit</button>}
-              {r.docstatus === 1 && <button type="button" className={act} title="Cancel this one and save a corrected copy" onClick={() => setModal({ record: r, revise: true })}><Pencil size={12} /> Revise</button>}
-              {r.docstatus < 2 && <button type="button" className={act} onClick={() => letter(r)}><FileDown size={12} /> Letter</button>}
-              {r.docstatus < 2 && <button type="button" className={`${act} hover:!text-[var(--color-red-hover)]`} onClick={() => withdraw(r)}><Undo2 size={12} /> Withdraw</button>}
-            </div>
-          ) },
+        {(rows) => <Grid rows={rows.filter(match)} empty={filter === "all" ? `No ${kind}s yet.` : `No ${filter} ${kind}s.`} columns={[
+          { key: "employee_name", label: "Employee", className: "w-[24%] align-top !py-3", render: (r) => {
+            const e = byId?.[r.employee];
+            return (
+              <button type="button" onClick={() => onOpen?.(r.employee)} title="See this employee's full history" className="group flex items-start gap-2.5 text-left">
+                <Avatar emp={e || { employee_name: r.employee_name }} size={34} />
+                <span className="min-w-0"><span className="block font-medium text-[var(--color-text)] group-hover:underline">{r.employee_name}</span><span className="block text-[11px] text-[var(--color-text-faint)]">{r.employee}</span>{e?.designation && <span className="block text-[11px] text-[var(--color-text-muted)]">Now: {e.designation}</span>}</span>
+              </button>
+            );
+          } },
+          { key: date, label: "Effective", className: "align-top !py-3 whitespace-nowrap", render: (r) => <span><span className="font-medium">{dmy(r[date])}</span>{r.docstatus === 0 && r[date] > isoDate() && <span className="block text-[11px] text-[var(--color-amber)]">in {span(isoDate(), r[date]).toLowerCase()}</span>}<span className="block text-[11px] text-[var(--color-text-faint)]">{r.name}</span>{r.amended_from && <span className="block text-[10.5px] text-[var(--color-text-faint)]">revises {r.amended_from}</span>}</span> },
+          { key: "changes", label: "What Changes", className: "align-top !py-3 w-[44%] min-w-[340px]", render: (r) => <ChangeList compact byId={byId} changes={details.data?.[r.name] || []} ctc={kind === "promotion" && Number(r.revised_ctc) ? { from: Number(r.current_ctc) || 0, to: Number(r.revised_ctc) } : null} newCompany={kind === "transfer" && r.new_company && r.new_company !== r.company ? r.new_company : ""} /> },
+          { key: "status", label: "Status", className: "align-top !py-3", render: (r) => <StatusPill status={statusOf(r)} /> },
+          { key: "_a", label: "", className: "align-top !py-3 w-[150px]", render: (r) => {
+            const due = r.docstatus === 0 && r[date] > isoDate();
+            return (
+              <div className="flex items-center justify-end gap-1.5">
+                {r.docstatus === 0 && (due ? <span className="whitespace-nowrap rounded-md border border-dashed border-[var(--color-border-strong)] px-2 py-1 text-[11px] text-[var(--color-text-faint)]" title={`Can be submitted on ${dmy(r[date])}`}>Due {dmy(r[date])}</span> : <Button className="!px-3 !py-1 text-[11.5px]" onClick={() => submit(r)}>Submit</Button>)}
+                {r.docstatus === 1 && <Button variant="secondary" className="!px-3 !py-1 text-[11.5px]" onClick={() => letter(r)}><FileDown size={12} /> Letter</Button>}
+                <RowMenu items={[
+                  r.docstatus === 0 && { label: "Edit", icon: Pencil, onClick: () => setModal({ record: r }) },
+                  r.docstatus === 1 && { label: "Revise", hint: "Cancel and save a corrected copy", icon: Pencil, onClick: () => setModal({ record: r, revise: true }) },
+                  r.docstatus === 0 && { label: "Download Letter", icon: FileDown, onClick: () => letter(r) },
+                  { label: "View Employee History", icon: History, onClick: () => onOpen?.(r.employee) },
+                  r.docstatus < 2 && { label: r.docstatus === 1 ? "Withdraw (Cancel)" : "Delete Draft", icon: Undo2, danger: true, onClick: () => withdraw(r) },
+                ]} />
+              </div>
+            );
+          } },
         ]} />}
       </Async>
       {modal && <MoveModal kind={kind} record={modal.record} revise={modal.revise} onClose={() => setModal(null)} onSaved={(text) => { setModal(null); done(text); }} />}
@@ -201,6 +538,15 @@ function MoveModal({ kind, record, revise, onClose, onSaved }) {
   async function submit(ev) {
     ev.preventDefault();
     if (!changes.length && !(kind === "promotion" && ctc) && !(kind === "transfer" && newCompany && newCompany !== e.company)) return setErr("Change at least one detail.");
+    // BUG-003: the revised CTC is a yearly amount; the server checks the same (Promotion CTC check).
+    if (kind === "promotion" && ctc) {
+      const amount = Number(ctc);
+      const current = Number(loaded?.current_ctc || e.ctc) || 0;
+      if (!(amount > 0)) return setErr("Enter the revised CTC as a positive yearly amount.");
+      if (amount < MIN_ANNUAL_CTC) return setErr(`Revised CTC ${money(amount)} is too low for a yearly salary. Enter the annual amount (at least ${money(MIN_ANNUAL_CTC)}).`);
+      if (current >= MIN_ANNUAL_CTC && (amount > current * 10 || amount < current / 10)) return setErr(`Revised CTC ${money(amount)} is more than ten times different from the current ${money(current)}. Check the amount.`);
+      if (current >= MIN_ANNUAL_CTC && Math.abs(amount - current) / current > 0.5 && !(await confirmDialog({ title: "Check the New CTC", message: `The CTC changes by ${Math.round(((amount - current) / current) * 100)}% (${money(current)} → ${money(amount)}). Is that right?`, confirmLabel: "Yes, It's Right" }))) return;
+    }
     // ERPNext requires at least one property row on a transfer (e.g. the department in the new company)
     if (kind === "transfer" && !changes.length) return setErr("Also choose what changes with the transfer (for example the department or designation in the new company).");
     if (f.submitNow && f.date > isoDate()) return setErr(`A ${kind} can only be submitted on or after its effective date - save it now and submit it on ${dmy(f.date)}.`);
@@ -247,13 +593,13 @@ function MoveModal({ kind, record, revise, onClose, onSaved }) {
                   <tr key={p.fieldname} className="border-t border-[var(--color-border)]">
                     <td className="py-1.5 pr-3 text-[var(--color-text)]">{p.label}</td>
                     <td className="py-1.5 pr-3 text-[var(--color-text-muted)]">{currentOf(p) || "—"}</td>
-                    <td className="py-1.5"><LinkField label="" linkDoctype={p.link} titleField={p.title} value={vals[p.fieldname] || ""} onChange={(v) => setValue(p.fieldname, v)} frappe={frappe} onCreate={p.fieldname === "grade" ? createGrade : undefined} /></td>
+                    <td className="py-1.5"><LinkField label="" linkDoctype={p.link} titleField={p.title} filters={p.filters} value={vals[p.fieldname] || ""} onChange={(v) => setValue(p.fieldname, v)} frappe={frappe} onCreate={p.fieldname === "grade" ? createGrade : undefined} /></td>
                   </tr>
                 ))}
               </tbody>
             </table>
             <p className="text-[11px] text-[var(--color-text-faint)]">Grade not in the list? Type it and choose "+ Create" to add it.</p>
-            {kind === "promotion" && <Field label={`Revised CTC (₹/yr)${e.ctc ? ` - current ${money(e.ctc)}` : ""}`}><input type="number" min="0" className={inputCls} value={ctc} onChange={(x) => setF({ ...f, revised_ctc: x.target.value })} /></Field>}
+            {kind === "promotion" && <Field label={`Revised CTC (₹/yr)${e.ctc ? ` - current ${money(e.ctc)}` : ""}`}><input type="number" min={MIN_ANNUAL_CTC} step="1" placeholder={`Yearly amount, at least ${MIN_ANNUAL_CTC}`} className={inputCls} value={ctc} onChange={(x) => setF({ ...f, revised_ctc: x.target.value })} /></Field>}
             {kind === "transfer" && <LinkField label={`New company (current: ${e.company})`} linkDoctype="Company" value={newCompany} onChange={(v) => setF({ ...f, new_company: v })} frappe={frappe} />}
           </>
         )}
@@ -269,7 +615,7 @@ function MoveModal({ kind, record, revise, onClose, onSaved }) {
 
 /* ---------------------------------- exits ---------------------------------- */
 
-function Exits() {
+function Exits({ onChanged }) {
   const list = useAsync(() => listTry("Employee Separation", { filters: [["docstatus", "<", 2]], fields: ["name", "employee", "employee_name", "resignation_letter_date", "boarding_begins_on", "boarding_status", "docstatus", "department", "designation"], orderBy: "creation desc" }, ["name", "employee", "employee_name", "boarding_begins_on", "boarding_status", "docstatus"]), []);
   const emps = useAsync(async () => {
     const ids = [...new Set((list.data || []).map((r) => r.employee))];
@@ -277,7 +623,9 @@ function Exits() {
     const rows = await frappe.getList("Employee", { filters: [["name", "in", ids]], fields: ["name", "status", "relieving_date", "user_id"], limit: 0 });
     return Object.fromEntries(rows.map((r) => [r.name, r]));
   }, [list.data]);
+  const people = useAsync(() => listTry("Employee", { fields: ["name", "employee_name", "user_id", "designation", "status", "reports_to"], orderBy: "employee_name asc" }, ["name", "employee_name", "user_id", "status", "reports_to"]), []);
   const [modal, setModal] = useState(null);
+  const refresh = () => { list.reload(); emps.reload(); onChanged?.(); };
   const [msg, setMsg] = useState(null);
 
   return (
@@ -293,19 +641,21 @@ function Exits() {
           { key: "_a", label: "", render: (r) => {
             const e = emps.data?.[r.employee];
             return <div className="flex justify-end gap-1">
-              {r.docstatus === 0 && <Button variant="secondary" className="!px-2 !py-1 text-[11px]" onClick={async () => { if (!(await confirmDialog(`Start the separation checklist for ${r.employee_name || r.employee}?`))) return; try { await frappe.submitDoc(await frappe.getDoc("Employee Separation", r.name)); list.reload(); } catch (x) { setMsg({ ok: false, text: errMsg(x, "Couldn't start the checklist.") }); } }}>Start Checklist</Button>}
+              {r.docstatus === 0 && <Button variant="secondary" className="!px-2 !py-1 text-[11px]" onClick={async () => { if (!(await confirmDialog(`Start the separation checklist for ${r.employee_name || r.employee}?`))) return; try { await frappe.submitDoc(await frappe.getDoc("Employee Separation", r.name)); refresh(); } catch (x) { setMsg({ ok: false, text: errMsg(x, "Couldn't start the checklist.") }); } }}>Start Checklist</Button>}
               <Button variant="ghost" className="!px-2 !py-1 text-[11px]" onClick={() => setModal({ kind: "documents", row: r })}><Paperclip size={12} /> Documents</Button>
+              <Button variant="ghost" className="!px-2 !py-1 text-[11px]" title="Move their team, approvals and projects to someone else" onClick={() => setModal({ kind: "handover", row: r })}><Users size={12} /> Hand Over Work</Button>
               {e && e.status !== "Left" && <Button variant="ghost" className="!px-2 !py-1 text-[11px]" onClick={() => setModal({ kind: "left", row: r, emp: e })}><LogOut size={12} /> Mark as Left</Button>}
               {e && <Button variant="ghost" className="!px-2 !py-1 text-[11px]" onClick={() => setModal({ kind: "cancel", row: r, emp: e })}><Undo2 size={12} /> Cancel Exit</Button>}
             </div>;
           } },
         ]} />}
       </Async>
-      {modal?.kind === "new" && <ExitModal onClose={() => setModal(null)} onSaved={(warning) => { setModal(null); if (warning) setMsg({ ok: false, text: warning }); list.reload(); }} />}
+      {modal?.kind === "new" && <ExitModal onClose={() => setModal(null)} onSaved={(warning) => { setModal(null); if (warning) setMsg({ ok: false, text: warning }); refresh(); }} />}
       {modal?.kind === "documents" && <Modal title={`Exit Documents · ${modal.row.employee_name || modal.row.employee}`} onClose={() => setModal(null)} wide><AttachedDocuments doctype="Employee Separation" name={modal.row.name} empty="No documents on this exit yet." /></Modal>}
       {modal?.kind === "templates" && <TemplateDocumentsModal onClose={() => setModal(null)} />}
-      {modal?.kind === "cancel" && <CancelExitModal row={modal.row} emp={modal.emp} onClose={() => setModal(null)} onSaved={(text, ok) => { setModal(null); setMsg({ ok, text }); list.reload(); emps.reload(); }} />}
-      {modal?.kind === "left" && <LeftModal row={modal.row} emp={modal.emp} onClose={() => setModal(null)} onSaved={(text) => { setModal(null); setMsg({ ok: true, text }); list.reload(); emps.reload(); }} />}
+      {modal?.kind === "cancel" && <CancelExitModal row={modal.row} emp={modal.emp} onClose={() => setModal(null)} onSaved={(text, ok) => { setModal(null); setMsg({ ok, text }); refresh(); }} />}
+      {modal?.kind === "handover" && <HandoverModal emp={(people.data || []).find((p) => p.name === modal.row.employee) || { name: modal.row.employee, employee_name: modal.row.employee_name }} people={people.data || []} onClose={() => setModal(null)} onDone={(text, ok) => { setModal(null); setMsg({ ok, text }); refresh(); people.reload(); }} />}
+      {modal?.kind === "left" && <LeftModal row={modal.row} emp={modal.emp} onClose={() => setModal(null)} onSaved={(text) => { setModal(null); setMsg({ ok: true, text }); refresh(); }} />}
     </Panel>
   );
 }
@@ -512,6 +862,7 @@ function LeftModal({ row, emp, onClose, onSaved }) {
   return (
     <Modal title={`Mark ${row.employee_name} as Left`} onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
+        <Notice tone="info">Hand over their work first (Hand Over Work on the exit), so their team, pending approvals and projects don't wait on someone who has gone. Leave and expense requests left waiting on them move to the next manager up automatically each day.</Notice>
         <DateField label="Relieving Date" value={date} onChange={setDate} required />
         {emp.user_id && <label className="flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><input type="checkbox" checked={disable} onChange={(e) => setDisable(e.target.checked)} /> Disable their portal login ({emp.user_id})</label>}
         {err && <Notice>{err}</Notice>}

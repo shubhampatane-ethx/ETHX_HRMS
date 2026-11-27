@@ -39,7 +39,10 @@ export const PROJECT_ROLE_DOCTYPES = [
   },
 ];
 
+/** A project's lifecycle stage (lib/projectLifecycle.js). Changes are kept in the project's version history. */
+export const PROJECT_STAGES = ["Planning", "In Progress", "On Hold", "Testing", "Delivered", "Closed", "Cancelled"];
 export const PROJECT_ROLE_FIELDS = [
+  { dt: "Project", fieldname: "custom_stage", label: "Stage", fieldtype: "Select", options: PROJECT_STAGES.join("\n"), default: "Planning", in_list_view: 1, in_standard_filter: 1, insert_after: "status" },
   { dt: "User", fieldname: "custom_pm_by_project", label: "Project Manager Through Projects", fieldtype: "Check", hidden: 1, read_only: 1, no_copy: 1, insert_after: "enabled" },
 ];
 
@@ -179,7 +182,33 @@ for pname in found:
 frappe.response["message"] = out
 `;
 
+// Everything that happened to a project: its version history (stage, status, dates, manager, progress) and its
+// comments (stage notes, manager handovers). Version isn't readable by project managers, so it's read here, for
+// people who may see the project: HR, the Administrator, its manager, or someone working on it.
+const PROJECT_TIMELINE_API = `
+user = frappe.session.user
+${SEE_ALL.trim()}
+project = frappe.form_dict.get("project")
+row = frappe.db.get_value("Project", project, ["name", "custom_project_manager", "owner", "creation"], as_dict=True) if project else None
+if not row:
+    frappe.throw("Project not found.")
+allowed = sees_all or (row.custom_project_manager or row.owner) == user
+if not allowed:
+    tasks = frappe.get_all("Task", filters={"project": project}, pluck="name")
+    allowed = bool(tasks) and frappe.db.count("ToDo", {"reference_type": "Task", "reference_name": ["in", tasks], "allocated_to": user}) > 0
+if not allowed:
+    frappe.throw("You can't see this project's history.")
+versions = frappe.get_all("Version", filters={"ref_doctype": "Project", "docname": project}, fields=["owner", "creation", "data"], order_by="creation asc", limit_page_length=500)
+comments = frappe.get_all("Comment", filters={"reference_doctype": "Project", "reference_name": project, "comment_type": ["in", ["Comment", "Info"]]}, fields=["owner", "creation", "content", "comment_type"], order_by="creation asc", limit_page_length=500)
+people = list(set([v.owner for v in versions] + [c.owner for c in comments] + [row.owner]))
+names = {}
+for u in frappe.get_all("User", filters={"name": ["in", people]}, fields=["name", "full_name"]):
+    names[u.name] = u.full_name or u.name
+frappe.response["message"] = {"created": row.creation, "created_by": row.owner, "versions": versions, "comments": comments, "names": names}
+`;
+
 export const PROJECT_ROLE_SCRIPTS = [
+  { name: "ETHX - Project timeline", script_type: "API", api_method: "ethx_project_timeline", script: PROJECT_TIMELINE_API, what: "A project's history: stage, status, dates, manager and notes, for the people who may see it" },
   { name: "ETHX - My project teams", script_type: "API", api_method: "ethx_my_project_teams", script: MY_PROJECT_TEAMS_API, what: "My Team shows the team of each project you manage or work on" },
   { name: "ETHX - Set project manager", script_type: "API", api_method: "ethx_set_project_manager", script: SET_MANAGER_API, what: "Any employee can be made manager of a project, with access to that project only" },
   { name: "ETHX - Projects: own only", script_type: "Permission Query", reference_doctype: "Project", script: PROJECT_QUERY, what: "Project managers see only their own projects" },

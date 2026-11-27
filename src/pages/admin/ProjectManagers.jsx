@@ -75,7 +75,7 @@ export default function ProjectManagers() {
                   <td className="px-4 py-2.5">{u.company ? <span className="inline-flex items-center gap-1.5 text-[var(--color-text)]"><Building2 size={13} className="text-[var(--color-text-muted)]" />{u.company}</span> : <span className="text-[var(--color-amber)]" title="No company: sees every company's data">Not assigned</span>}</td>
                   <td className={`px-4 py-2.5 ${u.enabled ? "text-[var(--color-green)]" : "text-[var(--color-text-muted)]"}`}>{u.enabled ? "Active" : "Disabled"}</td>
                   <td className="px-4 py-2.5 text-[var(--color-text-muted)]">{dmyHm(u.last_login) || "Never"}</td>
-                  <td className="px-4 py-2.5 text-right"><button type="button" title="Manage" onClick={() => setManage(u)} className="rounded p-1.5 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]"><Settings2 size={14} /></button></td>
+                  <td className="px-4 py-2.5 text-right"><button type="button" title="Manage" onClick={() => setManage(u)} className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] transition-colors hover:border-[var(--color-border-strong)] hover:bg-[var(--color-surface-2)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"><Settings2 size={14} /></button></td>
                 </tr>
               ))}
             </tbody>

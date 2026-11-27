@@ -56,7 +56,7 @@ function Mis() {
               <Stat icon={UserPlus} label="Joiners" value={d.joiners} sub={`In ${monthLabel(month)}`} accent="var(--color-green)" />
               <Stat icon={UserMinus} label="Leavers" value={d.leavers} sub={`Attrition ${d.attrition}% this month`} accent="var(--color-red-hover)" />
               <Stat icon={TrendingDown} label="Attrition (12 Months)" value={pct(d.rolling)} sub="Leavers ÷ average headcount" accent="var(--color-amber)" />
-              <Stat icon={CalendarCheck} label="Attendance Rate" value={dash(d.attendance?.rate, pct)} sub={d.attendance ? `${d.attendance.marked} days marked · ${d.attendance.absent} absent` : "No attendance data"} accent="var(--color-green)" />
+              <Stat icon={CalendarCheck} label="Attendance Rate" value={dash(d.attendance?.rate, pct)} sub={d.attendance?.marked ? `${d.attendance.marked} days marked · ${d.attendance.absent} absent` : d.attendance ? "No attendance marked this month" : "Attendance couldn't be read"} accent="var(--color-green)" />
               <Stat icon={CalendarClock} label="Leave Taken" value={d.leaveDays == null ? "—" : `${d.leaveDays} days`} sub={d.leaveApplications == null ? "No leave data" : `${d.leaveApplications} approved applications`} accent="#4f8cff" />
               <Stat icon={Receipt} label="Expenses Claimed" value={d.expenseAmount == null ? "—" : money(d.expenseAmount)} sub={d.expenseClaims == null ? "No expense data" : `${d.expenseClaims} claims`} accent="var(--color-amber)" />
               <Stat icon={Briefcase} label="Open Positions" value={dash(d.openPositions)} sub={d.openings == null ? "No recruitment data" : `${d.openings} openings · ${d.candidates ?? 0} new candidates`} accent="var(--color-red-hover)" />

@@ -16,11 +16,10 @@ import { MODULE_DOCTYPES, MODULE_SCRIPTS } from "./modules";
 import { ANALYTICS_DOCTYPES } from "./analytics";
 import { INTEGRATION_RECORDS, INTEGRATION_SCRIPTS } from "./integrationSetup";
 import { prepare as prepareDoctype } from "./doctypeSetup";
-import { EMPLOYEE_RECORD_FIELDS, EMPLOYEE_RECORD_SCRIPTS, SIGNIN_FIELDS, SIGNIN_SCRIPTS } from "./peopleSetup";
+import { EMPLOYEE_LEVEL_PERMS, EMPLOYEE_RECORD_FIELDS, EMPLOYEE_RECORD_PROPERTIES, EMPLOYEE_RECORD_SCRIPTS, SIGNIN_FIELDS, SIGNIN_SCRIPTS } from "./peopleSetup";
 import { CONTRACTOR_FIELDS, CONTRACTOR_PERMISSIONS, CONTRACTOR_RECORDS, CONTRACTOR_RETIRED_SCRIPTS, CONTRACTOR_SCRIPTS } from "./contractorSetup";
 import { PAGE_ACCESS_FIELDS, PAGE_ACCESS_SCRIPTS } from "./pageAccessSetup";
 import { FALLBACK_DOCTYPES } from "./doctypeSetup";
-import { LEAVE_TYPE_RECORDS, TRAINING_PROPERTIES, TRAINING_TRACK } from "./hrFixesSetup";
 import { PRESETS } from "./rolePresets";
 import { PROJECT_ROLE_DOCTYPES, PROJECT_ROLE_FIELDS, PROJECT_ROLE_SCRIPTS, PROJECT_ROLE_TRACK } from "./projectRoleSetup";
 
@@ -40,9 +39,8 @@ export const MODULES = [
   { id: "analytics", label: "Analytics", doctypes: ANALYTICS_DOCTYPES.map((d) => ({ ...d, prepare: prepareDoctype })), fields: [], scripts: [], track: [] },
   { id: "integrations", label: "Integrations", records: INTEGRATION_RECORDS, fields: [], scripts: INTEGRATION_SCRIPTS, track: [] },
   { id: "comms", label: "Communication", doctypes: COMMS_DOCTYPES.map((d) => ({ ...d, prepare: prepareDoctype })), fields: COMMS_FIELDS, scripts: COMMS_SCRIPTS, track: [] },
-  { id: "employeeRecords", label: "Employee records", fields: EMPLOYEE_RECORD_FIELDS, scripts: EMPLOYEE_RECORD_SCRIPTS, track: [] },
-  { id: "training", label: "Training changes", fields: [], scripts: [], track: TRAINING_TRACK, properties: TRAINING_PROPERTIES },
-  { id: "leaveTypes", label: "Leave types", records: LEAVE_TYPE_RECORDS, fields: [], scripts: [], track: [] },
+  // levelPerms are granted before properties are set, so HR never loses sight of PAN / Aadhaar in between.
+  { id: "employeeRecords", label: "Employee records", fields: EMPLOYEE_RECORD_FIELDS, scripts: EMPLOYEE_RECORD_SCRIPTS, track: [], properties: EMPLOYEE_RECORD_PROPERTIES, levelPerms: EMPLOYEE_LEVEL_PERMS },
   { id: "signin", label: "Sign-in page", fields: SIGNIN_FIELDS, scripts: SIGNIN_SCRIPTS, track: [] },
   { id: "projectRoles", label: "Project roles", doctypes: PROJECT_ROLE_DOCTYPES, fields: PROJECT_ROLE_FIELDS, scripts: PROJECT_ROLE_SCRIPTS, track: PROJECT_ROLE_TRACK },
   { id: "pageAccess", label: "Page access", fields: PAGE_ACCESS_FIELDS, scripts: PAGE_ACCESS_SCRIPTS, track: [] },
@@ -54,6 +52,19 @@ const ALL_SCRIPTS = MODULES.flatMap((m) => m.scripts);
 const ALL_TRACK = [...new Set(MODULES.flatMap((m) => m.track))];
 const ALL_PROPS = MODULES.flatMap((m) => m.properties || []);
 const PERM_API = "frappe.core.page.permission_manager.permission_manager";
+
+/** Permissions at a higher permission level (field-level access) still missing: [{ ...grant, hasRow, missing }]. */
+async function missingLevelPerms(grants) {
+  const out = [];
+  const byDoctype = {};
+  for (const g of grants) {
+    byDoctype[g.doctype] ||= await frappe.callMethod(`${PERM_API}.get_permissions`, { doctype: g.doctype }).catch(() => null);
+    const mine = (byDoctype[g.doctype] || []).filter((r) => r.role === g.role && Number(r.permlevel) === g.permlevel && !Number(r.if_owner));
+    const missing = g.perms.filter((ptype) => !mine.some((r) => Number(r[ptype]) === 1));
+    if (missing.length) out.push({ ...g, hasRow: mine.length > 0, missing });
+  }
+  return out;
+}
 
 /** What a role still lacks from its preset: [{ doctype, hasRow, missing }]. */
 async function missingRolePerms(role, preset) {
@@ -87,6 +98,8 @@ export async function setupStatus() {
   }
   const permGaps = {};
   for (const g of MODULES.flatMap((m) => m.permissions || [])) permGaps[g.role] = await missingRolePerms(g.role, g.preset);
+  const levelGaps = {};
+  for (const m of MODULES.filter((x) => x.levelPerms?.length)) levelGaps[m.id] = await missingLevelPerms(m.levelPerms);
   const have = new Set((fields || []).map((f) => `${f.dt}:${f.fieldname}`));
   const haveProps = new Map((props || []).map((p) => [propKey(p), String(p.value)]));
   const scriptOk = (s) => Boolean((scripts || []).find((x) => x.name === s.name && !Number(x.disabled) && String(x.script || "").trim() === s.script.trim()));
@@ -97,6 +110,7 @@ export async function setupStatus() {
       ...m,
       missingDoctypes: (m.doctypes || []).filter((d) => !(doctypes || []).some((x) => x.name === d.name)),
       missingPermissions: (m.permissions || []).filter((g) => permGaps[g.role].length),
+      missingLevelPerms: levelGaps[m.id] || [],
       missingRecords: (m.records || []).filter((r) => !recordExists[`${r.doctype}:${r.name}`]),
       missingFields: m.fields.filter((f) => !have.has(`${f.dt}:${f.fieldname}`)),
       untracked: setters === null ? m.track : m.track.filter((d) => !(setters || []).some((s) => s.doc_type === d && String(s.value) === "1")),
@@ -141,6 +155,15 @@ export async function runSetup(onStep = () => {}) {
           for (const ptype of gap.missing) await frappe.callMethod(`${PERM_API}.update`, { doctype: gap.doctype, role: g.role, permlevel: 0, ptype, value: 1 });
         }
         step(`${m.label}: ${g.what} granted`);
+      } catch (e) {
+        step(`${m.label}: couldn't grant ${g.what}: ${why(e)}`, false);
+      }
+    }
+    for (const g of m.missingLevelPerms || []) {
+      try {
+        if (!g.hasRow) await frappe.callMethod(`${PERM_API}.add`, { parent: g.doctype, role: g.role, permlevel: g.permlevel });
+        for (const ptype of g.missing) await frappe.callMethod(`${PERM_API}.update`, { doctype: g.doctype, role: g.role, permlevel: g.permlevel, ptype, value: 1 });
+        step(`${m.label}: ${g.what}`);
       } catch (e) {
         step(`${m.label}: couldn't grant ${g.what}: ${why(e)}`, false);
       }

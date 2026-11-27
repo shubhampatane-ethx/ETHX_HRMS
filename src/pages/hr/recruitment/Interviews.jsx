@@ -43,7 +43,7 @@ export default function Interviews() {
     { key: "_a", label: "", render: (i) => i.docstatus === 0 ? (
       <div className="flex justify-end gap-1">
         <IcsButton interview={i} applicantName={i.applicant?.applicant_name} />
-        {i.applicant && <button type="button" title="Reschedule" onClick={() => setModal({ kind: "reschedule", interview: i })} className="rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]"><Pencil size={14} /></button>}
+        {i.applicant && <button type="button" title="Reschedule" onClick={() => setModal({ kind: "reschedule", interview: i })} className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] transition-colors hover:border-[var(--color-border-strong)] hover:bg-[var(--color-surface-2)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"><Pencil size={14} /></button>}
         <Button variant="secondary" className="!px-2 !py-1 text-[11px]" onClick={() => setModal({ kind: "decide", interview: i })}><Gavel size={12} /> Decide</Button>
       </div>
     ) : null },
@@ -143,7 +143,7 @@ function Rounds() {
           { key: "skills", label: "Scorecard Skills", render: (r) => <span className="text-[11.5px]">{r.skills.join(", ") || "—"}</span> },
           { key: "interviewers", label: "Default Panel", render: (r) => <span className="text-[11.5px]">{r.interviewers.join(", ") || "—"}</span> },
           { key: "expected", label: "Pass Mark", render: (r) => (r.expected_average_rating ? <Stars value={toStars(r.expected_average_rating)} size={11} /> : "—") },
-          { key: "_a", label: "", render: (r) => <div className="flex justify-end gap-1"><button type="button" onClick={() => setModal({ round: r })} className="rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]"><Pencil size={14} /></button><button type="button" onClick={() => remove(r)} className="rounded p-1 text-[var(--color-text-muted)] hover:text-[var(--color-red-hover)]"><Trash2 size={14} /></button></div> },
+          { key: "_a", label: "", render: (r) => <div className="flex justify-end gap-1"><button type="button" title="Edit round" aria-label="Edit round" onClick={() => setModal({ round: r })} className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] transition-colors hover:border-[var(--color-border-strong)] hover:bg-[var(--color-surface-2)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"><Pencil size={14} /></button><button type="button" title="Delete round" aria-label="Delete round" onClick={() => remove(r)} className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] transition-colors hover:border-[var(--color-border-strong)] hover:bg-[var(--color-surface-2)] text-[var(--color-text-muted)] hover:!text-[var(--color-red-hover)]"><Trash2 size={14} /></button></div> },
         ]} />}
       </Async>
       {modal && <RoundModal round={modal.round} onClose={() => setModal(null)} onSaved={() => { setModal(null); rounds.reload(); }} />}

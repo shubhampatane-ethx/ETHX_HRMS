@@ -7,8 +7,10 @@ import { Button, Card, DateField, Input, LinkField } from "../ui/primitives";
 /**
  * submittable: the doctype is submittable (e.g. Attendance) - new records are submitted after saving, and editing a
  * submitted record cancels it and saves an amended copy (submitted records cannot be edited directly).
+ * validate(payload, { recordName, values }): optional; returns the payload to save (it may tidy values) or throws an
+ * Error whose message is shown on the form.
  */
-export function HrRecordForm({ doctype, fields, recordName, onCancel, onSaved, submittable = false }) {
+export function HrRecordForm({ doctype, fields, recordName, onCancel, onSaved, submittable = false, validate }) {
   const [values, setValues] = useState({});
   const [state, setState] = useState(recordName ? "loading" : "ready");
   const [error, setError] = useState("");
@@ -48,12 +50,13 @@ export function HrRecordForm({ doctype, fields, recordName, onCancel, onSaved, s
     event.preventDefault();
     setState("saving");
     setError("");
-    const payload = Object.fromEntries(
+    let payload = Object.fromEntries(
       fields
         .map((field) => [field.name, values[field.name]])
         .filter(([, value]) => value !== undefined && value !== "")
     );
     try {
+      if (validate) payload = await validate(payload, { recordName, values });
       let saved;
       if (submittable && recordName && Number(values.docstatus) === 1) {
         await frappe.cancelDoc(doctype, recordName);
@@ -121,7 +124,7 @@ const CREATABLE = {
 
 function Field({ field, value, onChange }) {
   if (field.type === "link") {
-    return <LinkField label={field.label} linkDoctype={field.linkDoctype} value={value} onChange={onChange} required={field.required} frappe={frappe} onCreate={CREATABLE[field.linkDoctype]} />;
+    return <LinkField label={field.label} linkDoctype={field.linkDoctype} value={value} onChange={onChange} required={field.required} frappe={frappe} onCreate={CREATABLE[field.linkDoctype]} filters={field.linkFilters} />;
   }
   if (field.type === "date") {
     return <DateField label={field.label} value={value} onChange={onChange} required={field.required} />;

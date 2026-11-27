@@ -37,8 +37,8 @@ export default function ProjectRoles() {
             { key: "disabled", label: "Status", render: (r) => <StatusPill status={Number(r.disabled) ? "Disabled" : "Active"} /> },
             { key: "_a", label: "", render: (r) => installed && (
               <div className="flex justify-end gap-1">
-                <button type="button" title="Edit role" aria-label={`Edit ${r.role_name}`} onClick={() => setModal({ role: r })} className="rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]"><Pencil size={14} /></button>
-                <button type="button" title="Delete role" aria-label={`Delete ${r.role_name}`} onClick={() => remove(r)} className="rounded p-1 text-[var(--color-text-muted)] hover:text-[var(--color-red-hover)]"><Trash2 size={14} /></button>
+                <button type="button" title="Edit role" aria-label={`Edit ${r.role_name}`} onClick={() => setModal({ role: r })} className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] transition-colors hover:border-[var(--color-border-strong)] hover:bg-[var(--color-surface-2)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"><Pencil size={14} /></button>
+                <button type="button" title="Delete role" aria-label={`Delete ${r.role_name}`} onClick={() => remove(r)} className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] transition-colors hover:border-[var(--color-border-strong)] hover:bg-[var(--color-surface-2)] text-[var(--color-text-muted)] hover:!text-[var(--color-red-hover)]"><Trash2 size={14} /></button>
               </div>
             ) },
           ]} />}

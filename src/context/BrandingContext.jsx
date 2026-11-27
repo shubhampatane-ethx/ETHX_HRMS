@@ -5,6 +5,7 @@ import { getMyEmployee } from "../lib/employeePortal";
 import { setClientScope, STORED_CLIENT_KEY } from "../lib/clientScope";
 import { SUPER_ADMIN } from "../lib/modules";
 import { applySavedTheme, hasSavedTheme, saveTheme, THEME_OPTIONS } from "../lib/theme";
+import { cacheGet, cacheSet } from "../lib/sessionCache";
 
 const BrandingContext = createContext({ company: null, loading: true, refresh: () => {}, selectCompany: () => {} });
 const SELECTED_COMPANY_KEY = STORED_CLIENT_KEY;
@@ -97,7 +98,10 @@ export function BrandingProvider({ children }) {
 
   useEffect(() => {
     let cancelled = false;
-    resolveCompany(user, selectedCompany)
+    // The resolved company is cached for the tab (BUG-008); refresh() (revision > 0) always reloads it.
+    const key = `branding:${user?.email || "guest"}:${selectedCompany || ""}`;
+    const cached = revision === 0 ? cacheGet(key) : null;
+    (cached ? Promise.resolve(cached.company) : resolveCompany(user, selectedCompany).then((company) => { cacheSet(key, { company }); return company; }))
       .then((company) => {
         if (cancelled) return;
         setState({ company, loading: false });

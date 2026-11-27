@@ -25,6 +25,29 @@ export const TIMESHEET_FIELDS = [
 
 export const TIMESHEET_TRACK = ["Timesheet", "Project"];
 
+// Approver hierarchy for timesheets: a line's approver is the project's manager (hours with no project: the employee's
+// reporting manager). When that person is on approved leave today, inactive or has left, the approval goes to their
+// reporting manager, and on up the chain to the first one available. Both the original approver and the person covering
+// may act. Pasted into each API below (a function there only sees globals, so it works out "today" itself).
+const COVER_FN = `
+def cover_of(u):
+    day = frappe.utils.nowdate()
+    seen = []
+    cur = u
+    while cur and cur not in seen and len(seen) < 8:
+        seen.append(cur)
+        emp = frappe.db.get_value("Employee", {"user_id": cur}, ["name", "status", "reports_to"], as_dict=True)
+        ok = frappe.db.get_value("User", {"name": cur, "enabled": 1}, "name")
+        if emp and emp.status != "Active":
+            ok = None
+        if ok and emp and frappe.db.count("Leave Application", {"employee": emp.name, "status": "Approved", "docstatus": 1, "from_date": ["<=", day], "to_date": [">=", day]}):
+            ok = None
+        if ok:
+            return cur
+        cur = frappe.db.get_value("Employee", emp.reports_to, "user_id") if (emp and emp.reports_to) else None
+    return u
+`;
+
 // RestrictedPython: comprehensions can't see other local variables - plain loops only.
 const ON_SUBMIT = `
 doc.custom_review_status = "Pending Review"
@@ -51,6 +74,7 @@ if st in ("Approved", "Partly Approved") and not doc.flags.get("ethx_review"):
 `;
 
 const REVIEW_API = `
+${COVER_FN.trim()}
 args = frappe.form_dict
 name = args.get("timesheet")
 action = args.get("action")
@@ -92,10 +116,14 @@ for row in doc.time_logs:
         else:
             managers[p] = line_manager
 
+covers = {}
+for p in managers:
+    covers[p] = cover_of(managers[p]) if managers[p] else None
+
 mine = []
 for row in doc.time_logs:
     p = row.project or ""
-    if managers.get(p) and managers.get(p) == user:
+    if managers.get(p) and (managers.get(p) == user or covers.get(p) == user):
         if only is None or p in only:
             mine.append(row)
 
@@ -110,7 +138,7 @@ if action == "approve":
     if status == "Finalized":
         frappe.throw("This timesheet is already finalized.")
     if not mine:
-        frappe.throw("None of the hours on this timesheet are on projects you manage.")
+        frappe.throw("None of the hours on this timesheet are on projects you manage or are covering for.")
     override = []
     for row in mine:
         if row.custom_line_status != "Approved":
@@ -136,7 +164,7 @@ elif action == "return":
     if status == "Finalized":
         frappe.throw("This timesheet is finalized. Reopen it first.")
     if not mine:
-        frappe.throw("None of the hours on this timesheet are on projects you manage.")
+        frappe.throw("None of the hours on this timesheet are on projects you manage or are covering for.")
     if not note:
         frappe.throw("Tell the employee what to correct.")
     doc.flags.ethx_review = True
@@ -179,6 +207,7 @@ else:
 
 // Lines a project manager can act on, across all submitted timesheets (for the PM approvals screen).
 const PM_QUEUE_API = `
+${COVER_FN.trim()}
 user = frappe.session.user
 projects = frappe.get_all("Project", filters={"custom_project_manager": user}, pluck="name")
 for p in frappe.get_all("Project", filters={"owner": user, "custom_project_manager": ["is", "not set"]}, pluck="name"):
@@ -187,6 +216,28 @@ fields = ["name", "parent", "project", "task", "from_time", "hours", "descriptio
 rows = []
 if projects:
     rows = frappe.get_all("Timesheet Detail", filters={"project": ["in", projects], "parenttype": "Timesheet"}, fields=fields, order_by="from_time asc")
+# Pending hours this user covers for: their manager (or a manager above) is away or has left.
+covered = []
+for p in frappe.get_all("Timesheet Detail", filters={"parenttype": "Timesheet", "custom_line_status": "Pending", "project": ["is", "set"]}, pluck="project", distinct=True):
+    if p in projects or p in covered:
+        continue
+    pm = frappe.db.get_value("Project", p, "custom_project_manager") or frappe.db.get_value("Project", p, "owner")
+    if pm and pm != user and cover_of(pm) == user:
+        covered.append(p)
+if covered:
+    for r in frappe.get_all("Timesheet Detail", filters={"project": ["in", covered], "parenttype": "Timesheet", "custom_line_status": "Pending"}, fields=fields, order_by="from_time asc"):
+        rows.append(r)
+lm_cover = {}
+for r in frappe.get_all("Timesheet Detail", filters={"parenttype": "Timesheet", "custom_line_status": "Pending", "project": ["is", "not set"]}, fields=fields, order_by="from_time asc"):
+    if r.parent not in lm_cover:
+        lm_cover[r.parent] = None
+        emp = frappe.db.get_value("Timesheet", r.parent, "employee")
+        rt = frappe.db.get_value("Employee", emp, "reports_to") if emp else None
+        lm = frappe.db.get_value("Employee", rt, "user_id") if rt else None
+        if lm and lm != user and cover_of(lm) == user:
+            lm_cover[r.parent] = user
+    if lm_cover[r.parent] == user:
+        rows.append(r)
 # hours without a project go to the employee's line manager
 me = frappe.db.get_value("Employee", {"user_id": user}, "name")
 if me:
@@ -216,14 +267,14 @@ else:
     frappe.response["message"] = out
 `;
 
-// A week's timesheet can be saved as a draft all week, and submitted from its Sunday onwards.
+// Weeks run Sunday to Saturday. A week's timesheet can be saved as a draft all week, and submitted from its Saturday.
 const SUBMIT_FROM_SUNDAY = `
 last = doc.end_date or doc.start_date
 if last:
     last = frappe.utils.getdate(last)
-    sunday = frappe.utils.getdate(frappe.utils.add_days(last, 6 - last.weekday()))
-    if frappe.utils.getdate(frappe.utils.nowdate()) < sunday:
-        frappe.throw("This week's timesheet can be submitted from Sunday " + str(sunday) + ". Until then, save it as a draft.")
+    saturday = frappe.utils.getdate(frappe.utils.add_days(last, (5 - last.weekday()) % 7))
+    if frappe.utils.getdate(frappe.utils.nowdate()) < saturday:
+        frappe.throw("This week's timesheet can be submitted from Saturday " + frappe.utils.formatdate(saturday) + ". Until then, save it as a draft.")
 `;
 
 // Every night: drafts whose week has finished are submitted. A sheet HR returned for correction waits for the employee,
@@ -242,8 +293,8 @@ for s in frappe.get_all("Timesheet", filters={"docstatus": 0, "employee": ["is",
     if not last or s.custom_review_status == "Returned" or not frappe.utils.flt(s.total_hours) > 0:
         continue
     last = frappe.utils.getdate(last)
-    sunday = frappe.utils.getdate(frappe.utils.add_days(last, 6 - last.weekday()))
-    if today <= sunday:
+    saturday = frappe.utils.getdate(frappe.utils.add_days(last, (5 - last.weekday()) % 7))
+    if today <= saturday:
         continue
     text = "Submitted automatically after the week ended"
     try:
@@ -258,8 +309,50 @@ for s in frappe.get_all("Timesheet", filters={"docstatus": 0, "employee": ["is",
     frappe.get_doc({"doctype": "Comment", "comment_type": "Info", "reference_doctype": "Timesheet", "reference_name": s.name, "content": text}).insert(ignore_permissions=True)
 `;
 
+// The approver of each project on an employee's timesheet, following the hierarchy above, plus display names for users
+// (e.g. who approved a line). For the employee themself or HR; returns names only.
+const APPROVERS_API = `
+${COVER_FN.trim()}
+args = frappe.form_dict
+user = frappe.session.user
+roles = frappe.get_all("Has Role", filters={"parent": user, "parenttype": "User"}, pluck="role")
+is_hr = user == "Administrator" or ("HR Manager" in roles) or ("HR User" in roles) or ("System Manager" in roles)
+emp = args.get("employee") or frappe.db.get_value("Employee", {"user_id": user}, "name")
+row = frappe.db.get_value("Employee", emp, ["name", "user_id", "reports_to"], as_dict=True) if emp else None
+if not row:
+    frappe.throw("Employee not found.")
+if row.user_id != user and not is_hr:
+    frappe.throw("You can only see the approvers of your own timesheet.")
+projects = json.loads(args.get("projects") or "[]")
+users = json.loads(args.get("users") or "[]")
+lm = frappe.db.get_value("Employee", row.reports_to, "user_id") if row.reports_to else None
+out = {}
+for p in projects + [""]:
+    first = None
+    via = "Reporting Manager"
+    if p:
+        first = frappe.db.get_value("Project", p, "custom_project_manager") or frappe.db.get_value("Project", p, "owner")
+        via = "Project Manager"
+    else:
+        first = lm
+    if not first:
+        out[p] = None
+        continue
+    actual = cover_of(first)
+    out[p] = {"user": actual, "via": via, "covering_for": first if actual != first else None}
+    if actual not in users:
+        users.append(actual)
+    if first not in users:
+        users.append(first)
+names = {}
+for u in frappe.get_all("User", filters={"name": ["in", users or ["-"]]}, fields=["name", "full_name"]):
+    names[u.name] = u.full_name or u.name
+frappe.response["message"] = {"approvers": out, "names": names}
+`;
+
 export const TIMESHEET_SCRIPTS = [
-  { name: "ETHX - Submit timesheet from Sunday", script_type: "DocType Event", reference_doctype: "Timesheet", doctype_event: "Before Submit", script: SUBMIT_FROM_SUNDAY, what: "A week's timesheet can be submitted from its Sunday" },
+  { name: "ETHX - Timesheet approvers", script_type: "API", api_method: "ethx_timesheet_approvers", script: APPROVERS_API, what: "Employees see who approves each project on their timesheet (with cover when the approver is away or has left)" },
+  { name: "ETHX - Submit timesheet from Sunday", script_type: "DocType Event", reference_doctype: "Timesheet", doctype_event: "Before Submit", script: SUBMIT_FROM_SUNDAY, what: "Weeks run Sunday to Saturday; a week's timesheet can be submitted from its Saturday" },
   { name: "ETHX - Auto-submit timesheets", script_type: "Scheduler Event", event_frequency: "Daily", script: AUTO_SUBMIT_WEEKS, what: "Drafts are submitted automatically once their week has ended" },
   { name: "ETHX - Timesheet submit", reference_doctype: "Timesheet", doctype_event: "Before Submit", script: ON_SUBMIT, what: "Submitting a timesheet puts every line in Pending review" },
   { name: "ETHX - Timesheet draft", reference_doctype: "Timesheet", doctype_event: "Before Save", script: ON_SAVE, what: "New timesheets start as Draft" },
@@ -313,6 +406,7 @@ TIMESHEET_SCRIPTS.push({ name: "ETHX - Migrate timesheet reviews", script_type: 
 // A timesheet for review by a project manager who can't read other employees' records directly (ERPNext restricts a
 // PM's login to their own Employee). Only returned if they manage at least one project on it.
 const GET_FOR_REVIEW_API = `
+${COVER_FN.trim()}
 name = frappe.form_dict.get("timesheet")
 user = frappe.session.user
 doc = frappe.get_doc("Timesheet", name)
@@ -320,12 +414,14 @@ ok = user == "Administrator"
 for row in doc.time_logs:
     p = row.project or ""
     if p and not ok:
-        if (frappe.db.get_value("Project", p, "custom_project_manager") or frappe.db.get_value("Project", p, "owner")) == user:
+        pm = frappe.db.get_value("Project", p, "custom_project_manager") or frappe.db.get_value("Project", p, "owner")
+        if pm == user or (pm and cover_of(pm) == user):
             ok = True
 if not ok and doc.employee:
     # line manager of the employee (approves hours that have no project)
     rt = frappe.db.get_value("Employee", doc.employee, "reports_to")
-    if rt and frappe.db.get_value("Employee", rt, "user_id") == user:
+    lm = frappe.db.get_value("Employee", rt, "user_id") if rt else None
+    if lm and (lm == user or cover_of(lm) == user):
         ok = True
 if not ok:
     frappe.throw("You don't manage any project on this timesheet.")

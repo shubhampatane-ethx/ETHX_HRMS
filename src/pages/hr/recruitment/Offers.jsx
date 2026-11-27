@@ -135,7 +135,7 @@ function PickCandidate({ offers, onClose, onPick }) {
 
 function Actions({ o, user, approver, setModal, act }) {
   const s = offerStage(o);
-  const btn = "rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]";
+  const btn = "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] transition-colors hover:border-[var(--color-border-strong)] hover:bg-[var(--color-surface-2)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]";
   return (
     <div className="flex flex-wrap justify-end gap-1 whitespace-nowrap">
       {o.docstatus === 0 && <button type="button" title="Edit" className={btn} onClick={() => setModal({ kind: "edit", offer: o })}><Pencil size={14} /></button>}

@@ -109,7 +109,7 @@ export function DoctypeCrud({ item }) {
       render: (r) => (
         <button
           onClick={() => handleDelete(r.name)}
-          className="rounded p-1 text-[var(--color-text-faint)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-red-hover)]"
+          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-border-strong)] hover:bg-[var(--color-surface-2)] hover:!text-[var(--color-red-hover)]"
           title={`Delete ${r.name}`}
         >
           <Trash2 size={13} strokeWidth={1.75} />

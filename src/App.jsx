@@ -17,6 +17,8 @@ import { PMLayout } from "./components/layout/PMLayout";
 const PMAssignments = lazy(() => import("./pages/pm/PMPages").then((m) => ({ default: m.PMAssignments })));
 const PMDashboard = lazy(() => import("./pages/pm/PMPages").then((m) => ({ default: m.PMDashboard })));
 const PMProjects = lazy(() => import("./pages/pm/PMPages").then((m) => ({ default: m.PMProjects })));
+const ProjectDetail = lazy(() => import("./pages/pm/ProjectDetail"));
+const Hierarchy = lazy(() => import("./pages/hr/Hierarchy"));
 const ProjectManagers = lazy(() => import("./pages/admin/ProjectManagers"));
 const ProjectRoles = lazy(() => import("./pages/admin/ProjectRoles"));
 const AccessControl = lazy(() => import("./pages/admin/PageAccess"));
@@ -133,6 +135,7 @@ export default function App() {
             <Route path="/pm" element={<PMLayout />}>
               <Route index element={<StaffHome><PMDashboard /></StaffHome>} />
               <Route path="projects" element={<PMProjects />} />
+              <Route path="projects/:id" element={<ProjectDetail />} />
               <Route path="assignments" element={<PMAssignments />} />
               <Route path="timesheets" element={<Timesheets readOnly />} />
               <Route path="approvals" element={<PMApprovals />} />
@@ -180,6 +183,7 @@ export default function App() {
               <Route index element={<StaffHome><HRDashboard /></StaffHome>} />
               <Route path="employees" element={<Employees />} />
               <Route path="lifecycle" element={<Lifecycle />} />
+              <Route path="hierarchy" element={<Hierarchy />} />
               <Route path="resources" element={<div className="space-y-5"><Resources /></div>} />
               <Route path="attendance" element={<Attendance />} />
               <Route path="timesheets" element={<Timesheets />} />
