@@ -13,7 +13,7 @@ import { Topbar } from "../layout/Topbar";
 import { hrNav, hrTitleFor } from "../layout/HRLayout";
 import { hasPermission, isStaffEmployee } from "../../permissions/roles";
 import { pmNav, pmTitleFor } from "../layout/PMLayout";
-import { coreSection, flattenNav, moduleSection, staffView } from "../layout/navSections";
+import { coreSection, flattenNav, moduleSection, staffView, switchLink } from "../layout/navSections";
 
 /* ===== ui.jsx ===== */
 export const inputCls =
@@ -444,7 +444,7 @@ export function EmployeeLayout() {
   return (
     <EmployeeProvider>
       <div className="flex h-screen overflow-hidden bg-[var(--color-bg)]">
-        <Sidebar title={asHr ? "HR Workspace" : asPm ? "Project Manager" : self ? "My Self-Service" : "Employee Portal"} items={nav} />
+        <Sidebar title={asHr ? "HR Workspace" : asPm ? "Project Manager" : self ? "My Self-Service" : "Employee Portal"} items={nav} switchTo={staff ? switchLink(self ? "self" : "work", hr ? "hr" : "pm") : undefined} />
         <div className="flex min-w-0 flex-1 flex-col">
           <Topbar search roleLabel={asHr ? (hasPermission(user, "dashboard.admin") ? "Admin" : "HR") : asPm ? "Project Manager" : "Employee"} pageTitle={asHr ? hrTitleFor(pathname) : asPm ? pmTitleFor(pathname) : titleFor(pathname)} />
           <main className="flex-1 overflow-y-auto p-6">

@@ -44,7 +44,7 @@ export default function Announcements() {
     setBusy(true);
     try {
       const r = await announce({ subject: f.subject.trim(), message: toHtml(f.message.trim()), audience: f.audience, value: f.value, send_email: f.email ? 1 : 0, post_to_portal: f.portal ? 1 : 0 });
-      setMsg({ ok: true, text: `Sent. ${f.email ? `${r.emailed} email(s) queued - they go out within a few minutes.` : ""}${f.portal ? " It's on the employee portal now." : ""}` });
+      setMsg({ ok: true, text: `Sent. ${f.email ? `${r.emailed} email(s) queued - they go out within a few minutes.` : ""}${f.portal ? ` It's on the employee portal now and pops up with a sound for ${r.notified ?? "everyone"}${r.notified !== undefined ? " people" : ""} the next time their HRMS is open (within 2 minutes if it already is), plus a bell notification.` : ""}` });
       setF((x) => ({ ...x, subject: "", message: "" }));
       history.reload();
     } catch (x) {
@@ -69,7 +69,7 @@ export default function Announcements() {
             </div>
             <div className="flex flex-wrap gap-4 text-[12px] text-[var(--color-text-muted)]">
               <label className="flex items-center gap-2"><input type="checkbox" checked={f.email} onChange={set("email")} /> Email each employee</label>
-              <label className="flex items-center gap-2"><input type="checkbox" checked={f.portal} onChange={set("portal")} /> Show on the employee portal</label>
+              <label className="flex items-center gap-2"><input type="checkbox" checked={f.portal} onChange={set("portal")} /> Show on the employee portal (pops up for everyone, with a sound)</label>
             </div>
             <p className="text-[12px] text-[var(--color-text-muted)]">
               {people.loading ? "Counting recipients…" : `${reach.length} employee(s) selected${f.email ? `, ${reachable} with an email address${reach.length - reachable ? ` (${reach.length - reachable} without one will only see it on the portal)` : ""}` : ""}.`}

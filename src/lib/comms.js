@@ -139,7 +139,13 @@ if frappe.get_meta("Note").has_field("custom_audience"):
     note.custom_audience = label
     note.custom_emailed = sent
 note.insert(ignore_permissions=True)
-frappe.response["message"] = {"emailed": sent, "people": len(people), "note": note.name}
+notified = 0
+if note.public:
+    for e in people:
+        if e.user_id and e.user_id != frappe.session.user:
+            frappe.get_doc({"doctype": "Notification Log", "for_user": e.user_id, "from_user": frappe.session.user, "type": "Alert", "document_type": "Note", "document_name": note.name, "subject": "Announcement: " + subject, "email_content": message}).insert(ignore_permissions=True)
+            notified = notified + 1
+frappe.response["message"] = {"emailed": sent, "people": len(people), "note": note.name, "notified": notified}
 `;
 
 // Every morning: public events coming up in N days (and today) are emailed to everyone, once per event and day.

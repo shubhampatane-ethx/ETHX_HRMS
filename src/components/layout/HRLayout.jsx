@@ -8,7 +8,7 @@ import { hasPermission, isStaffEmployee } from "../../permissions/roles";
 import { Topbar } from "./Topbar";
 import { useClientScope } from "../../lib/clientScope";
 import { HR_SETUP_SECTIONS, slugify } from "../../lib/hrSetupConfig";
-import { coreSection, flattenNav, moduleSection } from "./navSections";
+import { coreSection, flattenNav, moduleSection, switchLink } from "./navSections";
 
 // A setup page or report from the HR setup config, by its doctype (its own page if it has one).
 const SETUP_ITEMS = HR_SETUP_SECTIONS.flatMap((s) => s.items);
@@ -202,7 +202,7 @@ export function HRLayout() {
   const nav = useMemo(() => hrNav(user, "work"), [user]);
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--color-bg)]">
-      <Sidebar title={isAdmin ? "HR Workspace (Admin)" : "HR Workspace"} items={nav} />
+      <Sidebar title={isAdmin ? "HR Workspace (Admin)" : "HR Workspace"} items={nav} switchTo={isStaffEmployee(user) ? switchLink("work", "hr") : undefined} />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar search roleLabel={isAdmin ? "Admin" : "HR"} pageTitle={hrTitleFor(pathname)} />
         <main className="flex-1 overflow-y-auto p-6">

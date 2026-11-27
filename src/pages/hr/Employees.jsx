@@ -10,6 +10,7 @@ import { Button, Card, DateField, LinkField } from "../../components/ui/primitiv
 import { Field, Grid, inputCls, Modal, Notice } from "../../components/employee/EmployeeShell";
 import { createContractor } from "../../lib/contractors";
 import { listAssignments, parseAssignment } from "../../lib/assignments";
+import { assetLabel, assetsHeldBy } from "../../lib/assetTracking";
 import { alertDialog, confirmDialog } from "../../components/ui/dialogs";
 
 const FIELDS = [
@@ -654,7 +655,8 @@ function EmployeeDetail({ employee, onClose, onEdit, onLogin }) {
     let login = null;
     if (doc.user_id) { try { login = await frappe.getDoc("User", doc.user_id); } catch { /* HR may not be allowed to read users */ } }
     const groups = await frappe.getList("Employee Group Table", { parent: "Employee Group", filters: [["employee", "=", doc.name]], fields: ["parent"], limit: 0 }).then((rows) => rows.map((r) => r.parent)).catch(() => null);
-    return { doc, login, groups };
+    const assets = await assetsHeldBy(doc.name).catch(() => null);
+    return { doc, login, groups, assets };
   }, [employee.name]);
   const doc = q.data?.doc;
   const login = q.data?.login;
@@ -693,6 +695,26 @@ function EmployeeDetail({ employee, onClose, onEdit, onLogin }) {
                 </dl>
               </section>
             ))}
+
+            {q.data?.assets && (
+              <section>
+                <h3 className="mb-2 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
+                  <span>Assets With {employee.employee_name?.split(" ")[0] || "This Employee"} ({q.data.assets.length})</span>
+                  <Link to="/hr/assets" className="normal-case tracking-normal text-[var(--color-red-hover)] hover:underline">Asset Management</Link>
+                </h3>
+                {q.data.assets.length === 0 ? <p className="text-[12px] text-[var(--color-text-muted)]">No company assets are with {employee.employee_name || "this employee"}.</p> : (
+                  <>
+                    {doc.status === "Left" && <p className="mb-2 rounded-md border border-[var(--color-red-deep)] bg-[var(--color-red-wash)] px-3 py-2 text-[12px] text-[var(--color-red-hover)]">This employee has left but still holds {q.data.assets.length} asset(s) - recover them and record the return on Asset Management.</p>}
+                    <div className="overflow-x-auto rounded-md border border-[var(--color-border)]">
+                      <table className="w-full text-left text-[12px]">
+                        <thead><tr className="border-b border-[var(--color-border)] text-[var(--color-text-muted)]"><th className="px-3 py-1.5 font-medium">Asset</th><th className="px-3 py-1.5 font-medium">Where</th><th className="px-3 py-1.5 font-medium">Since</th><th className="px-3 py-1.5 font-medium">Condition</th></tr></thead>
+                        <tbody>{q.data.assets.map((a) => <tr key={a.name} className="border-b border-[var(--color-border)] last:border-0"><td className="px-3 py-1.5 text-[var(--color-text)]"><b className="font-medium">{assetLabel(a)}</b><span className="block text-[11px] text-[var(--color-text-faint)]">{[a.asset_name, a.asset_category, a.custom_serial_number && `S/N ${a.custom_serial_number}`].filter(Boolean).join(" · ")}</span></td><td className="px-3 py-1.5 text-[var(--color-text)]">{a.location || "—"}</td><td className="px-3 py-1.5 text-[var(--color-text)]">{a.custom_assigned_on ? dmy(a.custom_assigned_on) : "—"}</td><td className="px-3 py-1.5 text-[var(--color-text)]">{Number(a.docstatus) === 0 ? "Draft" : a.custom_condition || "—"}</td></tr>)}</tbody>
+                      </table>
+                    </div>
+                  </>
+                )}
+              </section>
+            )}
 
             {doc.user_id && (
               <section>

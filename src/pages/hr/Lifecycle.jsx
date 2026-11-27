@@ -15,6 +15,8 @@ import { confirmDialog } from "../../components/ui/dialogs";
 import { HandoverModal } from "../../components/Handover";
 import { RowMenu } from "../../components/ui/RowMenu";
 import { MIN_ANNUAL_CTC } from "../../lib/peopleSetup";
+import { assetLabel, assetsHeldBy } from "../../lib/assetTracking";
+import { Link } from "react-router-dom";
 
 // Employee fields a promotion or transfer can change, with the doctype they link to.
 const PROPS = [
@@ -621,7 +623,10 @@ function Exits({ onChanged }) {
     const ids = [...new Set((list.data || []).map((r) => r.employee))];
     if (!ids.length) return {};
     const rows = await frappe.getList("Employee", { filters: [["name", "in", ids]], fields: ["name", "status", "relieving_date", "user_id"], limit: 0 });
-    return Object.fromEntries(rows.map((r) => [r.name, r]));
+    // Company assets still with each leaver, so nothing walks out of the door unnoticed.
+    const held = await frappe.getList("Asset", { filters: [["custodian", "in", ids], ["docstatus", "<", 2]], fields: ["name", "custodian", "asset_name", "custom_asset_code"], limit: 0 })
+      .catch(() => frappe.getList("Asset", { filters: [["custodian", "in", ids], ["docstatus", "<", 2]], fields: ["name", "custodian", "asset_name"], limit: 0 }).catch(() => null));
+    return Object.fromEntries(rows.map((r) => [r.name, { ...r, assets: held ? held.filter((a) => a.custodian === r.name) : null }]));
   }, [list.data]);
   const people = useAsync(() => listTry("Employee", { fields: ["name", "employee_name", "user_id", "designation", "status", "reports_to"], orderBy: "employee_name asc" }, ["name", "employee_name", "user_id", "status", "reports_to"]), []);
   const [modal, setModal] = useState(null);
@@ -638,6 +643,7 @@ function Exits({ onChanged }) {
           { key: "boarding_begins_on", label: "Last Working Day", render: (r) => dmy(r.boarding_begins_on) },
           { key: "boarding_status", label: "Checklist", render: (r) => <StatusPill status={r.docstatus === 0 ? "Draft" : r.boarding_status} /> },
           { key: "emp", label: "Employee Status", render: (r) => { const e = emps.data?.[r.employee]; return e ? <span><StatusPill status={e.status} />{e.relieving_date && <span className="block text-[10.5px] text-[var(--color-text-faint)]">relieved {dmy(e.relieving_date)}</span>}</span> : "…"; } },
+          { key: "_assets", label: "Assets to Recover", render: (r) => { const a = emps.data?.[r.employee]?.assets; return !a ? "—" : a.length === 0 ? <span className="text-[var(--color-green)]">None</span> : <Link to="/hr/assets" title={a.map((x) => assetLabel(x)).join(", ")} className="font-medium text-[var(--color-red-hover)] hover:underline">{a.length} · {a.slice(0, 2).map((x) => assetLabel(x)).join(", ")}{a.length > 2 ? "…" : ""}</Link>; } },
           { key: "_a", label: "", render: (r) => {
             const e = emps.data?.[r.employee];
             return <div className="flex justify-end gap-1">
@@ -839,6 +845,7 @@ function CancelExitModal({ row, emp, onClose, onSaved }) {
 }
 
 function LeftModal({ row, emp, onClose, onSaved }) {
+  const held = useAsync(() => assetsHeldBy(row.employee).catch(() => null), [row.employee]);
   const [date, setDate] = useState(emp.relieving_date || row.boarding_begins_on || isoDate());
   const [disable, setDisable] = useState(Boolean(emp.user_id));
   const [busy, setBusy] = useState(false);
@@ -863,6 +870,7 @@ function LeftModal({ row, emp, onClose, onSaved }) {
     <Modal title={`Mark ${row.employee_name} as Left`} onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
         <Notice tone="info">Hand over their work first (Hand Over Work on the exit), so their team, pending approvals and projects don't wait on someone who has gone. Leave and expense requests left waiting on them move to the next manager up automatically each day.</Notice>
+        {held.data?.length > 0 && <Notice>{row.employee_name} still has {held.data.length} company asset(s): {held.data.map((a) => `${assetLabel(a)}${a.location ? ` (${a.location})` : ""}`).join(", ")}. Collect them and record the return on Asset Management.</Notice>}
         <DateField label="Relieving Date" value={date} onChange={setDate} required />
         {emp.user_id && <label className="flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><input type="checkbox" checked={disable} onChange={(e) => setDisable(e.target.checked)} /> Disable their portal login ({emp.user_id})</label>}
         {err && <Notice>{err}</Notice>}
