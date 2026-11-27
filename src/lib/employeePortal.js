@@ -1,6 +1,7 @@
 // Employee portal: helpers, settings, async hook and ERPNext API calls in one file.
 import { useEffect, useRef, useState } from "react";
 import { frappe } from "./api/frappeClient";
+import { cacheDrop, cacheGet, cacheSet } from "./sessionCache";
 import { FULL_DAY_HOURS } from "./attendanceSetup";
 import { getReviewsSafe, listTimesheets, reviewOf } from "./timesheets";
 
@@ -205,18 +206,44 @@ export async function listTry(doctype, opts, basicFields) {
   }
 }
 
-const EMP_FULL = ["name", "employee_name", "first_name", "last_name", "company", "department", "designation", "branch", "reports_to", "date_of_joining", "holiday_list", "default_shift", "employment_type", "status", "gender", "date_of_birth", "blood_group", "marital_status", "personal_email", "company_email", "cell_number", "current_address", "permanent_address", "person_to_be_contacted", "emergency_phone_number", "relation", "image", "passport_number", "valid_upto", "date_of_issue", "contract_end_date", "health_insurance_provider", "health_insurance_no", "grade", "user_id", "leave_approver", "expense_approver"];
+const EMP_FULL = ["name", "employee_number", "employee_name", "first_name", "last_name", "company", "department", "designation", "branch", "reports_to", "date_of_joining", "holiday_list", "default_shift", "employment_type", "status", "gender", "date_of_birth", "blood_group", "marital_status", "personal_email", "company_email", "cell_number", "current_address", "permanent_address", "person_to_be_contacted", "emergency_phone_number", "relation", "image", "passport_number", "valid_upto", "date_of_issue", "contract_end_date", "health_insurance_provider", "health_insurance_no", "grade", "user_id", "leave_approver", "expense_approver"];
 const EMP_BASIC = ["name", "employee_name", "company", "department", "designation", "reports_to", "date_of_joining", "status", "user_id"];
 
-/** The Employee record linked to the signed-in ERPNext user (Employee.user_id). */
-export async function getMyEmployee(email) {
+const myEmployeeLoads = new Map();
+
+/**
+ * The Employee record linked to the signed-in ERPNext user (Employee.user_id). Loaded once per tab and shared by
+ * every screen that needs it (cached ten minutes; `fresh` reloads it, e.g. after the person edits their details).
+ * PAN and Aadhaar are NOT part of it - see getMyIdentity.
+ */
+export function getMyEmployee(email, { fresh = false } = {}) {
+  const key = `myEmployee:${email}`;
+  if (fresh) { myEmployeeLoads.delete(email); cacheDrop(key); }
+  const cached = cacheGet(key);
+  if (cached) return Promise.resolve({ ...cached });
+  if (!myEmployeeLoads.has(email)) {
+    const p = loadMyEmployee(email).then((emp) => { if (emp) cacheSet(key, emp); return emp; }).finally(() => myEmployeeLoads.delete(email));
+    myEmployeeLoads.set(email, p);
+  }
+  return myEmployeeLoads.get(email).then((emp) => (emp ? { ...emp } : emp));
+}
+
+/**
+ * The signed-in person's own PAN and Aadhaar, from a server rule that only ever returns the caller's record
+ * (ethx_my_identity). Only the profile page asks for them. { pan, aadhaar, available }.
+ */
+export async function getMyIdentity() {
+  try {
+    const r = await frappe.callMethod("ethx_my_identity");
+    return { pan: r?.pan || "", aadhaar: r?.aadhaar || "", available: Boolean(r?.available) };
+  } catch {
+    return { pan: "", aadhaar: "", available: false };
+  }
+}
+
+async function loadMyEmployee(email) {
   const rows = await listTry("Employee", { filters: [["user_id", "=", email]], fields: EMP_FULL, limit: 1 }, EMP_BASIC);
   const emp = rows[0] || null;
-  // PAN / Aadhaar exist only once ERPNext Setup has run, so they are read separately.
-  if (emp) {
-    const ids = await frappe.getList("Employee", { filters: [["name", "=", emp.name]], fields: ["custom_pan_number", "custom_aadhaar_number"], limit: 1 }).catch(() => null);
-    if (ids?.[0]) Object.assign(emp, ids[0], { idFields: true });
-  }
   if (emp?.reports_to) {
     try {
       const m = await frappe.getList("Employee", { filters: [["name", "=", emp.reports_to]], fields: ["employee_name"], limit: 1 });

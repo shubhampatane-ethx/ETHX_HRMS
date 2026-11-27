@@ -171,6 +171,18 @@ src/
 - Screen guards are convenience only. Real access control is ERPNext's permissions plus the server rules above.
 - Employee-facing changes to their own data go through server methods that check the signed-in user.
 - Serve the app from the same domain as ERPNext in production (see below) so cookies stay first-party.
+- **PAN and Aadhaar** are at permission level 1 on Employee: only System Manager, HR Manager and HR User can read or
+  change them (granted by setup). Employees see their own through `ethx_my_identity`, which only ever returns the
+  caller's record. They are never part of the shared start-up data.
+- **Start-up data** (session, own employee record, branding) is cached per browser tab for 10 minutes
+  (`src/lib/sessionCache.js`) and cleared on sign-in and sign-out. It never holds PAN, Aadhaar or salary.
+- **Data checks on the server:** new employees need a department and designation, group departments are refused,
+  lower-case names are capitalised, and duplicates (same PAN, Aadhaar, personal email, or name + date of birth) are
+  blocked. A promotion's revised CTC must be at least ₹10,000 a year and within ten times the current CTC. Leave day
+  counts leave out weekly offs and holidays.
+- The app refuses to run inside another site's frame (clickjacking guard in `src/main.jsx`).
+- **Before going live, confirm with a low-privilege employee login** that the generic list API returns no PAN / Aadhaar
+  and only their own Employee record, and that `/desk` and `/app` are blocked for them.
 
 ## Deploying
 
@@ -181,6 +193,10 @@ npm run build
 Serve `dist/` from the same domain as ERPNext: either behind a reverse proxy that sends `/api`, `/files`,
 `/private`, `/app` and `/me` to ERPNext and everything else to `dist/` (with a fallback to `index.html` for client
 routes), or as the public build of a custom Frappe app. Then sign in once as the Administrator so the setup runs.
+
+Production nginx also needs the security settings in [`deploy/nginx/hrms360-security.conf`](deploy/nginx/hrms360-security.conf):
+HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, a Content-Security-Policy for the app, `server_tokens off`,
+and (recommended) the ERPNext desk limited to office / VPN addresses. The file explains each step and how to check it.
 
 ## Troubleshooting
 

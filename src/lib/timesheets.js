@@ -91,16 +91,43 @@ export async function withActivityType(logs) {
   return logs.map((l) => (l.activity_type ? l : { ...l, activity_type: activity }));
 }
 
-/** The Sunday of the Monday-to-Sunday week an ISO date falls in. */
-export function weekSunday(iso) {
-  const [y, m, d] = String(iso).slice(0, 10).split("-").map(Number);
-  const date = new Date(y, m - 1, d);
-  date.setDate(date.getDate() + ((7 - date.getDay()) % 7));
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+/* ------------------------------ weeks (Sunday to Saturday) ------------------------------ */
+
+const ymd = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+const parseYmd = (iso) => { const [y, m, d] = String(iso).slice(0, 10).split("-").map(Number); return new Date(y, m - 1, d); };
+
+/** The Sunday a week starts on (weeks run Sunday to Saturday). */
+export function weekStart(iso) {
+  const date = parseYmd(iso);
+  date.setDate(date.getDate() - date.getDay());
+  return ymd(date);
 }
 
-/** A week can be submitted from its Sunday; until then it stays a draft. The server enforces this too. */
-export const canSubmitWeek = (iso, today) => weekSunday(iso) <= today;
+/** The Saturday a week ends on. */
+export function weekEnd(iso) {
+  const date = parseYmd(iso);
+  date.setDate(date.getDate() + (6 - date.getDay()));
+  return ymd(date);
+}
+
+/** @deprecated name kept for older callers: the last day of the week. */
+export const weekSunday = weekEnd;
+
+/** A week can be submitted from its Saturday; until then it stays a draft. The server enforces this too. */
+export const canSubmitWeek = (iso, today) => weekEnd(iso) <= today;
+
+/**
+ * Who approves each project on an employee's timesheet (project manager, else reporting manager, moving up the
+ * hierarchy when that person is away or has left), and display names for `users`.
+ * -> { approvers: { [project | ""]: { user, via, covering_for } | null }, names: { email: name } }
+ */
+export async function getTimesheetApprovers({ employee, projects = [], users = [] }) {
+  try {
+    return await frappe.callMethod("ethx_timesheet_approvers", { employee, projects: JSON.stringify(projects), users: JSON.stringify(users) });
+  } catch {
+    return { approvers: {}, names: {} };
+  }
+}
 
 /**
  * Submit a draft timesheet. Drafts saved before entries carried an Activity Type are patched
@@ -120,6 +147,7 @@ export async function submitTimesheet(name) {
 /** Active projects with their readable names. Falls back gracefully on older sites / limited access. */
 export async function getProjects() {
   const tries = [
+    { filters: [["is_active", "=", "Yes"]], fields: ["name", "project_name", "customer"] },
     { filters: [["is_active", "=", "Yes"]], fields: ["name", "project_name"] },
     { filters: [], fields: ["name", "project_name"] },
     { filters: [], fields: ["name"] },
@@ -185,7 +213,7 @@ function nextDay(iso) {
 
 /* ------------------------------ entries ------------------------------ */
 
-const DETAIL_FIELDS = ["name", "parent", "idx", "from_time", "to_time", "hours", "project", "task", "description"];
+const DETAIL_FIELDS = ["name", "parent", "idx", "from_time", "to_time", "hours", "project", "task", "description", "is_billable"];
 const DETAIL_REVIEW = ["custom_line_status", "custom_line_approver"];
 
 /**

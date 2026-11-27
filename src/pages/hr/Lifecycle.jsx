@@ -6,17 +6,20 @@
 // The Overview and Employee History tabs put those records together per employee: a career timeline from joining to
 // today, with every change shown as before → after, so HR can see how anyone got to where they are.
 import { useMemo, useRef, useState } from "react";
-import { ArrowRight, ArrowRightLeft, CalendarClock, ExternalLink, FileDown, FilePen, History, LogOut, Paperclip, Pencil, Plus, Search, Trash2, TrendingUp, Undo2, Upload, UserCheck, UserMinus } from "lucide-react";
+import { ArrowRightLeft, CalendarClock, ExternalLink, FileDown, FilePen, History, LogOut, Paperclip, Pencil, Plus, Search, Trash2, TrendingUp, Undo2, Upload, UserCheck, UserMinus, Users } from "lucide-react";
 import { frappe } from "../../lib/api/frappeClient";
 import { Button, DateField, LinkField } from "../../components/ui/primitives";
 import { Async, Empty, Field, Grid, inputCls, Modal, Notice, PageHeader, Panel, Stat, StatusPill, Tabs } from "../../components/employee/EmployeeShell";
 import { dmy, errMsg, isoDate, listTry, money, useAsync } from "../../lib/employeePortal";
 import { confirmDialog } from "../../components/ui/dialogs";
+import { HandoverModal } from "../../components/Handover";
+import { RowMenu } from "../../components/ui/RowMenu";
+import { MIN_ANNUAL_CTC } from "../../lib/peopleSetup";
 
 // Employee fields a promotion or transfer can change, with the doctype they link to.
 const PROPS = [
   { fieldname: "designation", label: "Designation", link: "Designation" },
-  { fieldname: "department", label: "Department", link: "Department" },
+  { fieldname: "department", label: "Department", link: "Department", filters: [["is_group", "=", 0]] },
   { fieldname: "grade", label: "Grade", link: "Employee Grade" },
   { fieldname: "branch", label: "Branch", link: "Branch" },
   { fieldname: "reports_to", label: "Reports To", link: "Employee", title: "employee_name" },
@@ -100,30 +103,43 @@ function useShow(byId) {
   return (c, v) => ((c.fieldname === "reports_to" || c.property === "Reports To") && byId?.[v] ? byId[v].employee_name : v) || "—";
 }
 
-/** Before → after rows for a promotion / transfer. */
+// A raise is shown as a percentage only when both figures look like real annual pay (test records often hold ₹3 or ₹12).
+const raisePct = (from, to) => {
+  if (from < 10000 || to < 10000) return "";
+  const pct = ((to - from) / from) * 100;
+  return Number.isFinite(pct) && Math.abs(pct) <= 500 ? `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%` : "";
+};
+
+/** A promotion's / transfer's changes as a small Field · Previous · New table. */
 function ChangeList({ changes, ctc, newCompany, byId, compact = false }) {
   const show = useShow(byId);
-  const rows = [...changes.map((c) => ({ key: c.property, label: c.property, from: show(c, c.current), to: show(c, c.new) }))];
+  const rows = changes.map((c) => ({ key: c.property, label: c.property, from: c.current ? show(c, c.current) : "", to: show(c, c.new) }));
   if (newCompany) rows.push({ key: "company", label: "Company", from: "", to: newCompany });
-  if (ctc) {
-    const pct = ctc.from ? ((ctc.to - ctc.from) / ctc.from) * 100 : null;
-    rows.push({ key: "ctc", label: "CTC", from: ctc.from ? money(ctc.from) : "—", to: money(ctc.to), note: pct != null && Number.isFinite(pct) ? `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%` : "" });
-  }
+  if (ctc) rows.push({ key: "ctc", label: "CTC", from: ctc.from ? money(ctc.from) : "", to: money(ctc.to), note: raisePct(ctc.from, ctc.to), bad: ctc.to < MIN_ANNUAL_CTC });
   if (!rows.length) return <span className="text-[12px] text-[var(--color-text-faint)]">No details recorded</span>;
+  const cell = compact ? "px-2.5 py-1.5" : "px-3 py-2";
   return (
-    <dl className={`grid grid-cols-[auto_1fr] items-baseline gap-x-4 ${compact ? "gap-y-1" : "gap-y-1.5"} text-[12.5px]`}>
-      {rows.map((r) => (
-        <div key={r.key} className="contents">
-          <dt className="text-[11px] font-medium uppercase tracking-wide text-[var(--color-text-faint)]">{r.label}</dt>
-          <dd className="flex min-w-0 flex-wrap items-center gap-x-1.5">
-            {r.from && <span className={`text-[var(--color-text-muted)] ${r.from === "—" ? "" : "line-through decoration-[var(--color-text-faint)]"}`}>{r.from}</span>}
-            {r.from && <ArrowRight size={12} className="shrink-0 text-[var(--color-text-faint)]" />}
-            <span className="font-medium text-[var(--color-text)]">{r.to}</span>
-            {r.note && <span className="rounded bg-[color-mix(in_srgb,var(--color-green)_14%,transparent)] px-1.5 py-px text-[10.5px] font-semibold text-[var(--color-green)]">{r.note}</span>}
-          </dd>
-        </div>
-      ))}
-    </dl>
+    <div className="overflow-hidden rounded-lg border border-[var(--color-border)]">
+      <table className="w-full table-fixed text-left text-[12.5px]">
+        <colgroup><col className="w-[26%]" /><col className="w-[37%]" /><col className="w-[37%]" /></colgroup>
+        <thead className="bg-[var(--color-surface-2)] text-[10.5px] uppercase tracking-wide text-[var(--color-text-faint)]">
+          <tr><th className={`${cell} font-medium`}>Field</th><th className={`${cell} font-medium`}>Previous</th><th className={`${cell} font-medium`}>New</th></tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.key} className="border-t border-[var(--color-border)] align-top">
+              <td className={`${cell} font-medium text-[var(--color-text-muted)]`}>{r.label}</td>
+              <td className={`${cell} break-words`}>{r.from ? <span className="text-[var(--color-text-muted)]">{r.from}</span> : <span className="italic text-[var(--color-text-faint)]">Not set</span>}</td>
+              <td className={`${cell} break-words font-medium text-[var(--color-text)]`}>
+                {r.to}
+                {r.bad && <span title={`Below ${money(MIN_ANNUAL_CTC)} a year - probably entered wrongly. Revise this promotion to correct it.`} className="ml-1.5 inline-block rounded bg-[color-mix(in_srgb,var(--color-red-hover)_14%,transparent)] px-1.5 py-px text-[10.5px] font-semibold text-[var(--color-red-hover)]">Check Amount</span>}
+                {r.note && <span className="ml-1.5 inline-block rounded bg-[color-mix(in_srgb,var(--color-green)_14%,transparent)] px-1.5 py-px text-[10.5px] font-semibold text-[var(--color-green)]">{r.note}</span>}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -240,7 +256,7 @@ function EmployeeHistory({ data, selected, onSelect }) {
 
   return (
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-[300px_1fr]">
-      <section className="flex max-h-[calc(100vh-220px)] min-h-[420px] flex-col rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]">
+      <section className="flex h-[480px] min-h-[420px] flex-col lg:sticky lg:top-0 lg:h-[calc(100vh-8rem)] lg:self-start rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]">
         <div className="space-y-2 border-b border-[var(--color-border)] p-3">
           <div className="relative"><Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-faint)]" /><input className={`${inputCls} pl-8`} placeholder="Search name, ID, role…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
           <div className="flex gap-1">{["Active", "Left", "All"].map((s) => <button key={s} type="button" onClick={() => setStatus(s)} className={`flex-1 rounded-md border px-2 py-1 text-[11.5px] ${status === s ? "border-[var(--color-red)] bg-[var(--color-red-wash)] text-[var(--color-text)]" : "border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"}`}>{s}</button>)}</div>
@@ -305,7 +321,7 @@ function EmployeeCareer({ data, emp }) {
         </dl>
       </section>
 
-      <Panel title="Career Timeline" hint="Newest first. Struck-through values are what changed; drafts haven't touched the employee record yet.">
+      <Panel title="Career Timeline" hint="Newest first. Drafts (dashed) haven't changed the employee record yet.">
         {events.length === 0 ? <Empty icon={History} text="No history recorded for this employee." /> : (
           <ol className="relative">
             {events.map((ev, i) => {
@@ -395,7 +411,6 @@ function Moves({ kind, byId, onOpen, onChanged }) {
     }
   }
 
-  const act = "flex items-center gap-1 rounded px-1.5 py-1 text-[11.5px] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]";
   const FILTERS = [["all", "All"], ["draft", "Drafts"], ["submitted", "Submitted"], ["cancelled", "Cancelled"]];
   const match = (r) => filter === "all" || statusOf(r).toLowerCase() === filter;
   return (
@@ -413,20 +428,25 @@ function Moves({ kind, byId, onOpen, onChanged }) {
               </button>
             );
           } },
-          { key: date, label: "Effective", className: "align-top !py-3 whitespace-nowrap", render: (r) => <span>{dmy(r[date])}<span className="block text-[11px] text-[var(--color-text-faint)]">{r.name}</span>{r.amended_from && <span className="block text-[10.5px] text-[var(--color-text-faint)]">revises {r.amended_from}</span>}</span> },
-          { key: "changes", label: "What Changes", className: "align-top !py-3", render: (r) => <ChangeList compact byId={byId} changes={details.data?.[r.name] || []} ctc={kind === "promotion" && Number(r.revised_ctc) ? { from: Number(r.current_ctc) || 0, to: Number(r.revised_ctc) } : null} newCompany={kind === "transfer" && r.new_company && r.new_company !== r.company ? r.new_company : ""} /> },
+          { key: date, label: "Effective", className: "align-top !py-3 whitespace-nowrap", render: (r) => <span><span className="font-medium">{dmy(r[date])}</span>{r.docstatus === 0 && r[date] > isoDate() && <span className="block text-[11px] text-[var(--color-amber)]">in {span(isoDate(), r[date]).toLowerCase()}</span>}<span className="block text-[11px] text-[var(--color-text-faint)]">{r.name}</span>{r.amended_from && <span className="block text-[10.5px] text-[var(--color-text-faint)]">revises {r.amended_from}</span>}</span> },
+          { key: "changes", label: "What Changes", className: "align-top !py-3 w-[44%] min-w-[340px]", render: (r) => <ChangeList compact byId={byId} changes={details.data?.[r.name] || []} ctc={kind === "promotion" && Number(r.revised_ctc) ? { from: Number(r.current_ctc) || 0, to: Number(r.revised_ctc) } : null} newCompany={kind === "transfer" && r.new_company && r.new_company !== r.company ? r.new_company : ""} /> },
           { key: "status", label: "Status", className: "align-top !py-3", render: (r) => <StatusPill status={statusOf(r)} /> },
-          { key: "_a", label: "", className: "align-top !py-2.5", render: (r) => (
-            <div className="flex flex-col items-end gap-1">
-              {r.docstatus === 0 && (r[date] > isoDate() ? <span className="text-[11px] text-[var(--color-text-faint)]">Submit on {dmy(r[date])}</span> : <Button variant="secondary" className="!px-2.5 !py-1 text-[11px]" onClick={() => submit(r)}>Submit</Button>)}
-              <div className="flex flex-wrap justify-end gap-0.5">
-                {r.docstatus === 0 && <button type="button" className={act} onClick={() => setModal({ record: r })}><Pencil size={12} /> Edit</button>}
-                {r.docstatus === 1 && <button type="button" className={act} title="Cancel this one and save a corrected copy" onClick={() => setModal({ record: r, revise: true })}><Pencil size={12} /> Revise</button>}
-                {r.docstatus < 2 && <button type="button" className={act} onClick={() => letter(r)}><FileDown size={12} /> Letter</button>}
-                {r.docstatus < 2 && <button type="button" className={`${act} hover:!text-[var(--color-red-hover)]`} onClick={() => withdraw(r)}><Undo2 size={12} /> Withdraw</button>}
+          { key: "_a", label: "", className: "align-top !py-3 w-[150px]", render: (r) => {
+            const due = r.docstatus === 0 && r[date] > isoDate();
+            return (
+              <div className="flex items-center justify-end gap-1.5">
+                {r.docstatus === 0 && (due ? <span className="whitespace-nowrap rounded-md border border-dashed border-[var(--color-border-strong)] px-2 py-1 text-[11px] text-[var(--color-text-faint)]" title={`Can be submitted on ${dmy(r[date])}`}>Due {dmy(r[date])}</span> : <Button className="!px-3 !py-1 text-[11.5px]" onClick={() => submit(r)}>Submit</Button>)}
+                {r.docstatus === 1 && <Button variant="secondary" className="!px-3 !py-1 text-[11.5px]" onClick={() => letter(r)}><FileDown size={12} /> Letter</Button>}
+                <RowMenu items={[
+                  r.docstatus === 0 && { label: "Edit", icon: Pencil, onClick: () => setModal({ record: r }) },
+                  r.docstatus === 1 && { label: "Revise", hint: "Cancel and save a corrected copy", icon: Pencil, onClick: () => setModal({ record: r, revise: true }) },
+                  r.docstatus === 0 && { label: "Download Letter", icon: FileDown, onClick: () => letter(r) },
+                  { label: "View Employee History", icon: History, onClick: () => onOpen?.(r.employee) },
+                  r.docstatus < 2 && { label: r.docstatus === 1 ? "Withdraw (Cancel)" : "Delete Draft", icon: Undo2, danger: true, onClick: () => withdraw(r) },
+                ]} />
               </div>
-            </div>
-          ) },
+            );
+          } },
         ]} />}
       </Async>
       {modal && <MoveModal kind={kind} record={modal.record} revise={modal.revise} onClose={() => setModal(null)} onSaved={(text) => { setModal(null); done(text); }} />}
@@ -518,6 +538,15 @@ function MoveModal({ kind, record, revise, onClose, onSaved }) {
   async function submit(ev) {
     ev.preventDefault();
     if (!changes.length && !(kind === "promotion" && ctc) && !(kind === "transfer" && newCompany && newCompany !== e.company)) return setErr("Change at least one detail.");
+    // BUG-003: the revised CTC is a yearly amount; the server checks the same (Promotion CTC check).
+    if (kind === "promotion" && ctc) {
+      const amount = Number(ctc);
+      const current = Number(loaded?.current_ctc || e.ctc) || 0;
+      if (!(amount > 0)) return setErr("Enter the revised CTC as a positive yearly amount.");
+      if (amount < MIN_ANNUAL_CTC) return setErr(`Revised CTC ${money(amount)} is too low for a yearly salary. Enter the annual amount (at least ${money(MIN_ANNUAL_CTC)}).`);
+      if (current >= MIN_ANNUAL_CTC && (amount > current * 10 || amount < current / 10)) return setErr(`Revised CTC ${money(amount)} is more than ten times different from the current ${money(current)}. Check the amount.`);
+      if (current >= MIN_ANNUAL_CTC && Math.abs(amount - current) / current > 0.5 && !(await confirmDialog({ title: "Check the New CTC", message: `The CTC changes by ${Math.round(((amount - current) / current) * 100)}% (${money(current)} → ${money(amount)}). Is that right?`, confirmLabel: "Yes, It's Right" }))) return;
+    }
     // ERPNext requires at least one property row on a transfer (e.g. the department in the new company)
     if (kind === "transfer" && !changes.length) return setErr("Also choose what changes with the transfer (for example the department or designation in the new company).");
     if (f.submitNow && f.date > isoDate()) return setErr(`A ${kind} can only be submitted on or after its effective date - save it now and submit it on ${dmy(f.date)}.`);
@@ -564,13 +593,13 @@ function MoveModal({ kind, record, revise, onClose, onSaved }) {
                   <tr key={p.fieldname} className="border-t border-[var(--color-border)]">
                     <td className="py-1.5 pr-3 text-[var(--color-text)]">{p.label}</td>
                     <td className="py-1.5 pr-3 text-[var(--color-text-muted)]">{currentOf(p) || "—"}</td>
-                    <td className="py-1.5"><LinkField label="" linkDoctype={p.link} titleField={p.title} value={vals[p.fieldname] || ""} onChange={(v) => setValue(p.fieldname, v)} frappe={frappe} onCreate={p.fieldname === "grade" ? createGrade : undefined} /></td>
+                    <td className="py-1.5"><LinkField label="" linkDoctype={p.link} titleField={p.title} filters={p.filters} value={vals[p.fieldname] || ""} onChange={(v) => setValue(p.fieldname, v)} frappe={frappe} onCreate={p.fieldname === "grade" ? createGrade : undefined} /></td>
                   </tr>
                 ))}
               </tbody>
             </table>
             <p className="text-[11px] text-[var(--color-text-faint)]">Grade not in the list? Type it and choose "+ Create" to add it.</p>
-            {kind === "promotion" && <Field label={`Revised CTC (₹/yr)${e.ctc ? ` - current ${money(e.ctc)}` : ""}`}><input type="number" min="0" className={inputCls} value={ctc} onChange={(x) => setF({ ...f, revised_ctc: x.target.value })} /></Field>}
+            {kind === "promotion" && <Field label={`Revised CTC (₹/yr)${e.ctc ? ` - current ${money(e.ctc)}` : ""}`}><input type="number" min={MIN_ANNUAL_CTC} step="1" placeholder={`Yearly amount, at least ${MIN_ANNUAL_CTC}`} className={inputCls} value={ctc} onChange={(x) => setF({ ...f, revised_ctc: x.target.value })} /></Field>}
             {kind === "transfer" && <LinkField label={`New company (current: ${e.company})`} linkDoctype="Company" value={newCompany} onChange={(v) => setF({ ...f, new_company: v })} frappe={frappe} />}
           </>
         )}
@@ -594,6 +623,7 @@ function Exits({ onChanged }) {
     const rows = await frappe.getList("Employee", { filters: [["name", "in", ids]], fields: ["name", "status", "relieving_date", "user_id"], limit: 0 });
     return Object.fromEntries(rows.map((r) => [r.name, r]));
   }, [list.data]);
+  const people = useAsync(() => listTry("Employee", { fields: ["name", "employee_name", "user_id", "designation", "status", "reports_to"], orderBy: "employee_name asc" }, ["name", "employee_name", "user_id", "status", "reports_to"]), []);
   const [modal, setModal] = useState(null);
   const refresh = () => { list.reload(); emps.reload(); onChanged?.(); };
   const [msg, setMsg] = useState(null);
@@ -613,6 +643,7 @@ function Exits({ onChanged }) {
             return <div className="flex justify-end gap-1">
               {r.docstatus === 0 && <Button variant="secondary" className="!px-2 !py-1 text-[11px]" onClick={async () => { if (!(await confirmDialog(`Start the separation checklist for ${r.employee_name || r.employee}?`))) return; try { await frappe.submitDoc(await frappe.getDoc("Employee Separation", r.name)); refresh(); } catch (x) { setMsg({ ok: false, text: errMsg(x, "Couldn't start the checklist.") }); } }}>Start Checklist</Button>}
               <Button variant="ghost" className="!px-2 !py-1 text-[11px]" onClick={() => setModal({ kind: "documents", row: r })}><Paperclip size={12} /> Documents</Button>
+              <Button variant="ghost" className="!px-2 !py-1 text-[11px]" title="Move their team, approvals and projects to someone else" onClick={() => setModal({ kind: "handover", row: r })}><Users size={12} /> Hand Over Work</Button>
               {e && e.status !== "Left" && <Button variant="ghost" className="!px-2 !py-1 text-[11px]" onClick={() => setModal({ kind: "left", row: r, emp: e })}><LogOut size={12} /> Mark as Left</Button>}
               {e && <Button variant="ghost" className="!px-2 !py-1 text-[11px]" onClick={() => setModal({ kind: "cancel", row: r, emp: e })}><Undo2 size={12} /> Cancel Exit</Button>}
             </div>;
@@ -623,6 +654,7 @@ function Exits({ onChanged }) {
       {modal?.kind === "documents" && <Modal title={`Exit Documents · ${modal.row.employee_name || modal.row.employee}`} onClose={() => setModal(null)} wide><AttachedDocuments doctype="Employee Separation" name={modal.row.name} empty="No documents on this exit yet." /></Modal>}
       {modal?.kind === "templates" && <TemplateDocumentsModal onClose={() => setModal(null)} />}
       {modal?.kind === "cancel" && <CancelExitModal row={modal.row} emp={modal.emp} onClose={() => setModal(null)} onSaved={(text, ok) => { setModal(null); setMsg({ ok, text }); refresh(); }} />}
+      {modal?.kind === "handover" && <HandoverModal emp={(people.data || []).find((p) => p.name === modal.row.employee) || { name: modal.row.employee, employee_name: modal.row.employee_name }} people={people.data || []} onClose={() => setModal(null)} onDone={(text, ok) => { setModal(null); setMsg({ ok, text }); refresh(); people.reload(); }} />}
       {modal?.kind === "left" && <LeftModal row={modal.row} emp={modal.emp} onClose={() => setModal(null)} onSaved={(text) => { setModal(null); setMsg({ ok: true, text }); refresh(); }} />}
     </Panel>
   );
@@ -830,6 +862,7 @@ function LeftModal({ row, emp, onClose, onSaved }) {
   return (
     <Modal title={`Mark ${row.employee_name} as Left`} onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
+        <Notice tone="info">Hand over their work first (Hand Over Work on the exit), so their team, pending approvals and projects don't wait on someone who has gone. Leave and expense requests left waiting on them move to the next manager up automatically each day.</Notice>
         <DateField label="Relieving Date" value={date} onChange={setDate} required />
         {emp.user_id && <label className="flex items-center gap-2 text-[12px] text-[var(--color-text-muted)]"><input type="checkbox" checked={disable} onChange={(e) => setDisable(e.target.checked)} /> Disable their portal login ({emp.user_id})</label>}
         {err && <Notice>{err}</Notice>}

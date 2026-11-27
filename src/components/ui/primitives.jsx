@@ -109,7 +109,8 @@ const TITLE_FIELDS = {
  * picking, the box shows the name. Free typing of an exact ID still works,
  * and Frappe validates the link server-side on save.
  */
-export function LinkField({ label, linkDoctype, value, onChange, required, frappe, titleField, onCreate }) {
+/** `filters` narrows the choices, e.g. [["is_group", "=", 0]] so group departments can't be picked. */
+export function LinkField({ label, linkDoctype, value, onChange, required, frappe, titleField, onCreate, filters }) {
   const title = titleField || TITLE_FIELDS[linkDoctype] || "name";
   const [options, setOptions] = useState([]);
   const [open, setOpen] = useState(false);
@@ -135,13 +136,14 @@ export function LinkField({ label, linkDoctype, value, onChange, required, frapp
 
   useEffect(() => {
     let cancelled = false;
-    const fetchWith = (fields) => frappe.getList(linkDoctype, { fields, limit: 500, orderBy: "modified desc" });
+    const fetchWith = (fields) => frappe.getList(linkDoctype, { fields, limit: 500, orderBy: "modified desc", ...(filters ? { filters } : {}) });
     fetchWith(Array.from(new Set(["name", title])))
       .catch(() => fetchWith(["name"])) // title field not available/permitted -> IDs only
       .then((rows) => { if (!cancelled) setOptions(rows.map((r) => ({ id: r.name, title: r[title] && r[title] !== r.name ? r[title] : "" }))); })
       .catch(() => { if (!cancelled) setOptions([]); });
     return () => { cancelled = true; };
-  }, [linkDoctype, title, frappe]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linkDoctype, title, frappe, JSON.stringify(filters || [])]);
 
   const selected = options.find((o) => o.id === value);
   const shown = open ? query : selected ? selected.title || selected.id : value ?? "";

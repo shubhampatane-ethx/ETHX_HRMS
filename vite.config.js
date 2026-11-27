@@ -2,10 +2,20 @@ import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import tailwindcss from '@tailwindcss/vite'
 
+// Same security headers as production (deploy/nginx/hrms360-security.conf), so problems show up in development.
+const SECURITY_HEADERS = {
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Permissions-Policy": "camera=(self), microphone=(), geolocation=(self), payment=(), usb=()",
+}
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  preview: { headers: SECURITY_HEADERS },
   server: {
+    headers: SECURITY_HEADERS,
     // Fixed port so it never silently jumps to 5174/5175 when something
     // else is already using 5173. If 5180 is busy, Vite will error out
     // instead of switching - close whatever's on it and retry.

@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Check, Copy, Edit3, HardHat, KeyRound, Plus, RefreshCw, Trash2, UserCheck, Users, UserX, X } from "lucide-react";
+import { AlertTriangle, Check, Copy, Edit3, HardHat, KeyRound, Plus, RefreshCw, Search, Trash2, UserCheck, Users, UserX, X } from "lucide-react";
 import { frappe } from "../../lib/api/frappeClient";
 import { dmy, dmyHm, errMsg, getMyDocuments, isoDate, useAsync } from "../../lib/employeePortal";
 import { useAuth } from "../../context/AuthContext";
 import { hasPermission } from "../../permissions/roles";
 import { HrRecordForm } from "../../components/hr/HrRecordForm";
-import { Button, Card, DateField, LinkField, Table } from "../../components/ui/primitives";
-import { Field, inputCls, Modal, Notice } from "../../components/employee/EmployeeShell";
+import { Button, Card, DateField, LinkField } from "../../components/ui/primitives";
+import { Field, Grid, inputCls, Modal, Notice } from "../../components/employee/EmployeeShell";
 import { createContractor } from "../../lib/contractors";
 import { listAssignments, parseAssignment } from "../../lib/assignments";
 import { alertDialog, confirmDialog } from "../../components/ui/dialogs";
@@ -25,8 +25,8 @@ const FIELDS = [
   // The office decides the employee's holiday list (set automatically by the Office Locations rule).
   { name: "branch", label: "Office Location", type: "link", linkDoctype: "Branch" },
   { name: "employee_number", label: "Employee Code", type: "text" },
-  { name: "department", label: "Department", type: "link", linkDoctype: "Department" },
-  { name: "designation", label: "Designation", type: "link", linkDoctype: "Designation" },
+  { name: "department", label: "Department", type: "link", linkDoctype: "Department", required: true, linkFilters: [["is_group", "=", 0]] },
+  { name: "designation", label: "Designation", type: "link", linkDoctype: "Designation", required: true },
   { name: "employment_type", label: "Employment Type", type: "link", linkDoctype: "Employment Type" },
   { name: "grade", label: "Employee Grade", type: "link", linkDoctype: "Employee Grade" },
   // The employee is added to this group's member list (server rule; see peopleSetup.js).
@@ -40,6 +40,63 @@ const FIELDS = [
   { name: "health_insurance_provider", label: "Health Insurance Provider", type: "link", linkDoctype: "Employee Health Insurance" },
   { name: "health_insurance_no", label: "Health Insurance Number" },
 ];
+
+/* ------------------------------ identity checks (BUG-004) ------------------------------ */
+
+const fail = (message) => { const e = new Error(message); e.userMessage = message; throw e; };
+// "shakti" -> "Shakti", "ram krishna" -> "Ram Krishna"; names already in mixed case are left as typed.
+const capName = (v) => { const t = String(v || "").trim().replace(/\s+/g, " "); return t && t === t.toLowerCase() ? t.replace(/(^|[\s'-])(\p{L})/gu, (m, a, b) => a + b.toUpperCase()) : t; };
+const NAME_OK = /^[\p{L}][\p{L} .'-]*$/u;
+
+/** Tidies and checks an employee before it's saved; the server rules check the same. */
+async function validateEmployee(payload, { recordName }) {
+  const p = { ...payload };
+  for (const k of ["first_name", "last_name"]) if (p[k]) p[k] = capName(p[k]);
+  if (!p.first_name || p.first_name.length < 2 || !NAME_OK.test(p.first_name)) fail("Enter the first name in letters (at least 2), e.g. Shakti.");
+  if (p.last_name && !NAME_OK.test(p.last_name)) fail("The last name can only contain letters, spaces, dots, apostrophes and hyphens.");
+  if (p.date_of_birth && p.date_of_birth >= isoDate()) fail("Date of birth must be in the past.");
+  if (p.date_of_birth && p.date_of_joining && p.date_of_birth >= p.date_of_joining) fail("Date of birth must be before the date of joining.");
+  if (p.date_of_birth) {
+    const age = (Date.now() - new Date(p.date_of_birth).getTime()) / (365.25 * 86400000);
+    if (age < 14 || age > 100) fail("Check the date of birth: the employee would be " + Math.floor(age) + " years old.");
+  }
+  if (p.custom_pan_number) { p.custom_pan_number = p.custom_pan_number.toUpperCase().replace(/\s/g, ""); if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(p.custom_pan_number)) fail("PAN must be 10 characters, like ABCDE1234F."); }
+  if (p.custom_aadhaar_number) { p.custom_aadhaar_number = p.custom_aadhaar_number.replace(/[\s-]/g, ""); if (!/^\d{12}$/.test(p.custom_aadhaar_number)) fail("Aadhaar must be 12 digits."); }
+  for (const k of ["personal_email", "company_email"]) if (p[k] && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p[k])) fail(`Enter a valid ${k === "personal_email" ? "personal" : "company"} email address.`);
+  if (p.cell_number && !/^\+?[\d\s-]{10,15}$/.test(p.cell_number)) fail("Enter a valid mobile number (10 to 15 digits).");
+  if (p.department) {
+    const d = await frappe.getList("Department", { filters: [["name", "=", p.department]], fields: ["is_group"], limit: 1 }).catch(() => []);
+    if (Number(d[0]?.is_group)) fail(`${p.department} is a group of departments. Choose the department the employee actually works in.`);
+  }
+  // The same person twice: same PAN, Aadhaar, personal email, or the same name and date of birth.
+  const fullName = [p.first_name, p.last_name].filter(Boolean).join(" ");
+  const checks = [
+    p.custom_pan_number && [["custom_pan_number", "=", p.custom_pan_number], "this PAN"],
+    p.custom_aadhaar_number && [["custom_aadhaar_number", "=", p.custom_aadhaar_number], "this Aadhaar number"],
+    p.personal_email && [["personal_email", "=", p.personal_email], "this personal email"],
+    p.date_of_birth && [[["employee_name", "=", fullName], ["date_of_birth", "=", p.date_of_birth]], "the same name and date of birth"],
+  ].filter(Boolean);
+  for (const [filter, what] of checks) {
+    const filters = [...(Array.isArray(filter[0]) ? filter : [filter]), ...(recordName ? [["name", "!=", recordName]] : [])];
+    const twin = await frappe.getList("Employee", { filters, fields: ["name", "employee_name"], limit: 1 }).catch(() => []);
+    if (twin[0]) fail(`${twin[0].employee_name} (${twin[0].name}) already has ${what}. Open that record instead of adding the person again.`);
+  }
+  return p;
+}
+
+/** What's wrong with a record as it stands: shown in the list so old data can be cleaned up. */
+function issuesOf(row, groups, dupes) {
+  const out = [];
+  const name = String(row.employee_name || "").trim();
+  if (name && name === name.toLowerCase()) out.push("Name in lower case");
+  if (!row.department && !Number(row.custom_is_contractor)) out.push("No department");
+  if (row.department && groups.has(row.department)) out.push("Group department");
+  if (!row.designation && !Number(row.custom_is_contractor)) out.push("No designation");
+  if (dupes.has(name.toLowerCase())) out.push("Possible duplicate");
+  return out;
+}
+
+const PAGE_SIZE = 25;
 
 const LIST_FIELDS = ["name", "employee_name", "first_name", "last_name", "department", "designation", "status", "company", "date_of_joining", "relieving_date", "user_id", "company_email", "personal_email", "custom_is_contractor"];
 const LIST_FALLBACK = ["name", "employee_name", "department", "designation", "status", "company", "date_of_joining", "user_id"];
@@ -159,11 +216,44 @@ export default function Employees({ contractorsOnly = false }) {
   const [loginEnabled, setLoginEnabled] = useState({}); // user_id -> 1 / 0, when this account may read User
   const { user } = useAuth();
   const isAdmin = hasPermission(user, "dashboard.admin");
+  const [q, setQ] = useState("");
+  const [fDept, setFDept] = useState("");
+  const [fStatus, setFStatus] = useState("Active");
+  const [fCompany, setFCompany] = useState("");
+  const [fLogin, setFLogin] = useState("");
+  const [onlyIssues, setOnlyIssues] = useState(false);
+  const [sort, setSort] = useState("newest");
+  const [page, setPage] = useState(1);
+  const groups = useAsync(() => frappe.getList("Department", { filters: [["is_group", "=", 1]], fields: ["name"], limit: 0 }).then((r) => new Set(r.map((d) => d.name))).catch(() => new Set()), []);
+  const groupSet = useMemo(() => groups.data || new Set(), [groups.data]);
+  const dupes = useMemo(() => {
+    const seen = {};
+    employees.forEach((e) => { const k = String(e.employee_name || "").trim().toLowerCase(); if (k) seen[k] = (seen[k] || 0) + 1; });
+    return new Set(Object.keys(seen).filter((k) => seen[k] > 1));
+  }, [employees]);
+  const withIssues = useMemo(() => employees.map((e) => ({ ...e, _issues: issuesOf(e, groupSet, dupes) })), [employees, groupSet, dupes]);
+  const options = (key) => [...new Set(employees.map((e) => e[key]).filter(Boolean))].sort();
+  const needle = q.trim().toLowerCase();
+  const filtered = withIssues
+    .filter((e) => !needle || [e.employee_name, e.name, e.designation, e.department, e.user_id, e.company_email, e.personal_email].some((v) => String(v || "").toLowerCase().includes(needle)))
+    .filter((e) => !fDept || e.department === fDept)
+    .filter((e) => !fStatus || e.status === fStatus)
+    .filter((e) => !fCompany || e.company === fCompany)
+    .filter((e) => !fLogin || (fLogin === "yes" ? Boolean(e.user_id) : !e.user_id))
+    .filter((e) => !onlyIssues || e._issues.length)
+    .sort((a, b) => (sort === "name" ? String(a.employee_name || "").localeCompare(String(b.employee_name || "")) : sort === "joined" ? String(b.date_of_joining || "").localeCompare(String(a.date_of_joining || "")) : 0));
+  const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const current = Math.min(page, pages);
+  const shown = filtered.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
+  const issueCount = withIssues.filter((e) => e._issues.length).length;
+  const filtersOn = Boolean(needle || fDept || fStatus !== "Active" || fCompany || fLogin || onlyIssues);
+  const resetFilters = () => { setQ(""); setFDept(""); setFStatus("Active"); setFCompany(""); setFLogin(""); setOnlyIssues(false); setPage(1); };
+  const filterSel = "w-full rounded-md border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-2.5 py-1.5 text-[12.5px] text-[var(--color-text)] outline-none focus:border-[var(--color-red)]";
 
   async function load() {
     setState("loading");
     try {
-      const opts = { limit: 100, orderBy: "creation desc" };
+      const opts = { limit: 0, orderBy: "creation desc" };
       // Before setup has run there's no contractor field, so there are simply no contractors to list.
       const records = contractorsOnly
         ? await frappe.getList("Employee", { ...opts, fields: LIST_FIELDS, filters: [["custom_is_contractor", "=", 1], ["custom_contractor_removed", "=", 0]] }).catch(() => [])
@@ -224,19 +314,34 @@ export default function Employees({ contractorsOnly = false }) {
         </div>
       </section>
 
-      {formOpen && <HrRecordForm doctype="Employee" fields={FIELDS} recordName={editing} onCancel={closeForm} onSaved={() => { closeForm(); load(); }} />}
+      {formOpen && <HrRecordForm doctype="Employee" fields={FIELDS} recordName={editing} validate={validateEmployee} onCancel={closeForm} onSaved={() => { closeForm(); load(); }} />}
 
-      <Card className="overflow-hidden">
+      <Card className="overflow-hidden p-5">
+        {/* search, filters, sort (BUG-005) */}
+        <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(220px,2fr)_repeat(5,minmax(0,1fr))]">
+          <div className="relative"><Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-faint)]" /><input aria-label="Search employees" className={`${inputCls} pl-8`} placeholder="Search name, code, email, role…" value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} /></div>
+          {!contractorsOnly && <select aria-label="Department" className={filterSel} value={fDept} onChange={(e) => { setFDept(e.target.value); setPage(1); }}><option value="">All Departments</option>{options("department").map((d) => <option key={d} value={d}>{d}{groupSet.has(d) ? " (group)" : ""}</option>)}</select>}
+          <select aria-label="Status" className={filterSel} value={fStatus} onChange={(e) => { setFStatus(e.target.value); setPage(1); }}><option value="">All Statuses</option>{["Active", "Inactive", "Suspended", "Left"].map((x) => <option key={x}>{x}</option>)}</select>
+          <select aria-label="Company" className={filterSel} value={fCompany} onChange={(e) => { setFCompany(e.target.value); setPage(1); }}><option value="">All Companies</option>{options("company").map((c) => <option key={c}>{c}</option>)}</select>
+          <select aria-label="Portal login" className={filterSel} value={fLogin} onChange={(e) => { setFLogin(e.target.value); setPage(1); }}><option value="">Any Login</option><option value="yes">Has a Login</option><option value="no">No Login</option></select>
+          <select aria-label="Sort" className={filterSel} value={sort} onChange={(e) => setSort(e.target.value)}><option value="newest">Newest First</option><option value="name">Name A–Z</option><option value="joined">Recently Joined</option></select>
+        </div>
+        {state === "ready" && (
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-[12px] text-[var(--color-text-muted)]">
+            <span>{filtered.length === employees.length ? `${employees.length} ${contractorsOnly ? "contractors" : "employees"}` : `${filtered.length} of ${employees.length} match`}{filtersOn && <button type="button" onClick={resetFilters} className="ml-2 text-[var(--color-red-hover)] hover:underline">Clear Filters</button>}</span>
+            {issueCount > 0 && <button type="button" onClick={() => { setOnlyIssues(!onlyIssues); setFStatus(""); setPage(1); }} className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[12px] ${onlyIssues ? "border-[var(--color-red)] bg-[var(--color-red-wash)] text-[var(--color-text)]" : "border-[var(--color-border)] text-[var(--color-amber)] hover:bg-[var(--color-surface-2)]"}`}><AlertTriangle size={13} /> {issueCount} record{issueCount === 1 ? "" : "s"} need{issueCount === 1 ? "s" : ""} attention</button>}
+          </div>
+        )}
         {state === "loading" && <div className="flex h-40 items-center justify-center text-[13px] text-[var(--color-text-muted)]">Loading employees...</div>}
         {state === "error" && <div className="p-6 text-[13px] text-[var(--color-text-muted)]">Could not load employee records. Check your permissions and connection.</div>}
-        {state === "ready" && <Table columns={[
-          { key: "employee_name", label: "Name", render: (row) => <button type="button" onClick={() => setDetail(row)} className="text-left text-[var(--color-text)] hover:text-[var(--color-red-hover)] hover:underline">{row.employee_name || row.name}</button> },
+        {state === "ready" && <Grid columns={[
+          { key: "employee_name", label: "Name", render: (row) => <div><button type="button" onClick={() => setDetail(row)} className="text-left font-medium text-[var(--color-text)] hover:text-[var(--color-red-hover)] hover:underline">{row.employee_name || row.name}</button><div className="text-[11px] text-[var(--color-text-faint)]">{row.name}</div>{row._issues.length > 0 && <div className="mt-1 flex flex-wrap gap-1">{row._issues.map((i) => <span key={i} className="rounded bg-[color-mix(in_srgb,var(--color-amber)_15%,transparent)] px-1.5 py-px text-[10px] font-semibold text-[var(--color-amber)]">{i}</span>)}</div>}</div> },
           ...(contractorsOnly ? [
             { key: "user_id", label: "Email" },
             { key: "_projects", label: "Projects and Roles", render: (row) => (projectsOf[row.user_id] || []).join(", ") || "—" },
           ] : [
-            { key: "department", label: "Department" },
-            { key: "designation", label: "Designation" },
+            { key: "department", label: "Department", render: (row) => (!row.department ? <span className="text-[var(--color-text-faint)]">Not set</span> : groupSet.has(row.department) ? <span className="text-[var(--color-text-faint)]" title={`${row.department} is a group, not a department`}>Not assigned</span> : row.department) },
+            { key: "designation", label: "Designation", render: (row) => row.designation || <span className="text-[var(--color-text-faint)]">Not set</span> },
           ]),
           { key: "company", label: "Company" },
           { key: "status", label: "Status", render: (row) => <span className={row.status === "Active" ? "text-[var(--color-green)]" : "text-[var(--color-text-muted)]"}>{row.status || "-"}{Number(row.custom_is_contractor) ? " · Contractor" : ""}</span> },
@@ -250,11 +355,21 @@ export default function Employees({ contractorsOnly = false }) {
               <button type="button" title="Bring this employee back as Active" onClick={() => setLeaver({ row, kind: "rejoin" })} className="flex items-center gap-1 rounded px-1.5 py-1 text-[12px] text-[var(--color-green)] hover:bg-[var(--color-surface-2)]"><UserCheck size={14} /> Rejoin</button>
               <button type="button" title="Close this employee's access, or delete the record" onClick={() => setLeaver({ row, kind: "remove" })} className="mr-1 flex items-center gap-1 rounded px-1.5 py-1 text-[12px] text-[var(--color-red-hover)] hover:bg-[var(--color-surface-2)]"><UserX size={14} /> Remove</button>
             </>}
-            <button type="button" title={row.user_id ? "Reset password" : "Create login"} onClick={() => setLoginFor(row)} className="rounded p-1.5 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]"><KeyRound size={14} /></button>
-            <button type="button" title="Edit employee" onClick={() => { setEditing(row.name); setFormOpen(true); }} className="rounded p-1.5 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]"><Edit3 size={14} /></button>
-            <button type="button" title="Delete employee" onClick={() => removeEmployee(row)} className="rounded p-1.5 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-red-hover)]"><Trash2 size={14} /></button>
+            <button type="button" title={row.user_id ? "Reset password" : "Create login"} onClick={() => setLoginFor(row)} className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] transition-colors hover:border-[var(--color-border-strong)] hover:bg-[var(--color-surface-2)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"><KeyRound size={14} /></button>
+            <button type="button" title="Edit employee" onClick={() => { setEditing(row.name); setFormOpen(true); }} className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] transition-colors hover:border-[var(--color-border-strong)] hover:bg-[var(--color-surface-2)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"><Edit3 size={14} /></button>
+            <button type="button" title="Delete employee" onClick={() => removeEmployee(row)} className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] transition-colors hover:border-[var(--color-border-strong)] hover:bg-[var(--color-surface-2)] text-[var(--color-text-muted)] hover:!text-[var(--color-red-hover)]"><Trash2 size={14} /></button>
           </div> },
-        ]} rows={employees} emptyLabel={contractorsOnly ? "No contractors yet." : "No employees found."} />}
+        ]} rows={shown} empty={employees.length ? "No one matches these filters." : contractorsOnly ? "No contractors yet." : "No employees found."} />}
+        {state === "ready" && pages > 1 && (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[12px] text-[var(--color-text-muted)]">
+            <span>Showing {(current - 1) * PAGE_SIZE + 1}–{Math.min(current * PAGE_SIZE, filtered.length)} of {filtered.length}</span>
+            <div className="flex items-center gap-1">
+              <Button variant="secondary" className="!px-2.5 !py-1 text-[12px]" disabled={current === 1} onClick={() => setPage(current - 1)}>Previous</Button>
+              <span className="px-2">Page {current} of {pages}</span>
+              <Button variant="secondary" className="!px-2.5 !py-1 text-[12px]" disabled={current === pages} onClick={() => setPage(current + 1)}>Next</Button>
+            </div>
+          </div>
+        )}
       </Card>
 
       {detail && <EmployeeDetail employee={detail} onClose={() => setDetail(null)} onEdit={() => { setEditing(detail.name); setFormOpen(true); setDetail(null); window.scrollTo?.({ top: 0 }); }} onLogin={() => { setLoginFor(detail); setDetail(null); }} />}

@@ -2,8 +2,11 @@
 //  - the leave approver comes from the employee's business unit (Department, walking up to parent departments),
 //    then the approver on the Employee record;
 //  - the expense approver comes from the Expense Claim Type, then the business unit, then the Employee record;
-//  - an approver who is on approved leave today is skipped, and a daily job moves pending requests away from
-//    approvers who have gone on leave;
+//  - after those comes the reporting manager, then their manager and on up the hierarchy (Reports To), so there is
+//    always someone to approve;
+//  - an approver who is on approved leave today, or has left (Employee not Active / login disabled), is skipped, and a
+//    daily job moves pending requests away from approvers who have gone on leave or left;
+//  - HR hands a leaver's work over in one go (ethx_handover): pending approvals, approver roles, direct reports.
 //  - an expense claim can't be approved without a bill attached, nor rejected without a reason;
 //  - multi-currency sites get the claim's currency / exchange rate filled in (ERPNext only does that in its desk UI).
 //
@@ -48,11 +51,17 @@ own = emp.leave_approver if kind == "Leave Application" else emp.expense_approve
 if own and own not in order:
     order.append(own)
     src[own] = "employee record"
-if emp.reports_to:
-    mgr = frappe.db.get_value("Employee", emp.reports_to, "user_id")
-    if mgr and mgr not in order:
-        order.append(mgr)
-        src[mgr] = "reporting manager"
+boss = emp.reports_to
+climbed = []
+while boss and boss not in climbed and len(climbed) < 8:
+    climbed.append(boss)
+    brow = frappe.db.get_value("Employee", boss, ["user_id", "reports_to"], as_dict=True)
+    if not brow:
+        break
+    if brow.user_id and brow.user_id not in order:
+        order.append(brow.user_id)
+        src[brow.user_id] = "reporting manager" if len(climbed) == 1 else "higher manager"
+    boss = brow.reports_to
 pick = None
 for u in order:
     if u == emp.user_id:
@@ -60,10 +69,12 @@ for u in order:
     urow = frappe.db.get_value("User", {"name": u, "enabled": 1}, ["name", "full_name"], as_dict=True)
     if not urow:
         continue
-    uemp = frappe.db.get_value("Employee", {"user_id": u}, "name")
+    uemp = frappe.db.get_value("Employee", {"user_id": u}, ["name", "status"], as_dict=True)
+    if uemp and uemp.status != "Active":
+        continue
     away = False
     if uemp:
-        away = frappe.db.count("Leave Application", {"employee": uemp, "status": "Approved", "docstatus": 1, "from_date": ["<=", day], "to_date": [">=", day]}) > 0
+        away = frappe.db.count("Leave Application", {"employee": uemp.name, "status": "Approved", "docstatus": 1, "from_date": ["<=", day], "to_date": [">=", day]}) > 0
     cand = {"email": u, "name": urow.full_name or u, "source": src.get(u), "on_leave": away}
     cands.append(cand)
     if not away and not pick:
@@ -197,8 +208,9 @@ for job in jobs:
     for rec in frappe.get_all(kind, filters=job[2], fields=["name", "employee", afield]):
         cur = rec.get(afield)
         if cur:
-            cemp = frappe.db.get_value("Employee", {"user_id": cur}, "name")
-            if not cemp or not frappe.db.count("Leave Application", {"employee": cemp, "status": "Approved", "docstatus": 1, "from_date": ["<=", today], "to_date": [">=", today]}):
+            cemp = frappe.db.get_value("Employee", {"user_id": cur}, ["name", "status"], as_dict=True)
+            gone = not frappe.db.get_value("User", {"name": cur, "enabled": 1}, "name") or (cemp and cemp.status != "Active")
+            if not gone and (not cemp or not frappe.db.count("Leave Application", {"employee": cemp.name, "status": "Approved", "docstatus": 1, "from_date": ["<=", today], "to_date": [">=", today]})):
                 continue
         emp = frappe.db.get_value("Employee", rec.employee, ${EMP_FIELDS}, as_dict=True)
         if not emp:
@@ -218,7 +230,7 @@ ${indent(CANDIDATES, 8)}
             frappe.get_doc({"doctype": "DocShare", "user": pick["email"], "share_doctype": kind, "share_name": rec.name, "read": 1, "write": 1, "submit": 1}).insert(ignore_permissions=True)
         except Exception:
             pass
-        frappe.get_doc({"doctype": "Comment", "comment_type": "Info", "reference_doctype": kind, "reference_name": rec.name, "content": "Approver changed from " + (cur or "none") + " to " + pick["email"] + " (previous approver unavailable)"}).insert(ignore_permissions=True)
+        frappe.get_doc({"doctype": "Comment", "comment_type": "Info", "reference_doctype": kind, "reference_name": rec.name, "content": "Approver changed from " + (cur or "none") + " to " + pick["email"] + " (previous approver on leave or no longer here)"}).insert(ignore_permissions=True)
         moved.append(rec.name)
 `;
 
@@ -230,7 +242,106 @@ ${REROUTE.trim()}
 frappe.response["message"] = {"moved": moved}
 `;
 
+// HR hands over everything a person is responsible for to a successor (when they leave, or for a long absence):
+// pending leave / expense approvals, their approver roles (Employee records, business units, expense types) and their
+// direct reports. preview=1 only counts. Projects they manage are moved by the page through ethx_set_project_manager,
+// which also grants / removes the workspace role.
+const HANDOVER_API = `
+${HR_CHECK.trim()}
+if not is_hr:
+    frappe.throw("Only HR can hand over someone's work.")
+args = frappe.form_dict
+src_emp = frappe.db.get_value("Employee", args.get("employee"), ["name", "employee_name", "user_id"], as_dict=True) if args.get("employee") else None
+if not src_emp:
+    frappe.throw("Employee not found.")
+preview = str(args.get("preview") or "0") in ("1", "true", "True")
+old = src_emp.user_id
+to = (args.get("to_user") or "").strip()
+to_emp = None
+if not preview:
+    if not to:
+        frappe.throw("Choose who takes over.")
+    if to == old:
+        frappe.throw("Choose someone else to take over.")
+    if not frappe.db.get_value("User", {"name": to, "enabled": 1}, "name"):
+        frappe.throw("The person taking over has no active login.")
+    to_emp = frappe.db.get_value("Employee", {"user_id": to}, ["name", "employee_name"], as_dict=True)
+reports = frappe.get_all("Employee", filters={"reports_to": src_emp.name, "status": "Active"}, fields=["name", "employee_name"])
+leaves = frappe.get_all("Leave Application", filters={"leave_approver": old, "docstatus": 0, "status": "Open"}, fields=["name", "employee_name"]) if old else []
+claims = frappe.get_all("Expense Claim", filters={"expense_approver": old, "docstatus": 0, "approval_status": "Draft"}, fields=["name", "employee_name"]) if old else []
+leave_of = frappe.get_all("Employee", filters={"leave_approver": old, "status": "Active"}, pluck="name") if old else []
+expense_of = frappe.get_all("Employee", filters={"expense_approver": old, "status": "Active"}, pluck="name") if old else []
+units = frappe.get_all("Department Approver", filters={"approver": old, "parenttype": "Department"}, fields=["name", "parent"]) if old else []
+types = []
+if old and frappe.get_meta("Expense Claim Type").has_field("expense_approver"):
+    types = frappe.get_all("Expense Claim Type", filters={"expense_approver": old}, pluck="name")
+projects = frappe.get_all("Project", filters={"custom_project_manager": old, "status": "Open"}, fields=["name", "project_name"]) if old else []
+summary = {"reports": reports, "leaves": leaves, "claims": claims, "leave_approver_of": len(leave_of), "expense_approver_of": len(expense_of), "units": sorted(list(set([u.parent for u in units]))), "expense_types": types, "projects": projects}
+if not preview:
+    if reports and not to_emp:
+        frappe.throw("The person taking over needs an Employee record to manage " + src_emp.employee_name + "'s team.")
+    by = frappe.session.user
+    for r in reports:
+        frappe.db.set_value("Employee", r.name, "reports_to", to_emp.name)
+    for e in leave_of:
+        frappe.db.set_value("Employee", e, "leave_approver", to)
+    for e in expense_of:
+        frappe.db.set_value("Employee", e, "expense_approver", to)
+    for u in units:
+        frappe.db.set_value("Department Approver", u.name, "approver", to)
+    for t in types:
+        frappe.db.set_value("Expense Claim Type", t, "expense_approver", to)
+    jobs = [["Leave Application", "leave_approver", leaves], ["Expense Claim", "expense_approver", claims]]
+    for job in jobs:
+        for rec in job[2]:
+            upd = {job[1]: to}
+            if job[0] == "Leave Application":
+                upd["leave_approver_name"] = frappe.db.get_value("User", to, "full_name") or to
+            frappe.db.set_value(job[0], rec.name, upd)
+            try:
+                frappe.get_doc({"doctype": "DocShare", "user": to, "share_doctype": job[0], "share_name": rec.name, "read": 1, "write": 1, "submit": 1}).insert(ignore_permissions=True)
+            except Exception:
+                pass
+            frappe.get_doc({"doctype": "Comment", "comment_type": "Info", "reference_doctype": job[0], "reference_name": rec.name, "content": "Approver changed from " + old + " to " + to + " (handover)"}).insert(ignore_permissions=True)
+    frappe.get_doc({"doctype": "Comment", "comment_type": "Info", "reference_doctype": "Employee", "reference_name": src_emp.name, "content": "Work handed over from " + (src_emp.employee_name or old or src_emp.name) + " to " + to + " by " + by}).insert(ignore_permissions=True)
+frappe.response["message"] = summary
+`;
+
+// BUG-010: a leave's day count leaves out weekly offs and holidays (unless the leave type counts them). ERPNext does this
+// only from the employee's Holiday List; employees without one, or whose list lacks the weekly offs, were charged for
+// Saturdays and Sundays. This also uses the office's weekly offs (Branch › Weekly Offs) and the company's holiday list.
+// It only ever lowers the count ERPNext worked out.
+const LEAVE_DAYS = `
+if doc.docstatus == 0 and doc.from_date and doc.to_date and doc.employee and doc.leave_type and not frappe.db.get_value("Leave Type", doc.leave_type, "include_holiday"):
+    emp = frappe.db.get_value("Employee", doc.employee, ["holiday_list", "branch", "company"], as_dict=True) or {}
+    hl = emp.get("holiday_list")
+    offs = []
+    if emp.get("branch") and frappe.get_meta("Branch").has_field("custom_weekly_offs"):
+        brow = frappe.db.get_value("Branch", emp.get("branch"), ["custom_weekly_offs", "custom_holiday_list"], as_dict=True) or {}
+        offs = [w.strip().lower() for w in (brow.get("custom_weekly_offs") or "").split(",") if w.strip()]
+        hl = hl or brow.get("custom_holiday_list")
+    if not hl and emp.get("company"):
+        hl = frappe.db.get_value("Company", emp.get("company"), "default_holiday_list")
+    names = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+    day = frappe.utils.getdate(doc.from_date)
+    end = frappe.utils.getdate(doc.to_date)
+    days = 0
+    while day <= end:
+        off = names[day.weekday()] in offs or (hl and frappe.db.exists("Holiday", {"parent": hl, "holiday_date": day}))
+        if not off:
+            days = days + 1
+        day = frappe.utils.add_days(day, 1)
+    if days == 0:
+        frappe.throw("Every day from " + frappe.utils.formatdate(doc.from_date) + " to " + frappe.utils.formatdate(doc.to_date) + " is a weekly off or holiday. No leave is needed.")
+    if doc.half_day:
+        days = days - 0.5
+    if days < float(doc.total_leave_days or 0):
+        doc.total_leave_days = days
+`;
+
 export const APPROVAL_SCRIPTS = [
+  { name: "ETHX - Leave days skip offs", script_type: "DocType Event", reference_doctype: "Leave Application", doctype_event: "Before Save", script: LEAVE_DAYS, what: "Leave day counts leave out weekly offs and holidays (office weekly offs and holiday lists)" },
+  { name: "ETHX - Handover", script_type: "API", api_method: "ethx_handover", script: HANDOVER_API, what: "HR hands a leaver's approvals, approver roles and direct reports over to a successor" },
   { name: "ETHX - Approvers", script_type: "API", api_method: "ethx_approvers", script: APPROVERS_API, what: "Approver lookup: business-unit leave approvers, expense-type approvers, availability" },
   { name: "ETHX - Leave approver assign", script_type: "DocType Event", reference_doctype: "Leave Application", doctype_event: "Before Insert", script: LEAVE_ASSIGN, what: "New leave goes to an available business-unit approver" },
   { name: "ETHX - Leave not own", script_type: "DocType Event", reference_doctype: "Leave Application", doctype_event: "Before Submit", script: LEAVE_NOT_OWN, what: "Only the assigned approver approves or rejects leave, and never their own" },

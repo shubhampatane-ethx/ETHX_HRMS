@@ -61,7 +61,7 @@ export default function Offices() {
                         <p className="text-[12px] text-[var(--color-text-muted)]">{[b.custom_city, b.custom_country].filter(Boolean).join(", ") || "Location not set"}</p>
                       </div>
                     </div>
-                    <button type="button" onClick={() => setModal({ kind: "office", office: b })} className="rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]" title="Edit office" aria-label={`Edit ${b.name}`}><Pencil size={14} /></button>
+                    <button type="button" onClick={() => setModal({ kind: "office", office: b })} className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] transition-colors hover:border-[var(--color-border-strong)] hover:bg-[var(--color-surface-2)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]" title="Edit office" aria-label={`Edit ${b.name}`}><Pencil size={14} /></button>
                   </div>
                   <dl className="mt-4 space-y-2 text-[12.5px]">
                     <div className="flex justify-between gap-3"><dt className="text-[var(--color-text-muted)]">Weekly off</dt><dd className="text-right text-[var(--color-text)]">{weeklyOffsOf(b).join(", ") || "None"}</dd></div>

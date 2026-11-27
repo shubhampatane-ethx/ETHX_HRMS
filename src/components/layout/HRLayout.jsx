@@ -1,6 +1,6 @@
 import { Outlet, useLocation } from "react-router-dom";
 import { PageLoading } from "../PageLoading";
-import { ArrowLeft, Briefcase, Cake, CalendarCheck, CalendarClock, Contact, FileBarChart2, FilePlus2, FileSignature, FileText, Gauge, GraduationCap, Inbox, Kanban, Laptop, LayoutDashboard, LayoutGrid, Megaphone, MoreHorizontal, Repeat, Settings2, SlidersHorizontal, Timer, TrendingUp, UserPlus, UserRound, Users, Wallet } from "lucide-react";
+import { ArrowLeft, Briefcase, Cake, CalendarCheck, CalendarClock, Contact, FileBarChart2, FilePlus2, FileSignature, FileText, Gauge, GraduationCap, Inbox, Kanban, Laptop, LayoutDashboard, LayoutGrid, Megaphone, MoreHorizontal, Network, Repeat, Settings2, SlidersHorizontal, Timer, TrendingUp, UserPlus, UserRound, Users, Wallet } from "lucide-react";
 import { useMemo, Suspense } from "react";
 import { Sidebar } from "./Sidebar";
 import { useAuth } from "../../context/AuthContext";
@@ -26,6 +26,7 @@ export function hrSections({ myProjects = false } = {}) {
   return [
     coreSection("Core HR", [
       { to: "/hr/employees", label: "Employees", icon: Users },
+      { to: "/hr/hierarchy", label: "Hierarchy", icon: Network },
       { to: "/hr/communication", label: "Birthday & Event Emails", icon: Cake },
     ]),
     moduleSection("employee", [

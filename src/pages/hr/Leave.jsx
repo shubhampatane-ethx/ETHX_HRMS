@@ -85,11 +85,11 @@ function Applications() {
           { key: "status", label: "Status", render: (a) => <StatusPill status={a.status} /> },
           { key: "_a", label: "", render: (a) => a.docstatus === 0 && a.status === "Open" ? (a.employee === me.data?.name ? <span className="text-[11px] text-[var(--color-text-faint)]">Your request</span> : (
             <div className="flex justify-end gap-1">
-              <button type="button" title="Change approver" onClick={() => setModal({ kind: "reassign", app: a })} className="rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]"><UserCog size={14} /></button>
+              <button type="button" title="Change approver" onClick={() => setModal({ kind: "reassign", app: a })} className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] transition-colors hover:border-[var(--color-border-strong)] hover:bg-[var(--color-surface-2)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"><UserCog size={14} /></button>
               {a.leave_approver === user.email ? (
                 <>
-                  <button type="button" title="Approve" onClick={() => setModal({ kind: "decide", app: a, to: "Approved" })} className="rounded p-1 text-[var(--color-green)] hover:bg-[var(--color-surface-2)]"><Check size={14} /></button>
-                  <button type="button" title="Reject" onClick={() => setModal({ kind: "decide", app: a, to: "Rejected" })} className="rounded p-1 text-[var(--color-text-muted)] hover:text-[var(--color-red-hover)]"><X size={14} /></button>
+                  <button type="button" title="Approve" onClick={() => setModal({ kind: "decide", app: a, to: "Approved" })} className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] transition-colors hover:border-[var(--color-border-strong)] hover:bg-[var(--color-surface-2)] text-[var(--color-green)]"><Check size={14} /></button>
+                  <button type="button" title="Reject" onClick={() => setModal({ kind: "decide", app: a, to: "Rejected" })} className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] transition-colors hover:border-[var(--color-border-strong)] hover:bg-[var(--color-surface-2)] text-[var(--color-text-muted)] hover:!text-[var(--color-red-hover)]"><X size={14} /></button>
                 </>
               ) : <span className="self-center whitespace-nowrap text-[11px] text-[var(--color-text-faint)]">{a.leave_approver ? "With Approver" : "Set an Approver"}</span>}
             </div>

@@ -81,7 +81,7 @@ export default function Candidates() {
                     {ALL_STAGES.filter((s) => s.id !== stageOf(a) && s.id !== "Hired").map((s) => <option key={s.id} value={s.id}>{stageLabel(s.id)}</option>)}
                   </select>
                 )}
-                <button type="button" title="Edit candidate details" onClick={() => setEditing(a)} className="rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]"><Pencil size={14} /></button>
+                <button type="button" title="Edit candidate details" onClick={() => setEditing(a)} className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] transition-colors hover:border-[var(--color-border-strong)] hover:bg-[var(--color-surface-2)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"><Pencil size={14} /></button>
               </div>
             ) },
           ]} />}

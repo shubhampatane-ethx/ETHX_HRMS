@@ -138,7 +138,7 @@ export default function AdminUsers() {
                     type="button"
                     title="Change company"
                     onClick={() => setEditing(r)}
-                    className="rounded p-1.5 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]"
+                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] transition-colors hover:border-[var(--color-border-strong)] hover:bg-[var(--color-surface-2)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
                   >
                     <Pencil size={14} />
                   </button>

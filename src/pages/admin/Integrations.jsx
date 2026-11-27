@@ -194,7 +194,7 @@ function Webhooks() {
             { key: "request_url", label: "Sends To", render: (w) => <code className="break-all text-[12px]">{w.request_url}</code> },
             { key: "enable_security", label: "Signed", render: (w) => (Number(w.enable_security) ? "Yes" : "No") },
             { key: "enabled", label: "Status", render: (w) => <button type="button" onClick={() => toggle(w)} title="Click to switch on or off"><StatusPill status={Number(w.enabled) ? "Active" : "Disabled"} /></button> },
-            { key: "_a", label: "", render: (w) => <div className="flex justify-end"><button type="button" onClick={() => remove(w)} title="Delete" className="rounded p-1 text-[var(--color-text-muted)] hover:text-[var(--color-red-hover)]"><Trash2 size={13} /></button></div> },
+            { key: "_a", label: "", render: (w) => <div className="flex justify-end"><button type="button" onClick={() => remove(w)} title="Delete" className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] transition-colors hover:border-[var(--color-border-strong)] hover:bg-[var(--color-surface-2)] text-[var(--color-text-muted)] hover:!text-[var(--color-red-hover)]"><Trash2 size={13} /></button></div> },
           ]} />}
         </Async>
       </Panel>

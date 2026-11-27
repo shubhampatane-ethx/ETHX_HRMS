@@ -1,20 +1,23 @@
 // Project Manager pages: dashboard, projects, and assignments (who works on what, in which role, until when).
 import { useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
-import { Ban, Briefcase, CalendarClock, CheckCheck, ClipboardList, Flag, Pencil, Plus, Users } from "lucide-react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { AlertTriangle, Ban, Briefcase, CalendarClock, CheckCheck, ClipboardList, Pencil, Plus, Search, Timer, Users } from "lucide-react";
 import { frappe } from "../../lib/api/frappeClient";
 import { useAuth } from "../../context/AuthContext";
 import { Button, DateField, LinkField } from "../../components/ui/primitives";
 import { Async, chipCls, Empty, Field, Grid, inputCls, Modal, Notice, PageHeader, Panel, Stat, StatusPill } from "../../components/employee/EmployeeShell";
-import { dmy, errMsg, isoDate, listTry, useAsync } from "../../lib/employeePortal";
+import { daysUntil, dmy, errMsg, isoDate, listTry, useAsync } from "../../lib/employeePortal";
 import { createAssignment, listAssignments, parseAssignment, setAssignmentStatus, updateAssignment, workingDays } from "../../lib/assignments";
 import { assertManagerRuleInstalled, loadProjectRoles, managerOf, managesProject, setProjectManager } from "../../lib/projectRoles";
 import { hasPermission } from "../../permissions/roles";
 import { matchesSearch, TeamMemberSearch } from "../../components/TeamMemberSearch";
 import { endProject, previewEndProject } from "../../lib/contractors";
 import { alertDialog, confirmDialog } from "../../components/ui/dialogs";
+import { ProjectBoard } from "./ProjectBoard";
+import { RowMenu } from "../../components/ui/RowMenu";
+import { setStage, stageOf, STAGE_PATH } from "../../lib/projectLifecycle";
 
-const loadProjects = () => listTry("Project", { fields: ["name", "project_name", "status", "expected_start_date", "expected_end_date", "percent_complete", "company", "custom_project_manager", "owner"], orderBy: "modified desc" }, ["name", "project_name", "status", "expected_end_date", "company"]);
+const loadProjects = () => listTry("Project", { fields: ["name", "project_name", "status", "expected_start_date", "expected_end_date", "percent_complete", "company", "custom_project_manager", "owner", "custom_stage", "actual_time", "actual_start_date", "priority"], orderBy: "modified desc" }, ["name", "project_name", "status", "expected_end_date", "company"]);
 const loadEmployees = () => listTry("Employee", { filters: [["status", "=", "Active"]], fields: ["name", "employee_name", "user_id", "department", "designation", "company"], orderBy: "employee_name asc" }, ["name", "employee_name", "user_id", "company"]);
 const projectLabel = (p) => (p.project_name && p.project_name !== p.name ? p.project_name : p.name);
 const ACTIVE = ["Open", "Working", "Pending Review", "Overdue"];
@@ -93,6 +96,7 @@ export function PMProjects() {
       if (kept.length) lines.push(`\nStaying because they work on another live project: ${kept.map((c) => c.name).join(", ")}.`);
       if (!(await confirmDialog({ title: "End Project", message: lines.join("\n"), danger: true, confirmLabel: remove.length ? "End and delete contractors" : "End project" }))) return;
       await endProject(p.name);
+      await setStage(p.name, stageOf(p), "Closed").catch(() => {});
       projects.reload();
       assignments.reload();
     } catch (e) {
@@ -100,29 +104,24 @@ export function PMProjects() {
     }
   }
   const nameOf = (email) => (employees.data || []).find((e) => e.user_id === email)?.employee_name || email;
-  const team = (id) => new Set(rows.filter((a) => a.project === id && isActive(a)).flatMap((a) => a.assignees)).size;
+  const [stageFilter, setStageFilter] = useState("live");
+  const inFilter = (p) => stageFilter === "all" || (stageFilter === "live" ? !ended(p) : stageOf(p) === stageFilter);
+  const STAGE_CHIPS = [["live", "Live"], ...STAGE_PATH.slice(0, 4).map((s) => [s, s]), ["On Hold", "On Hold"], ["Closed", "Closed"], ["Cancelled", "Cancelled"], ["all", "All"]];
+  const [q, setQ] = useState("");
+  const needle = q.trim().toLowerCase();
+  const matches = (p) => !needle || [p.project_name, p.name, p.company, nameOf(managerOf(p))].some((v) => String(v || "").toLowerCase().includes(needle));
+  const ready = projects.data && employees.data && assignments.data;
 
   return (
     <>
-      <PageHeader icon={Briefcase} title="Projects" subtitle="Your company's projects and how many people are assigned" actions={<Button onClick={() => setOpen(true)}><Plus size={14} /> New Project</Button>} />
-      <Panel>
-        <Async state={projects}>
-          {(list) => <Grid rows={list} empty="No projects yet." columns={[
-            { key: "name", label: "Project", render: (p) => <span>{projectLabel(p)}{p.project_name && p.project_name !== p.name && <span className="ml-2 text-[11px] text-[var(--color-text-faint)]">{p.name}</span>}</span> },
-            { key: "manager", label: "Project Manager", render: (p) => (managerOf(p) ? nameOf(managerOf(p)) : "—") },
-            { key: "status", label: "Status", render: (p) => <StatusPill status={p.status} /> },
-            { key: "expected_end_date", label: "ETA", render: (p) => dmy(p.expected_end_date) || "—" },
-            { key: "percent_complete", label: "Progress", render: (p) => (p.percent_complete != null ? `${Math.round(p.percent_complete)}%` : "—") },
-            { key: "team", label: "Team", render: (p) => team(p.name) },
-            { key: "_a", label: "", render: (p) => (ended(p) ? null : (
-              <div className="flex items-center justify-end gap-3 whitespace-nowrap text-[11px]">
-                <Link to={`/pm/assignments?assign=${encodeURIComponent(p.name)}`} className="text-[var(--color-red-hover)] hover:underline">Assign</Link>
-                {isAdmin && <button type="button" onClick={() => end(p)} className="flex items-center gap-1 text-[var(--color-text-muted)] hover:text-[var(--color-red-hover)]"><Flag size={12} /> End Project</button>}
-              </div>
-            )) },
-          ]} />}
-        </Async>
-      </Panel>
+      <PageHeader icon={Briefcase} title="Projects" subtitle="Every project with its team, leads, dates, hours, tasks and delays. Open one for its full timeline" actions={<Button onClick={() => setOpen(true)}><Plus size={14} /> New Project</Button>} />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-1.5">{STAGE_CHIPS.map(([id, l]) => <button key={id} type="button" onClick={() => setStageFilter(id)} className={chipCls(stageFilter === id)}>{l}{projects.data && <span className="ml-1.5 text-[var(--color-text-faint)]">{projects.data.filter((p) => id === "all" || (id === "live" ? !ended(p) : stageOf(p) === id)).length}</span>}</button>)}</div>
+        <div className="w-full sm:w-72"><input className={inputCls} placeholder="Search project, company, manager…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
+      </div>
+      <Async state={projects}>
+        {(list) => (ready ? <ProjectBoard all={list} list={list.filter((p) => inFilter(p) && matches(p))} assignments={rows} employees={employees.data} nameOf={nameOf} isAdmin={isAdmin} onEnd={end} /> : <Panel><p className="text-[13px] text-[var(--color-text-muted)]">Loading team and hours…</p></Panel>)}
+      </Async>
       {open && <ProjectModal onClose={() => setOpen(false)} onSaved={() => { setOpen(false); projects.reload(); }} />}
     </>
   );
@@ -174,6 +173,7 @@ export function PMAssignments() {
   const [filter, setFilter] = useState("active");
   const [projectFilter, setProjectFilter] = useState("");
   const [search, setSearch] = useState("");
+  const navigate = useNavigate();
   // ?assign=1 (or a project) opens the Assign form; ?person=<email> picks the team member (from Resources' bench).
   const [modal, setModal] = useState(() => (params.get("assign") ? { project: params.get("assign") === "1" ? "" : params.get("assign"), email: params.get("person") || "" } : null));
   const today = isoDate();
@@ -197,36 +197,86 @@ export function PMAssignments() {
   }
   const closeModal = () => { setModal(null); if (params.get("assign")) setParams({}); };
 
+  // Figures for the tiles and each row.
+  const activeRows = rows.filter(isActive);
+  const weekIso = isoDate(new Date(new Date().setDate(new Date().getDate() + 7)));
+  const overdue = activeRows.filter((a) => a.eta && a.eta < today);
+  const endingSoon = activeRows.filter((a) => a.eta >= today && a.eta <= weekIso);
+  const people = new Set(activeRows.flatMap((a) => a.assignees)).size;
+  const bookedPerDay = activeRows.filter((a) => a.start <= today && a.eta >= today).reduce((n, a) => n + (Number(a.hoursPerDay) || 0), 0);
+  const count = (v) => rows.filter((a) => (v === "all" ? true : v === "active" ? isActive(a) : v === "completed" ? a.status === "Completed" : a.status === "Cancelled")).length;
+
   return (
     <>
-      <PageHeader icon={ClipboardList} title="Assignments" subtitle="Who works on which project, in what role, until when" actions={<Button onClick={() => setModal({ project: projectFilter })}><Plus size={14} /> Assign Team Member</Button>} />
-      <Notice tone="info">Team members see these days pre-filled in their monthly timesheet: every working day from the start date to the ETA, with the hours per day you set, minus leave and holidays.</Notice>
-      <Panel>
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          {FILTERS.map(([v, l]) => <button key={v} type="button" onClick={() => setFilter(v)} className={chipCls(filter === v)}>{l}</button>)}
-          <select value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)} className={`${inputCls} !w-auto !py-1`}><option value="">All projects</option>{(projects.data || []).map((p) => <option key={p.name} value={p.name}>{projectLabel(p)}</option>)}</select>
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name or role…" className={`${inputCls} !w-48 !py-1`} />
+      <PageHeader icon={ClipboardList} title="Assignments" subtitle="Who works on which project, in what role, for how long, and how many hours a day" actions={<Button onClick={() => setModal({ project: projectFilter })}><Plus size={14} /> Assign Team Member</Button>} />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Stat icon={ClipboardList} label="Active Assignments" value={assignments.data ? activeRows.length : undefined} sub={`${people} people on projects`} />
+        <Stat icon={AlertTriangle} label="Past ETA" value={assignments.data ? overdue.length : undefined} sub="Still active after their end date" accent="var(--color-red-hover)" />
+        <Stat icon={CalendarClock} label="Ending Within 7 Days" value={assignments.data ? endingSoon.length : undefined} sub="Extend or let them finish" accent="var(--color-amber)" />
+        <Stat icon={Timer} label="Hours Booked Today" value={assignments.data ? `${bookedPerDay} h` : undefined} sub="Across everyone assigned today" accent="#2563eb" />
+      </div>
+      <Panel title="Team Assignments" hint="Each assignment pre-fills the person's monthly timesheet: every working day from start to ETA at the hours per day set here, minus leave and holidays.">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-1.5">{FILTERS.map(([v, l]) => <button key={v} type="button" onClick={() => setFilter(v)} className={chipCls(filter === v)}>{l}{assignments.data && <span className="ml-1.5 text-[var(--color-text-faint)]">{count(v)}</span>}</button>)}</div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="w-48"><select value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)} className={inputCls}><option value="">All Projects</option>{(projects.data || []).map((p) => <option key={p.name} value={p.name}>{projectLabel(p)}</option>)}</select></div>
+            <div className="relative w-60"><Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-faint)]" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name or role…" className={`${inputCls} pl-8`} /></div>
+          </div>
         </div>
         <Async state={assignments}>
           {() => <Grid rows={shown} empty="No assignments match." columns={[
-            { key: "employee", label: "Team Member", render: (a) => a.employee?.employee_name || a.assignees[0] || "—" },
-            { key: "projectName", label: "Project" },
-            { key: "role", label: "Role" },
-            { key: "start", label: "Period", render: (a) => `${dmy(a.start)} – ${dmy(a.eta)}` },
-            { key: "hoursPerDay", label: "Hours/Day" },
+            { key: "employee", label: "Team Member", render: (a) => {
+              const name = a.employee?.employee_name || a.assignees[0] || "—";
+              return (
+                <div className="flex items-center gap-2.5">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-red-wash)] text-[11px] font-semibold text-[var(--color-red-hover)]">{String(name).split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase()}</span>
+                  <div className="min-w-0"><div className="truncate font-medium">{name}</div>{a.employee?.designation && <div className="truncate text-[11px] text-[var(--color-text-faint)]">{a.employee.designation}</div>}</div>
+                </div>
+              );
+            } },
+            { key: "projectName", label: "Project", render: (a) => <Link to={`/pm/projects/${encodeURIComponent(a.project)}`} className="font-medium hover:text-[var(--color-red-hover)] hover:underline">{a.projectName}</Link> },
+            { key: "role", label: "Role", render: (a) => <span>{a.role}{/lead|manager|head|architect/i.test(a.role || "") && <span className="ml-1.5 rounded bg-[var(--color-red-wash)] px-1.5 py-px text-[10px] font-semibold text-[var(--color-red-hover)]">Lead</span>}</span> },
+            { key: "start", label: "Period", className: "min-w-[210px]", render: (a) => <Period a={a} today={today} /> },
+            { key: "hoursPerDay", label: "Hours", render: (a) => <span><span className="font-medium">{a.hoursPerDay} h/day</span><span className="block text-[11px] text-[var(--color-text-faint)]">{Math.round((Number(a.hoursPerDay) || 0) * workingDays(a.start, a.end || a.eta))} h in total</span></span> },
             { key: "status", label: "Status", render: (a) => <StatusPill status={isActive(a) && a.eta < today ? "Overdue" : a.status} /> },
-            { key: "_a", label: "", render: (a) => isActive(a) ? (
-              <div className="flex justify-end gap-1">
-                <button type="button" title="Edit role / ETA / hours" onClick={() => setModal({ edit: a })} className="rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]"><Pencil size={14} /></button>
-                <button type="button" title="Mark completed" onClick={() => setStatus(a, "Completed", `Mark ${a.role} on ${a.projectName} as completed? Timesheets stop filling after today.`)} className="rounded p-1 text-[var(--color-green)] hover:bg-[var(--color-surface-2)]"><CheckCheck size={14} /></button>
-                <button type="button" title="Cancel assignment" onClick={() => setStatus(a, "Cancelled", "Cancel this assignment? It will no longer pre-fill timesheets.")} className="rounded p-1 text-[var(--color-text-muted)] hover:text-[var(--color-red-hover)]"><Ban size={14} /></button>
+            { key: "_a", label: "", className: "w-[150px]", render: (a) => isActive(a) ? (
+              <div className="flex items-center justify-end gap-1.5">
+                {a.eta < today
+                  ? <Button className="!px-2.5 !py-1 text-[11.5px]" onClick={() => setModal({ edit: a })}><CalendarClock size={12} /> Extend</Button>
+                  : <Button variant="secondary" className="!px-2.5 !py-1 text-[11.5px]" onClick={() => setModal({ edit: a })}><Pencil size={12} /> Edit</Button>}
+                <RowMenu items={[
+                  a.eta < today && { label: "Edit Assignment", icon: Pencil, onClick: () => setModal({ edit: a }) },
+                  { label: "Mark Completed", icon: CheckCheck, onClick: () => setStatus(a, "Completed", `Mark ${a.role} on ${a.projectName} as completed? Timesheets stop filling after today.`) },
+                  { label: "View Project", icon: Briefcase, onClick: () => navigate(`/pm/projects/${encodeURIComponent(a.project)}`) },
+                  { label: "Cancel Assignment", icon: Ban, danger: true, onClick: () => setStatus(a, "Cancelled", "Cancel this assignment? It will no longer pre-fill timesheets.") },
+                ]} />
               </div>
-            ) : null },
+            ) : <div className="text-right text-[11px] text-[var(--color-text-faint)]">{a.status === "Completed" ? `Finished ${dmy(a.end || a.eta)}` : "Cancelled"}</div> },
           ]} />}
         </Async>
       </Panel>
       {modal && <AssignModal init={modal} projects={projects.data || []} employees={employees.data || []} roles={roles} active={rows.filter(isActive)} history={rows} onClose={closeModal} onSaved={(text) => { closeModal(); assignments.reload(); projects.reload(); if (text) alertDialog({ tone: "success", title: "Project Manager Set", message: text }); }} />}
     </>
+  );
+}
+
+/** Start → ETA with how far along it is, and days left or overdue. */
+function Period({ a, today }) {
+  const total = Math.max(1, daysUntil(a.eta) - daysUntil(a.start));
+  const used = Math.min(total, Math.max(0, -daysUntil(a.start)));
+  const left = daysUntil(a.eta);
+  const live = isActive(a);
+  const late = live && left < 0;
+  return (
+    <div>
+      <div className="whitespace-nowrap">{dmy(a.start)} – {dmy(a.end || a.eta)}</div>
+      {live && (
+        <>
+          <div className="mt-1 h-1 w-full max-w-[180px] overflow-hidden rounded-full bg-[var(--color-surface-2)]"><div className="h-full rounded-full" style={{ width: `${late ? 100 : Math.round((used / total) * 100)}%`, background: late ? "var(--color-red-hover)" : "var(--color-green)" }} /></div>
+          <div className={`mt-0.5 text-[11px] ${late ? "font-medium text-[var(--color-red-hover)]" : "text-[var(--color-text-faint)]"}`}>{late ? `${-left} day(s) past ETA` : a.start > today ? `Starts in ${daysUntil(a.start)} day(s)` : left === 0 ? "Ends today" : `${left} day(s) left`}</div>
+        </>
+      )}
+    </div>
   );
 }
 

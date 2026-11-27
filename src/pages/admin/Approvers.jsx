@@ -77,7 +77,7 @@ export function LeaveApproversByBU() {
                   <td className="px-4 py-2.5 text-[var(--color-text)]">{d.department_name || d.name}</td>
                   <td className="px-4 py-2.5 text-[var(--color-text-muted)]">{d.company || "—"}</td>
                   <td className="px-4 py-2.5">{d.approvers.length ? d.approvers.map((a, i) => <span key={a} className="mr-2 inline-block rounded-full border border-[var(--color-border-strong)] bg-[var(--color-surface-2)] px-2.5 py-0.5 text-[12px] text-[var(--color-text)]">{i + 1}. {names[a] || a}</span>) : <span className="text-[var(--color-amber)]">Not set</span>}</td>
-                  <td className="px-4 py-2.5 text-right"><button type="button" title="Edit approvers" onClick={() => setEdit(d)} className="rounded p-1.5 text-[var(--color-text-muted)] hover:bg-[var(--color-surface)] hover:text-[var(--color-text)]"><Pencil size={14} /></button></td>
+                  <td className="px-4 py-2.5 text-right"><button type="button" title="Edit approvers" onClick={() => setEdit(d)} className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-border-strong)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]"><Pencil size={14} /></button></td>
                 </tr>
               ))}
               {shown.length === 0 && <tr><td colSpan={4} className="px-4 py-6 text-center text-[var(--color-text-muted)]">No departments found.</td></tr>}
