@@ -9,6 +9,7 @@ import { getSavedTheme, hasSavedTheme, saveTheme, THEME_OPTIONS } from "../../li
 import { displayName, initials, ProfileAvatar } from "../ProfilePhoto";
 import { GlobalSearch } from "../search/GlobalSearch";
 import { useMaybeEmployee } from "../employee/EmployeeShell";
+import { AnnouncementAlert } from "../AnnouncementAlert";
 
 function ThemeTile({ option, selected, onChoose }) {
   const [background, accent, foreground] = option.swatches;
@@ -140,6 +141,7 @@ export function Topbar({ roleLabel, pageTitle, search = false }) {
   return (
     <header className="flex h-16 shrink-0 items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-bg)] px-6">
       <h1 className="shrink-0 text-[15px] font-semibold text-[var(--color-text)]">{pageTitle}</h1>
+      {roleLabel !== "Contractor" && <AnnouncementAlert />}
 
       <div className="flex min-w-0 flex-1 items-center justify-end gap-3 pl-6">
         {search && <GlobalSearch employee={employee} className="w-full max-w-md" placeholder="Search anything - pages, people, candidates, policies…" />}

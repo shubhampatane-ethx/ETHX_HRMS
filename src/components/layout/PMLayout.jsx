@@ -9,7 +9,7 @@ import { useAuth } from "../../context/AuthContext";
 import { hasPermission, isStaffEmployee } from "../../permissions/roles";
 import { dashboardLink, SELF_SERVICE, SELF_SERVICE_PAGES } from "./HRLayout";
 import { ForcedPasswordScreen } from "../employee/EmployeeShell";
-import { moduleSection } from "./navSections";
+import { moduleSection, switchLink } from "./navSections";
 
 const TITLES = {
   "/employee": "Dashboard",
@@ -72,7 +72,7 @@ export function PMLayout() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--color-bg)]">
-      <Sidebar title="Project Manager" items={items} />
+      <Sidebar title="Project Manager" items={items} switchTo={isStaffEmployee(user) ? switchLink("work", "pm") : undefined} />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar search roleLabel="Project Manager" pageTitle={pmTitleFor(pathname)} />
         <main className="flex-1 overflow-y-auto p-6">

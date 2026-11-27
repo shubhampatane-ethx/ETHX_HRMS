@@ -1,7 +1,7 @@
 // Employee portal: all employee pages in one file.
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ArrowRight, BadgeCheck, Briefcase, Bell, Cake, CalendarCheck, CalendarClock, CalendarDays, CheckCheck, ChevronLeft, ChevronRight, ClipboardCheck, Download, ExternalLink, FileText, GraduationCap, HeartPulse, KeyRound, Laptop, LifeBuoy, LogIn, LogOut, Mail, Megaphone, Paperclip, Pencil, Phone, Plus, Receipt, Search, ShieldAlert, Target, Trash2, Undo2, Upload, UserRound, Users, Wallet } from "lucide-react";
+import { ArrowRight, BadgeCheck, Bell, Cake, CalendarCheck, CalendarClock, CalendarDays, CheckCheck, ChevronLeft, ChevronRight, ClipboardCheck, Download, ExternalLink, FileText, GraduationCap, HeartPulse, KeyRound, Laptop, LifeBuoy, LogIn, LogOut, Mail, Megaphone, Paperclip, Pencil, Phone, Plus, Receipt, Search, ShieldAlert, Target, Trash2, Undo2, Upload, UserRound, Users, Wallet } from "lucide-react";
 import { Async, ChangePasswordForm, chipCls, Empty, ErrorState, Field, Grid, inputCls, KeyValue, Loading, Modal, Notice, PageHeader, Panel, Skeleton, Stat, StatusPill, Tabs, useEmployee } from "../../components/employee/EmployeeShell";
 import { CONTACTS, createRequest, joinLeaveReason, LEAVE_REASONS, OTHER_REASON, splitLeaveReason, daysBetween, daysUntil, dmy, dmyHm, errMsg, EXPIRY_WARN_DAYS, getAcknowledged, getAnnouncements, attReqStatus, getAppraisals, getApprovals, getAttendanceHistory, getAttendanceRequests, getCheckinsBetween, getEvents, getExpenseClaims, getFeedback, getGoals, getHolidays, getLeaveApplications, getLeaveBalance, getLeaveTypes, getMyAssets, getMyBenefits, getMyDocuments, getMyIdentity, getMyLeavesBetween, getMyTraining, getNotifications, getPayslips, getPolicies, getRequests, getShiftAssignments, getTeamAvailability, getTodayAttendance, getUpcomingBirthdays, hm, punchDayStatus, hoursLabel, isoDate, LETTER_TYPES, money, MONTHS, MONTHS_LONG, nowStamp, pad, removeMyDocument, REQUEST_CATEGORIES, splitRequest, stripHtml, updateRequest, uploadMyDocument, withdrawRequest, summariseCheckins, useAsync, WEEKDAYS } from "../../lib/employeePortal";
 import { useAuth } from "../../context/AuthContext";
@@ -82,6 +82,7 @@ export function EmpAssets() {
             { key: "custom_asset_code", label: "Asset Code", render: (r) => <span className="font-medium">{r.custom_asset_code || r.name}</span> },
             { key: "asset_name", label: "Asset", render: (r) => <span>{r.asset_name}<span className="block text-[11px] text-[var(--color-text-faint)]">{r.asset_category}{r.custom_serial_number ? ` · S/N ${r.custom_serial_number}` : ""}</span></span> },
             { key: "custom_assigned_on", label: "Assigned On", render: (r) => dmy(r.custom_assigned_on || r.purchase_date) },
+            { key: "location", label: "Where", render: (r) => r.location || "—" },
             { key: "custom_other_assets", label: "Also Given", render: (r) => r.custom_other_assets || "—" },
             { key: "status", label: "Condition", render: (r) => <StatusPill status={r.custom_condition || r.status} /> },
           ]} />}
@@ -433,11 +434,11 @@ const VIEW_KEY = "ethx.dashboard.view";
 
 /**
  * The one Dashboard. Plain employees see their own; HR staff and Project Managers who are also
- * employees switch between "My dashboard" and their HR / Projects dashboard (remembered per browser).
+ * employees switch between their own and their HR / Projects dashboard with the sidebar switch (remembered per browser).
  */
 export function EmpDashboard() {
   const { user } = useAuth();
-  const [params, setParams] = useSearchParams();
+  const [params] = useSearchParams();
   const work = hasPermission(user, "dashboard.hr") ? { id: "hr", label: "HR Dashboard", Page: HRDashboard }
     : hasPermission(user, "dashboard.pm") ? { id: "pm", label: "Projects Dashboard", Page: PMDashboard } : null;
   const asked = params.get("view");
@@ -450,24 +451,8 @@ export function EmpDashboard() {
   let saved = null;
   try { saved = localStorage.getItem(VIEW_KEY); } catch { /* storage blocked: default to self */ }
   const view = asked || (saved === work.id ? work.id : "self");
-  const choose = (id) => {
-    try { localStorage.setItem(VIEW_KEY, id); } catch { /* not critical */ }
-    setParams({ view: id }, { replace: true });
-  };
-
-  return (
-    <>
-      <div role="tablist" aria-label="Dashboard" className="inline-flex rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-1">
-        {[{ id: "self", label: "My Dashboard", icon: UserRound }, { id: work.id, label: work.label, icon: Briefcase }].map(({ id, label, icon: Icon }) => (
-          <button key={id} type="button" role="tab" aria-selected={view === id} onClick={() => choose(id)}
-            className={`flex items-center gap-2 rounded-md px-3.5 py-1.5 text-[13px] font-medium transition-colors ${view === id ? "bg-[var(--color-red)] text-[var(--color-on-accent)]" : "text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]"}`}>
-            <Icon size={14} /> {label}
-          </button>
-        ))}
-      </div>
-      {view === work.id ? <Suspense fallback={<Loading />}><work.Page /></Suspense> : <SelfDashboard />}
-    </>
-  );
+  // The sidebar's "Switch to …" link chooses the side; the dashboard just shows it.
+  return view === work.id ? <Suspense fallback={<Loading />}><work.Page /></Suspense> : <SelfDashboard />;
 }
 
 function SelfDashboard() {

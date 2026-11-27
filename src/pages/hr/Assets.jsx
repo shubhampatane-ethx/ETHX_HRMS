@@ -1,5 +1,7 @@
 import { useMemo, useRef, useState } from "react";
-import { AlertTriangle, ArrowRightLeft, CheckCircle2, Download, ExternalLink, FileSpreadsheet, Laptop, Loader2, Plus, Search, Upload, XCircle } from "lucide-react";
+import { AssetTracker } from "../../components/hr/AssetTracker";
+import { recentMovements, trackAssets } from "../../lib/assetTracking";
+import { AlertTriangle, ArrowRightLeft, CheckCircle2, Download, ExternalLink, FileSpreadsheet, Laptop, Loader2, MapPin, Plus, Search, Upload, XCircle } from "lucide-react";
 import { Async, chipCls, Empty, Field, Grid, inputCls, Modal, Notice, PageHeader, Panel, StatusPill, Tabs } from "../../components/employee/EmployeeShell";
 import { Button } from "../../components/ui/primitives";
 import { ASSET_FOLDER, dmy, ensureAssetFolder, errMsg, getAssetLists, isoDate, useAsync } from "../../lib/employeePortal";
@@ -28,6 +30,8 @@ export default function Assets() {
     return { assets, employees, ready };
   }, []);
   const files = useAsync(getAssetLists, []);
+  const moves = useAsync(recentMovements, []);
+  const registerRef = useRef(null);
   const fileRef = useRef(null);
   const [filter, setFilter] = useState("all");
   const [q, setQ] = useState("");
@@ -40,6 +44,9 @@ export default function Assets() {
 
   const employees = data.data?.employees || [];
   const empName = useMemo(() => Object.fromEntries(employees.map((e) => [e.name, e.employee_name])), [employees]);
+  const track = useMemo(() => trackAssets(data.data?.assets || [], employees), [data.data, employees]);
+  const reloadAll = () => { data.reload(); moves.reload(); };
+  const find = (text) => { setQ(text); setFilter("all"); registerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); };
 
   function downloadTemplate() {
     const url = URL.createObjectURL(new Blob([TEMPLATE], { type: "text/csv;charset=utf-8" }));
@@ -84,7 +91,7 @@ export default function Assets() {
 
   return (
     <div className="space-y-5">
-      <PageHeader icon={Laptop} title="Asset Management" subtitle="The company asset register - each employee sees only the assets assigned to them" actions={
+      <PageHeader icon={Laptop} title="Asset Management" subtitle="Who has which asset and where the rest are - each employee sees only the assets assigned to them" actions={
         <>
           <Button type="button" variant="secondary" onClick={downloadTemplate}><Download size={14} /> Register Template</Button>
           <input ref={fileRef} type="file" accept=".xlsx,.csv" className="hidden" onChange={(e) => pick(e.target.files?.[0])} />
@@ -100,6 +107,9 @@ export default function Assets() {
       {error && <Notice>{error}</Notice>}
       {message && <Notice tone="info">{message}</Notice>}
 
+      {data.data && <AssetTracker assets={data.data.assets} track={track} movements={moves.data ?? (moves.error ? [] : null)} onFind={find} onMove={setMoving} />}
+
+      <div ref={registerRef} className="scroll-mt-4" />
       <Panel title="Asset Register" hint="Add assets one at a time, or upload a register - uploaded changes are shown for review before anything is saved.">
         <Async state={data}>
           {({ assets }) => {
@@ -116,11 +126,11 @@ export default function Assets() {
                 </div>
                 {assets.length === 0 ? <Empty icon={FileSpreadsheet} text="No assets yet. Add one, or import your asset register." /> : (
                   <Grid rows={rows} empty="No assets match." columns={[
-                    { key: "custom_asset_code", label: "Code", render: (a) => <span className="font-medium">{a.custom_asset_code || "—"}</span> },
+                    { key: "custom_asset_code", label: "Code", render: (a) => <span className="inline-flex items-center gap-1.5 font-medium">{a.custom_asset_code || "—"}{track.issues[a.name]?.length > 0 && <span title={track.issues[a.name].join("\n")}><AlertTriangle size={13} className="text-[var(--color-amber)]" /></span>}</span> },
                     { key: "asset_name", label: "Asset", render: (a) => <span>{a.asset_name}<span className="block text-[11px] text-[var(--color-text-faint)]">{a.asset_category}{a.custom_serial_number ? ` · ${a.custom_serial_number}` : ""}</span></span> },
-                    { key: "custodian", label: "Assigned To", render: (a) => (a.custodian ? <span>{empName[a.custodian] || a.custodian}<span className="block text-[11px] text-[var(--color-text-faint)]">{a.custom_assigned_on ? `since ${dmy(a.custom_assigned_on)}` : a.custodian}</span></span> : <span className="text-[var(--color-text-muted)]">{a.custom_returned_on ? `Returned ${dmy(a.custom_returned_on)}` : "In office"}</span>) },
+                    { key: "custodian", label: "With", render: (a) => (a.custodian ? <span><span className={track.empById[a.custodian]?.status === "Left" ? "text-[var(--color-red-hover)]" : ""}>{empName[a.custodian] || a.custodian}</span>{track.empById[a.custodian]?.status === "Left" && <span className="ml-1.5 text-[10.5px] font-semibold uppercase text-[var(--color-red-hover)]">Left</span>}<span className="block text-[11px] text-[var(--color-text-faint)]">{a.custom_assigned_on ? `since ${dmy(a.custom_assigned_on)}` : a.custodian}</span></span> : <span className="text-[var(--color-text-muted)]">Nobody<span className="block text-[11px] text-[var(--color-text-faint)]">{a.custom_returned_on ? `Returned ${dmy(a.custom_returned_on)}` : "Kept in the office"}</span></span>) },
                     { key: "custom_condition", label: "Condition", render: (a) => (a.custom_condition ? <StatusPill status={a.custom_condition} /> : "—") },
-                    { key: "location", label: "Location" },
+                    { key: "location", label: "Where", render: (a) => <span className="inline-flex items-center gap-1"><MapPin size={12} className="text-[var(--color-text-faint)]" />{a.location || "—"}</span> },
                     { key: "docstatus", label: "", render: (a) => (Number(a.docstatus) === 0 ? <StatusPill status="Draft" /> : <button type="button" onClick={() => setMoving(a)} className="flex items-center gap-1 text-[12px] text-[var(--color-red-hover)] hover:underline"><ArrowRightLeft size={13} /> {a.custodian ? "Reassign / return" : "Assign"}</button>) },
                   ]} />
                 )}
@@ -148,10 +158,10 @@ export default function Assets() {
       {importing && data.data && (
         <ImportModal file={importing.file} reg={importing.reg} employees={employees} assets={data.data.assets}
           onClose={() => setImporting(null)}
-          onDone={(text) => { setImporting(null); setMessage(text); data.reload(); files.reload(); }} />
+          onDone={(text) => { setImporting(null); setMessage(text); reloadAll(); files.reload(); }} />
       )}
-      {adding && data.data && <AddAssetModal employees={employees} assets={data.data.assets} onClose={() => setAdding(false)} onDone={(text) => { setAdding(false); setMessage(text); data.reload(); }} />}
-      {moving && <MoveModal asset={moving} employees={employees} onClose={() => setMoving(null)} onDone={(text) => { setMoving(null); setMessage(text); data.reload(); }} />}
+      {adding && data.data && <AddAssetModal employees={employees} assets={data.data.assets} onClose={() => setAdding(false)} onDone={(text) => { setAdding(false); setMessage(text); reloadAll(); }} />}
+      {moving && <MoveModal asset={moving} employees={employees} onClose={() => setMoving(null)} onDone={(text) => { setMoving(null); setMessage(text); reloadAll(); }} />}
     </div>
   );
 }

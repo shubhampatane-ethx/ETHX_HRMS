@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { NavLink, useLocation } from "react-router-dom";
-import { ChevronDown } from "lucide-react";
+import { Link, NavLink, useLocation } from "react-router-dom";
+import { ArrowLeftRight, ChevronDown } from "lucide-react";
 import { Brand } from "../Brand";
 import { useAuth } from "../../context/AuthContext";
 import { visibleNav } from "../../permissions/pageAccess";
 import { ClientSwitcher } from "./ClientSwitcher";
+import { VIEW_KEY } from "./navSections";
 
 /**
  * @param {{
@@ -12,10 +13,11 @@ import { ClientSwitcher } from "./ClientSwitcher";
  *   items: (
  *     | { to: string, label: string, icon?: React.ComponentType }
  *     | { label: string, icon?: React.ComponentType, children: { to: string, label: string }[] }
- *   )[]
+ *   )[],
+ *   switchTo?: { to: string, view: string, label: string }  // staff: switch between their own pages and their workspace
  * }} props
  */
-export function Sidebar({ title, items }) {
+export function Sidebar({ title, items, switchTo }) {
   const { pathname } = useLocation();
   const { user } = useAuth();
   const shown = visibleNav(user, items);
@@ -26,6 +28,16 @@ export function Sidebar({ title, items }) {
         <Brand size="sidebar" />
         <ClientSwitcher />
       </div>
+
+      {switchTo && (
+        <div className="border-b border-[var(--color-border)] px-3 py-3">
+          <Link to={switchTo.to} onClick={() => { try { localStorage.setItem(VIEW_KEY, switchTo.view); } catch { /* not critical */ } }}
+            className="flex items-center gap-2.5 rounded-md border border-dashed border-[color-mix(in_srgb,var(--color-red)_55%,transparent)] px-3 py-2 text-[13px] font-medium text-[var(--color-red-hover)] transition-colors hover:border-solid hover:bg-[var(--color-red-wash)]">
+            <ArrowLeftRight size={15} strokeWidth={1.9} />
+            {switchTo.label}
+          </Link>
+        </div>
+      )}
 
       <nav aria-label={title} className="flex-1 overflow-y-auto px-3 py-4">
         <ul className="space-y-0.5">

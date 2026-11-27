@@ -33,6 +33,16 @@ export function savedView() {
   try { return localStorage.getItem(VIEW_KEY); } catch { return null; }
 }
 
+/**
+ * The sidebar switch for staff: from their own pages to their HR / Projects workspace (workId "hr" or "pm"), or back.
+ * `view` is remembered on click, so the sidebar and dashboard agree straight away.
+ */
+export function switchLink(side, workId) {
+  return side === "self"
+    ? { to: `/employee?view=${workId}`, view: workId, label: workId === "hr" ? "Switch to HR Workspace" : "Switch to Projects Workspace" }
+    : { to: "/employee?view=self", view: "self", label: "Switch to My Self-Service" };
+}
+
 /** "self" or "work" for a staff member on this page. */
 export function staffView(pathname, search = "") {
   if (pathname !== "/employee" && !pathname.startsWith("/employee/")) return "work";
