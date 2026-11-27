@@ -67,6 +67,7 @@ function EventModal({ doc, onClose, onSaved }) {
   const emps = useAsync(() => listTry("Employee", { filters: [["status", "=", "Active"]], fields: ["name", "employee_name", "department"], orderBy: "employee_name asc" }, ["name", "employee_name"]), []);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [reason, setReason] = useState("");
   async function submit(e) {
     e.preventDefault();
     if (f.end <= f.start) return setErr("The end must be after the start.");
@@ -78,8 +79,28 @@ function EventModal({ doc, onClose, onSaved }) {
       let saved;
       if (doc?.docstatus === 0) saved = await frappe.updateDoc("Training Event", doc.name, body);
       else if (doc) {
-        await frappe.cancelDoc("Training Event", doc.name);
-        saved = await frappe.createDoc("Training Event", { ...body, amended_from: doc.name });
+        // Scheduled events are changed in place (System Setup lets these fields change after scheduling), so the event
+        // keeps its name, invitees, attendance and feedback, and the change is written to its history.
+        const rows = people.map((p) => {
+          const r = (doc.employees || []).find((x) => x.employee === p);
+          // Existing rows go back unchanged (every field), so nothing fixed after scheduling looks edited.
+          return r ? { ...r } : { employee: p, status: "Invited" };
+        });
+        const changes = { ...body };
+        delete changes.company; // fixed once scheduled
+        try {
+          await frappe.updateDoc("Training Event", doc.name, { ...changes, employees: rows });
+          const moved = toDt(f.start) !== String(doc.start_time).slice(0, 19) || toDt(f.end) !== String(doc.end_time).slice(0, 19);
+          const was = doc.event_status === "Cancelled" ? "Re-scheduled after being cancelled" : moved ? "Rescheduled" : "Updated";
+          await frappe.createDoc("Comment", { comment_type: "Info", reference_doctype: "Training Event", reference_name: doc.name, content: `${was}: ${dmyHm(doc.start_time)} → ${dmyHm(toDt(f.start))}${reason.trim() ? ` · Reason: ${reason.trim()}` : ""}` }).catch(() => {});
+          onSaved();
+          return;
+        } catch (x) {
+          // Sites where System Setup hasn't run yet: these fields are fixed after scheduling, so cancel and amend.
+          if (!/UpdateAfterSubmit|Not allowed to change/i.test(JSON.stringify(x?.response?.data || x?.message || ""))) throw x;
+          await frappe.cancelDoc("Training Event", doc.name);
+          saved = await frappe.createDoc("Training Event", { ...body, amended_from: doc.name });
+        }
       } else saved = await frappe.createDoc("Training Event", body);
       await frappe.submitDoc(await frappe.getDoc("Training Event", saved.name));
       onSaved();
@@ -90,7 +111,7 @@ function EventModal({ doc, onClose, onSaved }) {
   }
   const name = (id) => (emps.data || []).find((e) => e.name === id)?.employee_name || id;
   return (
-    <Modal title={doc ? `Edit or Reschedule: ${doc.event_name}` : "New Training Event"} onClose={onClose} wide>
+    <Modal title={doc ? `Edit, Reschedule or Postpone: ${doc.event_name}` : "New Training Event"} onClose={onClose} wide>
       <form onSubmit={submit} className="space-y-3">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Event Name"><input required className={inputCls} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
@@ -103,6 +124,7 @@ function EventModal({ doc, onClose, onSaved }) {
           <Field label="Trainer"><input className={inputCls} value={f.trainer} onChange={(e) => setF({ ...f, trainer: e.target.value })} /></Field>
         </div>
         <Field label="Introduction"><textarea rows={2} className={inputCls} value={f.intro} onChange={(e) => setF({ ...f, intro: e.target.value })} /></Field>
+        {doc && <Field label="Reason for the change (optional)" hint="Saved in the event's history, e.g. 'Trainer unavailable - postponed a week'."><input className={inputCls} value={reason} onChange={(e) => setReason(e.target.value)} /></Field>}
         <Field label="Invite Employees">
           <div className="flex gap-2"><select className={inputCls} value={pick} onChange={(e) => setPick(e.target.value)}><option value="">Choose…</option>{(emps.data || []).filter((e) => !people.includes(e.name)).map((e) => <option key={e.name} value={e.name}>{e.employee_name}{e.department ? ` · ${e.department}` : ""}</option>)}</select><Button type="button" variant="secondary" disabled={!pick} onClick={() => { setPeople([...people, pick]); setPick(""); }}>Add</Button></div>
         </Field>
@@ -153,7 +175,8 @@ function EventDetail({ event, onEdit, onClose }) {
             { key: "status", label: "Status", render: (r) => <StatusPill status={r.status} /> },
           ]} />
           {msg && <Notice tone={msg.ok ? "info" : "error"}>{msg.text}</Notice>}
-          {d.event_status === "Scheduled" && d.docstatus < 2 && <div className="flex flex-wrap justify-end gap-2"><Button variant="ghost" disabled={busy} onClick={() => save("Cancelled")}>Cancel Event</Button><Button variant="secondary" disabled={busy} onClick={() => onEdit(d)}><CalendarClock size={14} /> Edit / Reschedule</Button><Button disabled={busy} onClick={() => save("Completed")}>Mark Completed</Button></div>}
+          {d.event_status === "Scheduled" && d.docstatus < 2 && <div className="flex flex-wrap justify-end gap-2"><Button variant="ghost" disabled={busy} onClick={() => save("Cancelled")}>Cancel Event</Button><Button variant="secondary" disabled={busy} onClick={() => onEdit(d)}><CalendarClock size={14} /> Edit / Reschedule / Postpone</Button><Button disabled={busy} onClick={() => save("Completed")}>Mark Completed</Button></div>}
+          {d.event_status === "Cancelled" && d.docstatus === 1 && <div className="flex justify-end"><Button variant="secondary" disabled={busy} onClick={() => onEdit(d)}><CalendarClock size={14} /> Reschedule This Event</Button></div>}
           <p className="text-[11px] text-[var(--color-text-faint)]">Attendees see this training in their portal (Training &amp; Learning) and can give feedback there.</p>
         </div>
       )}

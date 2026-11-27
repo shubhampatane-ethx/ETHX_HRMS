@@ -36,6 +36,7 @@ const themeKey = (company) => company ? `hrms-theme:${company}` : "hrms-theme";
 export function getSavedTheme(company) {
   try {
     const saved = localStorage.getItem(themeKey(company));
+    if (saved) { try { localStorage.setItem("ethx:lastTheme", saved); } catch { /* storage blocked */ } }
     return isTheme(saved) ? saved : DEFAULT_THEME;
   } catch {
     return DEFAULT_THEME;
@@ -60,6 +61,7 @@ export function saveTheme(value, company) {
   document.documentElement.dataset.theme = theme;
   try {
     localStorage.setItem(themeKey(company), theme);
+    try { localStorage.setItem("ethx:lastTheme", theme); } catch { /* storage blocked */ }
   } catch {
     // Keep the selected theme active for this session if storage is unavailable.
   }

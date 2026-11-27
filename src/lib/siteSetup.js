@@ -22,6 +22,8 @@ import { PAGE_ACCESS_FIELDS, PAGE_ACCESS_SCRIPTS } from "./pageAccessSetup";
 import { FALLBACK_DOCTYPES } from "./doctypeSetup";
 import { PRESETS } from "./rolePresets";
 import { PROJECT_HR_PERMS, PROJECT_ROLE_DOCTYPES, PROJECT_ROLE_FIELDS, PROJECT_ROLE_SCRIPTS, PROJECT_ROLE_TRACK } from "./projectRoleSetup";
+import { LEAVE_TYPE_RECORDS, TRAINING_PROPERTIES, TRAINING_TRACK } from "./hrFixesSetup";
+import { QA_PROPERTIES, QA_SCRIPTS } from "./qaFixesSetup";
 
 export const MODULES = [
   // First, so later modules can add fields to doctypes created here.
@@ -45,6 +47,9 @@ export const MODULES = [
   { id: "projectRoles", label: "Project roles", doctypes: PROJECT_ROLE_DOCTYPES, fields: PROJECT_ROLE_FIELDS, scripts: PROJECT_ROLE_SCRIPTS, track: PROJECT_ROLE_TRACK, levelPerms: PROJECT_HR_PERMS },
   { id: "pageAccess", label: "Page access", fields: PAGE_ACCESS_FIELDS, scripts: PAGE_ACCESS_SCRIPTS, track: [] },
   { id: "contractors", label: "Contractors", records: CONTRACTOR_RECORDS, permissions: CONTRACTOR_PERMISSIONS, fields: CONTRACTOR_FIELDS, scripts: CONTRACTOR_SCRIPTS, retiredScripts: CONTRACTOR_RETIRED_SCRIPTS, track: [] },
+  { id: "training", label: "Training changes", fields: [], scripts: [], track: TRAINING_TRACK, properties: TRAINING_PROPERTIES },
+  { id: "leaveTypes", label: "Leave types", records: LEAVE_TYPE_RECORDS, fields: [], scripts: [], track: [] },
+  { id: "qaFixes", label: "Data checks (QA fixes)", fields: [], scripts: QA_SCRIPTS, track: [], properties: QA_PROPERTIES },
 ];
 
 const ALL_FIELDS = MODULES.flatMap((m) => m.fields);

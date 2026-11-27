@@ -31,7 +31,8 @@ async function resolveAccount(email) {
     // erpRoles keeps the real ERPNext roles (HR Manager vs HR User, Interviewer...) for finer checks such as approvals.
     // A System Manager is a platform admin (Admin workspace, which also opens the HR and PM workspaces) - not HR.
     // HR users created from Admin › Users only get HR Manager / HR User, so they stay in the HR workspace.
-    if (erpRoles.includes("System Manager")) return { roles: ["System Manager"], mustChangePassword: false, erpRoles };
+    // An admin who is also an employee keeps their own self-service (timesheet, leave, expenses, payslips).
+    if (erpRoles.includes("System Manager")) return { roles: appRolesFor(erpRoles), mustChangePassword: false, erpRoles };
     const roles = appRolesFor(erpRoles);
     if (roles.includes("HR User")) return { roles, mustChangePassword: false, erpRoles };
     if (roles.length) {

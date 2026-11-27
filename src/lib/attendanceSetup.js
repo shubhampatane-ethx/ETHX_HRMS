@@ -276,7 +276,15 @@ export const ATTENDANCE_FIELDS = [
   { dt: "Attendance Request", fieldname: "custom_decision_note", label: "Decision Note", fieldtype: "Small Text", read_only: 1, insert_after: "custom_decision" },
 ];
 
+// Saved attendance (submitted or cancelled history) can't be deleted; HR corrects a day with Edit, which cancels the
+// record and saves an amended copy, so every change stays visible. Drafts can still be deleted.
+const ATTENDANCE_NO_DELETE = `
+if frappe.session.user != "Administrator" and doc.docstatus != 0:
+    frappe.throw("Saved attendance can't be deleted. Use Edit on the Attendance page to correct the day - the previous entry is kept in the history.")
+`;
+
 export const ATTENDANCE_SCRIPTS = [
+  { name: "ETHX - Attendance can't be deleted", script_type: "DocType Event", reference_doctype: "Attendance", doctype_event: "Before Delete", script: ATTENDANCE_NO_DELETE, what: "Saved attendance can't be deleted (only corrected with Edit, which keeps the history)" },
   { name: "ETHX - Attendance request approver", script_type: "DocType Event", reference_doctype: "Attendance Request", doctype_event: "Before Insert", script: ATTENDANCE_REQUEST_ASSIGN, what: "Attendance requests go to the employee's leave approver (else their manager)" },
   { name: "ETHX - Attendance requests for me", script_type: "API", api_method: "ethx_attendance_requests", script: ATTENDANCE_REQUESTS_API, what: "Approvers see the attendance requests waiting for them" },
   { name: "ETHX - Attendance request decision", script_type: "API", api_method: "ethx_attendance_decision", script: ATTENDANCE_DECISION_API, what: "Only the assigned approver or HR approves or rejects an attendance request" },

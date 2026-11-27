@@ -2,17 +2,17 @@
 // projects (Project Manager assignments) and hours actually approved on timesheets - so planned load and real
 // utilisation are kept apart (gap G08). Bench = active people with nothing assigned in the month.
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { hasPermission } from "../../permissions/roles";
 import { Download, Gauge, Users } from "lucide-react";
 import { Button } from "../../components/ui/primitives";
-import { Async, chipCls, Grid, inputCls, PageHeader, Panel, Stat } from "../../components/employee/EmployeeShell";
+import { Async, chipCls, Grid, inputCls, Notice, PageHeader, Panel, Stat } from "../../components/employee/EmployeeShell";
 import { MONTHS, pad, useAsync } from "../../lib/employeePortal";
 import { listAssignments, parseAssignment } from "../../lib/assignments";
 import { frappe } from "../../lib/api/frappeClient";
 import { downloadCsv } from "../../lib/recruitment";
 import { loadMonth, summarise } from "../hr/TimesheetCompliance";
+import { QuickAssign } from "../pm/PMPages";
 
 const ACTIVE = ["Open", "Working", "Pending Review", "Overdue", "Completed"];
 
@@ -28,7 +28,9 @@ export default function Resources() {
   const [filter, setFilter] = useState("all");
   const { user } = useAuth();
   // Moving someone off the bench = giving them a project assignment for the month (Assignments, a Project Manager page).
-  const canAssign = hasPermission(user, "dashboard.pm");
+  const canAssign = ["dashboard.pm", "dashboard.hr", "dashboard.admin"].some((p) => hasPermission(user, p));
+  const [assigning, setAssigning] = useState(null); // { email, name } | null
+  const [done, setDone] = useState("");
   const data = useAsync(async () => {
     const [month, tasks, projects] = await Promise.all([loadMonth(ym.y, ym.m), listAssignments().catch(() => []), frappe.getList("Project", { fields: ["name", "project_name"], limit: 0 }).catch(() => [])]);
     const title = Object.fromEntries(projects.map((p) => [p.name, p.project_name || p.name]));
@@ -60,6 +62,8 @@ export default function Resources() {
         <Stat icon={Gauge} label="Actual Utilisation" value={data.data ? `${sum("expected") ? Math.round((sum("approved") / sum("expected")) * 100) : 0}%` : undefined} sub="Approved ÷ capacity" accent="var(--color-green)" />
         <Stat icon={Users} label="Over-Allocated" value={data.data ? rows.filter((r) => r.over).length : undefined} sub="Assigned more than capacity" accent="var(--color-red-hover)" />
       </div>
+      {done && <Notice tone="info">{done}</Notice>}
+      {assigning && <QuickAssign email={assigning.email} onClose={() => setAssigning(null)} onSaved={(text) => { setDone(text || `${assigning.name} is now allocated to a project.`); setAssigning(null); data.reload?.(); }} />}
       <Panel title={label} hint="Capacity = working days (holiday list - weekends are off if it has no weekly offs - or Mon–Fri) minus approved leave × 8 h. Assigned = PM assignments' hours per day × weekdays in the month. Approved = approved timesheet hours." action={<Button variant="secondary" disabled={!shown.length} onClick={() => downloadCsv(`resources-${ym.y}-${pad(ym.m + 1)}.csv`, ["Employee", "ID", "Department", "Capacity h", "Assigned h", "Approved h", "Planned load %", "Utilisation %", "Projects", "Bench"], shown.map((r) => [r.employee_name, r.name, r.department, r.expected, r.assigned.toFixed(1), r.approved.toFixed(1), r.load.toFixed(0), r.util.toFixed(0), r.projects.join("; "), r.bench ? "yes" : ""]))}><Download size={14} /> CSV</Button>}>
         <p className="mb-3 text-[12px] text-[var(--color-text-muted)]">Bench means no project assignment this month. To move someone to Allocated or give them another project, {canAssign ? "use Assign to Project or + Add Project on their row" : "ask a Project Manager to assign them under Assignments"} - with dates in this month.</p>
         <div className="mb-4 flex gap-2">{[["all", "Everyone"], ["bench", "Bench"], ["over", "Over-Allocated"], ["ok", "Allocated"]].map(([v, l]) => <button key={v} type="button" onClick={() => setFilter(v)} className={chipCls(filter === v)}>{l}</button>)}</div>
@@ -74,7 +78,7 @@ export default function Resources() {
             { key: "projects", label: "Projects", render: (r) => (
               <span className="flex flex-wrap items-center gap-1.5">
                 {r.bench ? <span className="text-[var(--color-amber)]">Bench</span> : r.projects.map((p) => <span key={p} className="rounded-full bg-[var(--color-surface-2)] px-2 py-0.5 text-[11px] text-[var(--color-text)]">{p}</span>)}
-                {canAssign && r.user_id && <Link to={`/pm/assignments?assign=1&person=${encodeURIComponent(r.user_id)}`} className="whitespace-nowrap rounded-md border border-[var(--color-border-strong)] px-2 py-0.5 text-[11px] text-[var(--color-text)] hover:border-[var(--color-red)]">{r.bench ? "Assign to Project" : "+ Add Project"}</Link>}
+                {canAssign && r.user_id && <button type="button" onClick={() => setAssigning({ email: r.user_id, name: r.employee_name || r.user_id })} className="whitespace-nowrap rounded-md border border-[var(--color-border-strong)] px-2 py-0.5 text-[11px] text-[var(--color-text)] hover:border-[var(--color-red)]">{r.bench ? "Assign to Project" : "+ Add Project"}</button>}
               </span>
             ) },
           ]} />}

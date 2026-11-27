@@ -1,0 +1,90 @@
+name: Merge & deploy to staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "What to do"
+        type: choice
+        options: [merge-and-deploy, deploy-only]
+        default: merge-and-deploy
+      source_branch:
+        description: "Branch to merge into staging (ignored for deploy-only)"
+        type: string
+        default: feat/recruitment
+      on_conflict:
+        description: "If the merge has conflicts"
+        type: choice
+        options: [stop, prefer-incoming]
+        default: stop
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  merge:
+    name: Merge into staging
+    if: inputs.action == 'merge-and-deploy'
+    runs-on: ubuntu-latest
+    env:
+      SRC: ${{ inputs.source_branch }}
+      ON_CONFLICT: ${{ inputs.on_conflict }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: staging
+          fetch-depth: 0
+      - name: Merge source branch
+        run: |
+          if ! [[ "$SRC" =~ ^[A-Za-z0-9._/-]+$ ]] || [ "$SRC" = "staging" ]; then echo "::error::Invalid source branch '$SRC'"; exit 1; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git fetch origin "$SRC"
+          if [ "$ON_CONFLICT" = "prefer-incoming" ]; then
+            git merge --no-ff -X theirs "origin/$SRC" -m "Merge $SRC into staging (prefer incoming)"
+          elif ! git merge --no-ff "origin/$SRC" -m "Merge $SRC into staging"; then
+            echo "::error::Merge conflicts - nothing was pushed or deployed. Conflicting files:"
+            git diff --name-only --diff-filter=U
+            exit 1
+          fi
+      - name: Check earlier fixes are still in the code
+        run: bash .github/scripts/check-protected-fixes.sh
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Build (must pass before anything is pushed)
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+      - name: Push staging
+        run: |
+          if [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/staging)" ]; then echo "staging already contains $SRC - nothing to push"; else git push origin HEAD:staging; fi
+
+  deploy:
+    name: Deploy to server
+    needs: merge
+    if: always() && (needs.merge.result == 'success' || needs.merge.result == 'skipped')
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Decode deploy key
+        id: key
+        env:
+          B64: ${{ secrets.SERVER_SSH_KEY_B64 }}
+        run: |
+          { echo "pem<<KEYEOF"; echo "$B64" | base64 -d; echo "KEYEOF"; } >> "$GITHUB_OUTPUT"
+      - name: Pull staging on the server, rebuild and health-check
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ steps.key.outputs.pem }}
+          port: 22
+          command_timeout: 20m
+          script: |
+            cd ~/HRMS/ETHX_HRMS && git fetch origin && git checkout staging && git pull --ff-only origin staging && bash .github/scripts/server-deploy.sh

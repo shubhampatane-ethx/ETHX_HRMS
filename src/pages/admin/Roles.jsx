@@ -353,7 +353,7 @@ function AccountCheck() {
       const roles = (user.roles || []).map((r) => r.role);
       const isHr = roles.some((r) => r === "HR Manager" || r === "HR User");
       const base = isHr ? HR_PRESET : roles.includes("Projects Manager") ? PM_PRESET : roles.includes("Employee") ? PRESETS.Employee : [];
-      const wanted = roles.includes("Interviewer") && !isHr ? [...base, ...INTERVIEWER_PRESET] : base;
+      const wanted = roles.includes("Interviewer") && !isHr ? [...base, ...PRESETS.Interviewer] : base;
       const lines = await Promise.all(wanted.map(async (p) => {
         const rows = await getPerms(p.doctype);
         return { ...p, missing: missingFlags(rows, roles, p.perms, p.permlevel ?? 0) };

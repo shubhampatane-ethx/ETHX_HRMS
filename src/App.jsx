@@ -91,6 +91,8 @@ const DoctypeView = lazy(() => import("./pages/hr/DoctypeView"));
 const Policies = lazy(() => import("./pages/hr/Policies"));
 const Assets = lazy(() => import("./pages/hr/Assets"));
 const Offices = lazy(() => import("./pages/hr/Offices"));
+const EmployeeGroups = lazy(() => import("./pages/hr/EmployeeGroups"));
+const LeaveTypes = lazy(() => import("./pages/hr/LeaveTypes"));
 const EmployeeRequests = lazy(() => import("./pages/hr/EmployeeRequests"));
 const Announcements = lazy(() => import("./pages/hr/Announcements"));
 
@@ -193,6 +195,8 @@ export default function App() {
               <Route path="announcements" element={<Announcements />} />
               <Route path="communication" element={<HrCommunication />} />
               <Route path="offices" element={<Offices />} />
+              <Route path="employee-groups" element={<EmployeeGroups />} />
+              <Route path="leave-types" element={<LeaveTypes />} />
               <Route path="setup/expense-claim" element={<ExpenseClaims />} />
               <Route path="setup/attendance-request" element={<AttendanceRequests />} />
               <Route path="setup/employee-advance" element={<EmployeeAdvances />} />

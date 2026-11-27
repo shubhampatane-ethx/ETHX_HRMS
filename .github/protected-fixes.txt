@@ -1,0 +1,16 @@
+# path|text that must still be in the file after any merge
+src/lib/qaFixesSetup.js|QA_SCRIPTS
+src/lib/siteSetup.js|qaFixesSetup
+src/lib/siteSetup.js|hrFixesSetup
+src/lib/securitySetup.js|bank_ac_no
+src/lib/attendanceSetup.js|can't be deleted
+src/App.jsx|path="leave-types"
+src/App.jsx|path="employee-groups"
+src/pages/hr/Attendance.jsx|Delete draft
+src/pages/hr/Employees.jsx|/hr/employee-groups
+src/pages/hr/Training.jsx|Reschedule
+src/pages/employee/EmployeePages.jsx|aria-label="Month"
+src/pages/pm/PMPages.jsx|export function QuickAssign
+src/pages/shared/Resources.jsx|QuickAssign
+src/lib/theme.js|ethx:lastTheme
+index.html|theme-init.js

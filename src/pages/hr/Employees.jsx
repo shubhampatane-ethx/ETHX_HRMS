@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { AlertTriangle, Check, Copy, Edit3, HardHat, KeyRound, Plus, RefreshCw, Search, Trash2, UserCheck, Users, UserX, X } from "lucide-react";
 import { frappe } from "../../lib/api/frappeClient";
 import { dmy, dmyHm, errMsg, getMyDocuments, isoDate, useAsync } from "../../lib/employeePortal";
@@ -322,6 +322,7 @@ export default function Employees({ contractorsOnly = false }) {
           </div>
           <div className="flex gap-2">
             <Button variant="secondary" onClick={load} disabled={state === "loading"}><RefreshCw size={14} className={state === "loading" ? "animate-spin" : ""} /> Refresh</Button>
+            {!contractorsOnly && <Link to="/hr/employee-groups"><Button variant="secondary"><Users size={14} /> Employee Groups</Button></Link>}
             {!contractorsOnly && <Button onClick={() => { setEditing(null); setFormOpen(true); }}><Plus size={14} /> Add Employee</Button>}
             <Button variant={contractorsOnly ? "primary" : "secondary"} onClick={() => setAddingContractor(true)}><HardHat size={14} /> Add Contractor</Button>
           </div>
